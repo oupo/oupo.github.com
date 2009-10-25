@@ -36,12 +36,12 @@ function on_submit(ev) {
 	var procedure = new SearchSeedProcedure(target_seed >>> 16, roads, roads_on_save, arrow_second_lag, row_head, row_tail);
 	(function loop() {
 		var result = procedure.run(500);
-		if (result === null) {
-			last();
-			return;
-		}
 		for (var i = 0; i < result.length; i ++) {
 			buf.push(hex(result[i].seed)+": "+roads.join(",")+" ("+result[i].consuption+")");
+		}
+		if (procedure.isFinished()) {
+			last();
+			return;
 		}
 		textarea_update();
 		setTimeout(loop, 0);
@@ -94,8 +94,11 @@ SearchSeedProcedure.prototype.run = function(timeout) {
 			}
 		}
 	}
+	this.finished = true;
 	return result;
 }
+
+SearchSeedProcedure.prototype.isFinished = function() { return this.finished; };
 
 function roads_is_johto_array(roads) {
 	var result = [];
