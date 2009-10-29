@@ -315,7 +315,7 @@ function draw_spot_dot(canvas, x, y) {
 	var ctx = canvas.getContext("2d");
 	var color_id = spinda_src[y * spinda_w + x];
 	if (color_id >= (mouse_overed ? 3 : 2)) return; // マウスオーバー時には透過部分にもはみ出して描画
-	if (y >= 47 && color_id != 2) return; // 首から下には重なって描画しない
+	if (y >= 48 && color_id != 2) return; // 首から下には重なって描画しない
 	ctx.fillStyle = color_id == 1 ? "#bd4a31" : "#ef524a"; // 下の色が影ならブチの色も影に
 	ctx.fillRect(x, y, 1, 1);
 }
