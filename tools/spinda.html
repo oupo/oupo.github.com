@@ -5,12 +5,16 @@
 <meta http-equiv="Content-Script-Type" content="text/javascript">
 <meta http-equiv="Content-Style-Type" content="text/css">
 <title>パッチールペインタDPt版</title>
+<script type="text/xaml" id="xaml"><?xml version="1.0"?>
+<Canvas xmlns="http://schemas.microsoft.com/client/2007"></Canvas></script>
+<script type="text/javascript" src="uuCanvas.js"></script>
+<script type="text/javascript" src="jquery.js"></script>
 <script type="text/javascript">
 var addEvent =
  window.addEventListener ? function(e, n, f) { e.addEventListener(n, f, false); }
                          : function(e, n, f) { e.attachEvent("on" + n, f); };
 
-addEvent(window, "load", main);
+addEvent(window, "load", function() { uuCanvas.ready(main) });
 
 var spinda_src;
 var spinda_palette = [0xe7d6a5, 0xcea573, 0x000000, 0xef524a, 0xbd4a31, 0x7b4231, 0x735242, 0x101010, 0x9c845a, 0xe76373, 0xf7efbd, 0xef947b];
@@ -22,7 +26,7 @@ var spinda_spots = [gen_spot_pattern(32, 25, 9, 10, 3),
                     gen_spot_pattern(41,  9, 8,  8, 2),
                     gen_spot_pattern(17,  7, 8,  8, 2)];
 var zoom = 8;
-var main_canvas;
+var spots_canvases = [];
 var pid = null;
 var dragging_id = null;
 var drag_x, drag_y;
@@ -33,23 +37,50 @@ var clip = {x: 17, y: 7, w: 47, h: 58};
 function main() {
 	initialize_spinda_src();
 	
-	main_canvas = document.getElementById("canvas");
-	main_canvas.width = clip.w * zoom;
-	main_canvas.height = clip.h * zoom;
-	main_canvas.style.position = "relative"; // for layerX, layerY in Firefox
+	var div = document.getElementById("canvas-area");
+	div.style.position = "relative";
+	div.style.width = clip.w * zoom + "px";
+	div.style.height = clip.h * zoom + "px";
+	
+	var background_canvas = new_canvas(clip.w * zoom, clip.h * zoom);
+	div.appendChild(background_canvas);
+	background_canvas.style.position = "absolute";
+	draw_background(background_canvas, spinda_src);
+	
+	var grid_canvas = new_canvas(clip.w * zoom, clip.h * zoom);
+	div.appendChild(grid_canvas);
+	grid_canvas.style.position = "absolute";
+	grid_canvas.style.display = "none";
+	draw_grid(grid_canvas, zoom, clip.w, clip.h);
+	
+	for (var i = 0; i < 4; i ++) {
+		var spot = spinda_spots[i];
+		var canvas = new_canvas(spot.width * zoom, spot.height * zoom);
+		div.appendChild(canvas);
+		canvas.className = "spot_canvas";
+		spots_canvases[i] = canvas;
+		canvas.style.position = "absolute";
+		draw_spot(canvas, spot);
+		addEvent(canvas, "mousedown", gen_onmousedown(i));
+	}
 	
 	addEvent(document.getElementById("pid_input"), "keyup", draw_from_input_value);
-	addEvent(main_canvas, "mousedown", onmousedown);
-	addEvent(main_canvas, "mousemove", onmousemove);
-	addEvent(main_canvas, "mouseup", onmouseup);
-	addEvent(main_canvas, "mouseover", function() { mouse_overed = true; draw(); });
-	addEvent(main_canvas, "mouseout", function() { mouse_overed = false; draw(); });
+	addEvent(div, "mousemove", on_mousemove);
+	addEvent(div, "mouseup", on_mouseup);
+	addHoverEvent(div, function() {
+		grid_canvas.style.display = "";
+		mouse_overed = true;
+	}, function() {
+		grid_canvas.style.display = "none";
+		mouse_overed = false;
+	});
 	
 	draw_from_input_value();
 	if (pid === null) {
 		pid = 0;
 		draw();
 	}
+
 }
 
 function draw_from_input_value() {
@@ -60,60 +91,30 @@ function draw_from_input_value() {
 	}
 }
 
-function main_x_to_picture_x(x) {
-	return Math.floor(x / zoom) + clip.x;
+function gen_onmousedown(spot_id) {
+	return function(e) {
+		stopEvent(e);
+		dragging_id = spot_id;
+		var offset = $(spots_canvases[spot_id]).offset();
+		drag_x = Math.floor((pointerX(e) - offset.left) / zoom);
+		drag_y = Math.floor((pointerY(e) - offset.top) / zoom);
+	}
 }
 
-function main_y_to_picture_y(y) {
-	return Math.floor(y / zoom) + clip.y;
-}
-
-function onmousedown(e) {
-	var target = e.target;
-	if (!elementWithIn(main_canvas, target)) return;
+var globalcount = 0
+function on_mousemove(e) {
 	stopEvent(e);
-	var x, y;
-	if(e.offsetX != undefined) {
-		x = e.offsetX;
-		y = e.offsetY;
-	} else {
-		x = e.layerX;
-		y = e.layerY;
-	}
-	var picture_x = main_x_to_picture_x(x);
-	var picture_y = main_y_to_picture_y(y);
-	var pos, i;
-	for (i = 0; i < 4; i ++) {
-		pos = get_spot_pos(i, pid);
-		if (pos.x <= picture_x && picture_x < pos.x + pos.w &&
-		    pos.y <= picture_y && picture_y < pos.y + pos.h) {
-			break;
-		}
-	}
-	if (i == 4) return;
-	dragging_id = i;
-	drag_x = picture_x - pos.x
-	drag_y = picture_y - pos.y;
-}
-
-function onmousemove(e) {
-	var target = e.target;
 	if (dragging_id === null) return;
-	if (!elementWithIn(main_canvas, target)) return;
-	var x, y;
-	if(e.offsetX != undefined) {
-		x = e.offsetX;
-		y = e.offsetY;
-	} else {
-		x = e.layerX;
-		y = e.layerY;
-	}
+	var offset = $("#canvas-area").offset();
+	var x = pointerX(e) - offset.left;
+	var y = pointerY(e) - offset.top;
+	
 	var i = dragging_id;
 	var spot = spinda_spots[i];
-	var x_offset = main_x_to_picture_x(x) - spot.left_min - drag_x;
+	var x_offset = Math.floor(x / zoom) + clip.x - spot.left_min - drag_x;
 	if (x_offset < 0) x_offset = 0;
 	if (x_offset >= 15) x_offset = 15;
-	var y_offset = main_y_to_picture_y(y) - spot.top_min - drag_y;
+	var y_offset = Math.floor(y / zoom) + clip.y - spot.top_min -  drag_y;
 	if (y_offset < 0) y_offset = 0;
 	if (y_offset >= 15) y_offset = 15;
 	pid = fix_pid(pid, i, x_offset, y_offset);
@@ -121,8 +122,26 @@ function onmousemove(e) {
 	draw();
 }
 
-function onmouseup(e) {
-	onmousemove(e);
+// from prototype.js
+function pointerX(event) {
+	var docElement = document.documentElement,
+	    body = document.body || { scrollLeft: 0 };
+
+	return event.pageX || (event.clientX +
+	        (docElement.scrollLeft || body.scrollLeft) -
+	        (docElement.clientLeft || 0));
+}
+
+function pointerY(event) {
+	var docElement = document.documentElement,
+	    body = document.body || { scrollTop: 0 };
+
+	return event.pageY || (event.clientY +
+           (docElement.scrollTop || body.scrollTop) -
+	       (docElement.clientTop || 0));
+}
+
+function on_mouseup(e) {
 	dragging_id = null;
 }
 
@@ -137,19 +156,16 @@ function stopEvent(event) {
 }
 
 function draw() {
-	var work = spinda_src.slice();
-	draw_spots(work, pid);
-	var ctx = main_canvas.getContext("2d");
-	ctx.clearRect(0, 0, main_canvas.width, main_canvas.height);
-	draw_main_canvas(main_canvas, work);
-	if (mouse_overed) {
-		ctx.fillStyle = 'rgba(0,0,0,0.2)';
-		draw_grid(main_canvas, zoom, spinda_w, spinda_h);
+	for (var i = 0; i < 4; i ++) {
+		var canvas = spots_canvases[i];
+		var pos = get_spot_pos(i, pid);
+		canvas.style.left = (pos.x - clip.x) * zoom + "px";
+		canvas.style.top  = (pos.y - clip.y) * zoom + "px";
 	}
 	update_nature();
 }
 
-function draw_main_canvas(canvas, src) {
+function draw_background(canvas, src) {
 	var ctx = canvas.getContext("2d");
 	var left = clip.x;
 	var top = clip.y;
@@ -272,30 +288,25 @@ function get_spot_pos(i, pid) {
 	        offset_y: y};
 }
 
-function draw_spots(pixels, pid) {
-	for (var i = 0; i < 4; i ++) {
-		var pos = get_spot_pos(i, pid);
-		draw_spot(pixels, spinda_spots[i], pos);
-	}
-}
-
-function draw_spot(pixels, spot, pos) {
-	var x = pos.x, y = pos.y;
-	var w = pos.w, h = pos.h;
+function draw_spot(canvas, spot) {
+	var ctx = canvas.getContext("2d");
+	ctx.fillStyle = color_to_hex_str(spinda_palette[3]);
+	var w = spot.width, h = spot.height;
 	var space = spot.space;
-	draw_spot_dots(pixels, x + space, y, w - space * 2, 1);
-	draw_spot_dots(pixels, x + space, y + h - 1, w - space * 2, 1);
-	draw_spot_dots(pixels, x, y + 2, 1, h - 4);
-	draw_spot_dots(pixels, x + w - 1, y + 2, 1, h - 4);
-	draw_spot_dots(pixels, x + 1, y + 1, w - 2, h - 2);
+	draw_spot_dots(ctx, spot, space, 0, w - space * 2, 1);
+	draw_spot_dots(ctx, spot, space, h - 1, w - space * 2, 1);
+	draw_spot_dots(ctx, spot, 0, 2, 1, h - 4);
+	draw_spot_dots(ctx, spot, w - 1, 2, 1, h - 4);
+	draw_spot_dots(ctx, spot, 1, 1, w - 2, h - 2);
 }
 
-function draw_spot_dots(pixels, left, top, w, h) {
+function draw_spot_dots(ctx, spot, left, top, w, h) {
 	var bottom = top + h;
 	var right = left + w;
 	for (y = top; y < bottom; y ++) {
 		for (x = left; x < right; x ++) {
-			draw_spot_dot(pixels, x, y);
+			//draw_spot_dot(pixels, x, y);
+			ctx.fillRect(x * zoom, y * zoom, zoom, zoom);
 		}
 	}
 }
@@ -314,6 +325,7 @@ if (window.CanvasRenderingContext2D && !CanvasRenderingContext2D.prototype.creat
 
 function draw_grid(canvas, zoom, w, h) {
 	var ctx = canvas.getContext("2d");
+	ctx.fillStyle =  'rgba(0,0,0,0.2)';
 	for (var x = 0; x < w; x ++) {
 		ctx.fillRect(x * zoom, 0, 1, h * zoom);
 	}
@@ -326,34 +338,54 @@ function new_canvas(width, height) {
 	var canvas = document.createElement("canvas");
 	canvas.width = width;
 	canvas.height = height;
-	return canvas;
+	return uuCanvas.init(canvas);
 }
 
 function elementWithIn(elem1, elem2) {
 	// elem2 が elem1 と同一の要素か、elem1 の子孫要素のとき true を返す
-	if (elem1 == elem2) return true;
-	if (elem1.compareDocumentPosition) {
-		return (elem1.compareDocumentPosition(elem2) & 16) != 0;
-	} else {
-		var elem = elem2;
-		while ((elem = elem.parentNode)) {
-			if (elem == elem1) return true;
-		}
-		return false;
+	var elem = elem2;
+	while (elem) {
+		if (elem === elem1) return true;
+		 elem = elem.parentNode;
 	}
+	return false;
 }
 
 function hex(n) {
 	return "0x" + ("00000000"+n.toString(16)).slice(-8);
 }
 
+function addHoverEvent(element, fnOver, fnOut) {
+	var isOvered = false;
+	function overHandler(e) {
+		if (isOvered) return;
+		isOvered = true;
+		fnOver.call(element, e);
+	}
+	function outHandler(e) {
+		if (!isOvered) return;
+		var node=e.toElement || e.relatedTarget;
+		if (!elementWithIn(element, e.toElement || e.relatedTarget)) {
+			isOvered = false;
+			fnOut.call(element, e);
+		}
+	}
+	addEvent(element, "mouseover", overHandler);
+	addEvent(element, "mouseout", outHandler);
+}
+
 </script>
+<style type="text/css">
+.spot_canvas {
+	cursor: move;
+}
+</style>
 </head>
 <body>
 <h1>パッチールペインタDPt版</h1>
 <p>
 性格値: <input type="text" size="20" id="pid_input" value="0x65492BDA"> <span id="nature"></span>
 </p>
-<canvas width="1" height="1" id="canvas"></canvas>
+<div id="canvas-area"></div>
 </body>
 </html>
