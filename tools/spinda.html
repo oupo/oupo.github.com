@@ -95,6 +95,9 @@ function draw_from_input_value() {
 function gen_onmousedown(spot_id) {
 	return function(e) {
 		stopEvent(e);
+		if (dragging_id !== null) {
+			spots_canvases[dragging_id].style.zIndex = "";
+		}
 		dragging_id = spot_id;
 		var offset = $(spots_canvases[spot_id]).offset();
 		drag_x = Math.floor((pointerX(e) - offset.left) / zoom);
@@ -102,6 +105,7 @@ function gen_onmousedown(spot_id) {
 		// IEでドラッグ中の動作を速くするために、
 		// 線を無視して模様を描画し、ドラッグ中は再描画せず位置だけ変更
 		draw_spot(spot_id, true);
+		spots_canvases[dragging_id].style.zIndex = 1;
 	}
 }
 
@@ -128,6 +132,7 @@ function on_mousemove(e) {
 function on_mouseup(e) {
 	if (dragging_id !== null) {
 		draw(dragging_id);
+		spots_canvases[dragging_id].style.zIndex = "";
 		dragging_id = null;
 	}
 }
@@ -316,7 +321,7 @@ function draw_spot(spot_id, pure) {
 	draw_spot_dots(ctx, spot, pos, fn, w - 1, 2, 1, h - 4);
 	draw_spot_dots(ctx, spot, pos, fn, 1, 1, w - 2, h - 2);
 	if (mouse_overed) {
-		draw_grid(canvas, zoom, spot.width, spot.height);
+		draw_spot_grid(canvas, zoom, spot);
 	}
 }
 
@@ -356,6 +361,32 @@ function draw_grid(canvas, zoom, w, h) {
 	for (var y = 0; y < h; y ++) {
 		ctx.fillRect(0, y * zoom, w * zoom, 1);
 	}
+}
+
+function draw_spot_grid(canvas, zoom, spot) {
+	var ctx = canvas.getContext("2d");
+	var w = spot.width, h = spot.height;
+	var space = spot.space;
+	var space_y = space === 3 ? 1 : 0;
+	ctx.fillStyle =  'rgba(0,0,0,0.2)';
+	ctx.fillRect(0 * zoom, 2 * zoom, 1, (h - 4) * zoom);
+	ctx.fillRect(1 * zoom, 1 * zoom, 1, (h - 2) * zoom);
+	ctx.fillRect(2 * zoom, space_y * zoom, 1, (h - space_y * 2) * zoom);
+	for (var x = 3; x < (w - 3); x ++) {
+		ctx.fillRect(x * zoom, 0, 1, h * zoom);
+	}
+	ctx.fillRect((w - 3) * zoom, space_y * zoom, 1, (h - space_y * 2) * zoom);
+	ctx.fillRect((w - 2) * zoom, 1 * zoom, 1, (h - 2) * zoom);
+	ctx.fillRect((w - 1) * zoom, 2 * zoom, 1, (h - 4) * zoom);
+	
+	ctx.fillRect(space * zoom, 0 * zoom, (w - space * 2) * zoom, 1);
+	ctx.fillRect(1 * zoom, 1 * zoom, (w - 2) * zoom, 1);
+	for (var y = 2; y < (h - 2); y ++) {
+		ctx.fillRect(0, y * zoom, w * zoom, 1);
+	}
+	ctx.fillRect(1 * zoom, (h - 2) * zoom, (w - 2) * zoom, 1);
+	ctx.fillRect(space * zoom, (h - 1) * zoom, (w - space * 2) * zoom, 1);
+	
 }
 
 function new_canvas(width, height) {
