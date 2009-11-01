@@ -99,6 +99,9 @@ function gen_onmousedown(spot_id) {
 		var offset = $(spots_canvases[spot_id]).offset();
 		drag_x = Math.floor((pointerX(e) - offset.left) / zoom);
 		drag_y = Math.floor((pointerY(e) - offset.top) / zoom);
+		// IEでドラッグ中の動作を速くするために、
+		// 線を無視して模様を描画し、ドラッグ中は再描画せず位置だけ変更
+		draw_spot(spot_id, true);
 	}
 }
 
@@ -119,11 +122,14 @@ function on_mousemove(e) {
 	if (y_offset >= 15) y_offset = 15;
 	pid = fix_pid(pid, i, x_offset, y_offset);
 	document.getElementById("pid_input").value = hex(pid);
-	draw(dragging_id);
+	draw(DRAW_SPOT_ID_NONE);
 }
 
 function on_mouseup(e) {
-	dragging_id = null;
+	if (dragging_id !== null) {
+		draw(dragging_id);
+		dragging_id = null;
+	}
 }
 
 // from prototype.js
@@ -155,15 +161,17 @@ function stopEvent(event) {
 	}
 }
 
+var DRAW_SPOT_ID_NONE = -1;
+
 function draw(redraw_spot_id) {
+	var all = redraw_spot_id === undefined;
 	for (var i = 0; i < 4; i ++) {
 		var canvas = spots_canvases[i];
-		var spot = spinda_spots[i];
 		var pos = get_spot_pos(i, pid);
 		canvas.style.left = (pos.x - clip.x) * zoom + "px";
 		canvas.style.top  = (pos.y - clip.y) * zoom + "px";
-		if (redraw_spot_id === undefined || i === redraw_spot_id) {
-			draw_spot(canvas, spot, pos);
+		if (all || i === redraw_spot_id) {
+			draw_spot(i);
 		}
 	}
 	update_nature();
@@ -292,25 +300,32 @@ function get_spot_pos(i, pid) {
 	        offset_y: y};
 }
 
-function draw_spot(canvas, spot, pos) {
+function draw_spot(spot_id, pure) {
+	var canvas = spots_canvases[spot_id];
+	var spot = spinda_spots[spot_id];
+	var pos = get_spot_pos(spot_id, pid);
 	var ctx = canvas.getContext("2d");
 	ctx.clearRect(0, 0, canvas.width, canvas.height);
 	ctx.fillStyle = color_to_hex_str(spinda_palette[3]);
 	var space = spot.space;
 	var w = spot.width, h = spot.height;
-	draw_spot_dots(ctx, spot, pos, space, 0, w - space * 2, 1);
-	draw_spot_dots(ctx, spot, pos, space, h - 1, w - space * 2, 1);
-	draw_spot_dots(ctx, spot, pos, 0, 2, 1, h - 4);
-	draw_spot_dots(ctx, spot, pos, w - 1, 2, 1, h - 4);
-	draw_spot_dots(ctx, spot, pos, 1, 1, w - 2, h - 2);
+	var fn = pure ? draw_spot_dot_pure : draw_spot_dot;
+	draw_spot_dots(ctx, spot, pos, fn, space, 0, w - space * 2, 1);
+	draw_spot_dots(ctx, spot, pos, fn, space, h - 1, w - space * 2, 1);
+	draw_spot_dots(ctx, spot, pos, fn, 0, 2, 1, h - 4);
+	draw_spot_dots(ctx, spot, pos, fn, w - 1, 2, 1, h - 4);
+	draw_spot_dots(ctx, spot, pos, fn, 1, 1, w - 2, h - 2);
+	if (mouse_overed) {
+		draw_grid(canvas, zoom, spot.width, spot.height);
+	}
 }
 
-function draw_spot_dots(ctx, spot, pos, left, top, w, h) {
+function draw_spot_dots(ctx, spot, pos, fn, left, top, w, h) {
 	var bottom = top + h;
 	var right = left + w;
 	for (y = top; y < bottom; y ++) {
 		for (x = left; x < right; x ++) {
-			draw_spot_dot(ctx, spot, pos, x, y);
+			fn(ctx, spot, pos, x, y);
 		}
 	}
 }
@@ -321,6 +336,10 @@ function draw_spot_dot(ctx, spot, pos, x, y) {
 	if (color_id >= (mouse_overed ? 3 : 2)) return; // マウスオーバー時には透過部分にもはみ出して描画
 	if (y + pos.y >= 48 && color_id != 2) return; // 首から下には重なって描画しない
 	ctx.fillStyle = color_to_hex_str(spinda_palette[color_id == 1 ? 4 : 3]); // 下の色が影ならブチの色も影に
+	ctx.fillRect(x * zoom, y * zoom, zoom, zoom);
+}
+
+function draw_spot_dot_pure(ctx, spot, pos, x, y) {
 	ctx.fillRect(x * zoom, y * zoom, zoom, zoom);
 }
 
