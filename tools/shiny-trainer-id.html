@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<meta http-equiv="Content-Script-Type" content="text/javascript">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<title>性格値→色違いが出るトレーナーIDの初期seed</title>
+<script type="text/javascript" src="mt.js"></script>
+<script type="text/javascript">
+var timer_id = null;
+var resume = null;
+
+function on_submit() {
+	if (timer_id !== null) {
+		clearTimeout(timer_id);
+	}
+	var f = document.forms.f;
+	var pid = read_int_string(f.pid.value);
+	var seed_row_min = read_int_string(f.seed_row_min.value);
+	var procedure = new SearchSeedProcedure(pid, seed_row_min);
+	var buf = [];
+	var output = $("output");
+	var progress = $("progress");
+	var button = $("stop-button");
+	button.value = "停止";
+	button.disabled = false;
+	resume = loop;
+	loop();
+	function loop() {
+		var result = procedure.run(500);
+		for (var i = 0; i < result.length; i ++) {
+				buf.push("初期seed: "+format_hex(result[i].seed, 8)+
+				         " 表ID: "+format_dec(result[i].id, 5)+
+				         " 裏ID: "+format_dec(result[i].sid, 5));
+		}
+		output.value = buf.join("\n");
+		progress.innerHTML = "検索中... 進捗:"+procedure.count;
+		timer_id = setTimeout(loop, 0);
+	}
+}
+
+function on_click(e) {
+	if (timer_id !== null) {
+		clearTimeout(timer_id);
+		timer_id = null;
+		$("stop-button").value = "再開";
+		return;
+	}
+	if (resume !== null) {
+		resume();
+		$("stop-button").value = "停止";
+	}
+}
+
+function SearchSeedProcedure(pid, seed_row_min) {
+	this.pid = pid;
+	this.search_value = ((pid >>> 16) ^ (pid & 0xffff)) & ~7;
+	this.seed_row_min = seed_row_min;
+	this.row = seed_row_min;
+	this.h2 = 0;
+	this.count = 0;
+	this.hitCount = 0;
+	this.mt = new MersenneTwister(0);
+}
+
+SearchSeedProcedure.prototype.run = function(timeout) {
+	var start_time = +new Date;
+	var result = [];
+	var start_row = this.row;
+	var mt = this.mt;
+	var search_value = this.search_value;
+	for (;; this.row ++) {
+		var row = this.row;
+		var h2 = 0;
+		if (row === start_row) h2 = this.h2;
+		
+		for (; h2 < 24; h2 ++) {
+			for (var h1 = 0; h1 < 0x100; h1 ++) {
+				var seed = (h1 << 24 | h2 << 16 | row) >>> 0;
+				mt.setSeed(seed);
+				mt.nextInt();
+				var id = mt.nextInt();
+				if ((((id >>> 16) ^ (id & 0xffff)) & ~7) === search_value) {
+					result.push({seed: seed, id: id & 0xffff, sid: id >>> 16});
+					this.hitCount ++;
+				}
+			}
+			this.count += 0x100;
+			if (new Date - start_time >= timeout) {
+				this.h2 = h2 + 1;
+				return result;
+			}
+		}
+	}
+};
+
+function format_hex(n, prec) {
+	return "0x" + (str_repeat("0", prec - 1) + n.toString(16)).slice(-prec);
+}
+
+function format_dec(n, prec) {
+	return (str_repeat("0", prec - 1) + n).slice(-prec);
+}
+
+function str_repeat(s, n) {
+	var r = "";
+	for (var i = 0; i < n; i ++) {
+		r += s;
+	}
+	return r;
+}
+
+function read_int_string(s) {
+	if (!/^\s*(?:\d+|0x[0-9a-f]+)\s*$/i.test(s)) {
+		return null;
+	}
+	return Number(s);
+}
+
+function $(id) {
+	return document.getElementById(id);
+}
+
+function stopEvent(event) {
+	if (event.preventDefault) {
+		event.preventDefault();
+		event.stopPropagation();
+	} else {
+		event.returnValue = false;
+		event.cancelBubble = true;
+	}
+}
+</script>
+<style type="text/css">
+th {text-align:right}
+</style>
+</head>
+<body>
+<h1>性格値→色違いが出るトレーナーIDの初期seed</h1>
+<form action="" name="f" onsubmit="on_submit();return false;">
+<table>
+<tbody>
+<tr><th>性格値: <td><input type="text" size="20" name="pid" value="0x1234abcd"></tr>
+<tr><th>初期seed下4桁最小値: <td><input type="text" size="10" name="seed_row_min" value="493"></tr>
+<tr><td colspan="2" style="text-align:center"><input type="submit" value="検索"><input type="button" id="stop-button" onclick="on_click(this)" value="停止" disabled>
+<tr><td colspan="2"><textarea cols="50" rows="5" id="output"></textarea></tr>
+<tr><td colspan="2" id="progress"></tr>
+</tbody>
+</table>
+</form>
+</body>
+</html>
