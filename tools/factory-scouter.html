@@ -189,9 +189,9 @@ function on_select_change() {
 	var r = get_entries_info(shuu, seed, 3, six_entries);
 	seed = step_seed(r.seed, 24);
 	var prev_enemy_entries = r.entries;
-	for (var i = 2; i <= 6; i ++) {
+	for (var i = 2; i <= 7; i ++) {
 		var visited_entries = entries_in_hand.concat(prev_enemy_entries);
-		var r = get_entries_info(shuu, seed, 3, visited_entries);
+		var r = get_entries_info(i == 7 ? shuu + 1 : shuu, seed, 3, visited_entries);
 		var div = document.getElementById("enemy-entries-"+i);
 		var buf = [];
 		build_table(buf, r.infos)
@@ -594,6 +594,14 @@ function mul(a, b) {
 }
 </script>
 <style type="text/css">
+table {
+	border-collapse: collapse;
+}
+
+th, td {
+	padding: 0.1em 5px;
+	border: 1px solid black;
+}
 </style>
 </head>
 <body>
