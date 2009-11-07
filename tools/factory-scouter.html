@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<meta http-equiv="Content-Script-Type" content="text/javascript">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<title>ちょうさ・ぶんせきマシン （仮）</title>
+<script type="text/javascript" src="jquery.js"></script>
+<script type="text/javascript">
+var factory_data = null;
+var pokemon_data = null;
+var pokemon_name2id = null;
+var natures = "がんばりや さみしがり ゆうかん いじっぱり やんちゃ ずぶとい すなお のんき わんぱく のうてんき おくびょう せっかち まじめ ようき むじゃき ひかえめ おっとり れいせい てれや うっかりや おだやか おとなしい なまいき しんちょう きまぐれ".split(" ");
+var shuu_pokemons_count = [null, 150, 100, 100, 136, 136, 136, 192];
+var shuu_entries_start  = [null,   0, 150, 250, 350, 486, 622, 758];
+var shuu_entries_end    = [null, 149, 249, 349, 485, 621, 757, 949];
+
+$(function() {
+	var factory_data_text;
+	var pokedex_csv_text;
+	$.ajax({dataType: "text", url: "factory_data.txt", success: function(data) {
+		factory_data_text = data;
+		boot();
+	}});
+	$.ajax({dataType: "text", url: "pokedex.csv", success: function(data) {
+		pokedex_csv_text = data;
+		boot();
+	}});
+	function boot() {
+		if (!factory_data_text || !pokedex_csv_text) return;
+		
+		var lines = pokedex_csv_text.split('\n');
+		if (lines[lines.length - 1] == '') lines.pop();
+		var boundaries = {"♂のみ": -1, "♀のみ": 255, "1:7": 30, "1:3": 63, "1:1": 126, "3:1": 190, "ふめい": null};
+		pokemon_data = new Array(lines.length);
+		pokemon_name2id = {};
+		for (var i = 0; i < lines.length; i ++) {
+			var row = lines[i].split(',');
+			var name = row[0];
+			var ability1 = row[1];
+			var ability2 = row[2] || ability1;
+			var gender_boundary = boundaries[row[3]];
+			pokemon_name2id[name] = i;
+			pokemon_data[i] = {
+				id: i,
+				name: name,
+				abilities: [ability1, ability2],
+				gender_boundary: gender_boundary
+			};
+		}
+		
+		var lines = factory_data_text.split('\n');
+		if (lines[lines.length - 1] == '') lines.pop();
+		factory_data = new Array(lines.length);
+		for (var i = 0; i < lines.length; i ++) {
+			var row = lines[i].split('|');
+			factory_data[i] = {
+				id: i,
+				name:   row[1],
+				pokemon: get_pokemon_entry(row[1]),
+				nature: indexof(natures, row[2]),
+				item:   row[3],
+				move:   row[4],
+				effort: row[5],
+			};
+		}
+	}
+});
+
+function on_submit() {
+try{
+	on_submit0();
+}catch(e) { console.log(e); }
+}
+
+var context = null;
+
+function on_submit0() {
+	if (!factory_data || !pokemon_data) return;
+	var shuu = 1;
+	var f = document.forms.f;
+	var r = parse_text(f.entries.value);
+	if (!r) return;
+	var entries = r.entries;
+	var parent_ids = r.parent_ids;
+	var entry_ids = map(entries, "id");
+	var seed = find_seed_by_6_entries(entry_ids, parent_ids);
+	var div = document.getElementById("result");
+	if (seed === null) {
+		div.innerHTML = "<p>その組み合わせのseedが見つかりません</p>";
+		return;
+	}
+	var buf = [];
+	context = {shuu: shuu, seed: seed, entries: entries};
+	buf.push("<p>6匹決定時のseed: "+format_hex(seed, 8)+"</p>");
+	var r = get_entries_info(shuu, seed, 6, []);
+	seed = r.seed;
+	build_table(buf, r.infos);
+	buf.push("<p id=\"election\">選出: "+build_select(entries, 0)+" "+build_select(entries, 1)+" "+build_select(entries, 2)+"</p>");
+	buf.push("<p>1戦目</p>");
+	var r = get_entries_info(shuu, seed, 3, entries);
+	buf.push("<div id=\"enemy-entries-1\">");
+	build_table(buf, r.infos);
+	buf.push("</div>");
+	seed = step_seed(r.seed, 24);
+	var entries_in_hand = entries.slice(0, 3);
+	var prev_enemy_entries = r.entries;
+	for (var i = 2; i <= 7; i ++) {
+		buf.push("<p>"+i+"戦目</p>");
+		var visited_entries = entries_in_hand.concat(prev_enemy_entries);
+		var r = get_entries_info(i == 7 ? shuu + 1 : shuu, seed, 3, visited_entries);
+		buf.push("<div id=\"enemy-entries-"+i+"\">");
+		build_table(buf, r.infos);
+		buf.push("</div>");
+		seed = step_seed(r.seed, 6);
+		prev_enemy_entries = r.entries;
+	}
+	div.innerHTML = buf.join("");
+	$("#election select").change(on_select_change).keypress(on_select_change);
+}
+
+function parse_text(text) {
+	var lines = regularize_word(text).split("\n");
+	var entries = [];
+	var parent_ids = [];
+	for (var i = 0; i < lines.length; i ++) {
+		var line = lines[i];
+		if (/^\s*$/.test(line)) continue;
+		var m = /^\s*(\S+)\s+(\d+)\s*$/.exec(line);
+		if (!m) {
+			alert((i+1)+"行目が不正です");
+			return null;
+		}
+		if (entries.length == 6) {
+			alert("6匹より多く入力されています");
+			return null;
+		}
+		var entry = find_factory_entry(1, m[1]);
+		if (!entry) {
+			alert((i+1)+"行目: \""+m[1]+"\"は存在しません");
+			return null;
+		}
+		var id = Number(m[2]);
+		if (id < 0 || id >= 65536) {
+			alert((i+1)+"行目: "+id+"は不正なIDです");
+			return null;
+		}
+		if (ary_include(entries, entry)) {
+			alert((i+1)+"行目: "+entry.name+"が重複しています");
+			return null;
+		}
+		if (entries_colision0(entry, entries)) {
+			alert((i+1)+"行目: "+entry.name+"はアイテムが重複しています");
+			return null;
+		}
+		entries.push(entry);
+		parent_ids.push(id);
+	}
+	if (entries.length != 6) {
+		alert("6匹入力されていません");
+		return null;
+	}
+	return {entries: entries, parent_ids: parent_ids};
+}
+
+function on_select_change() {
+	var seed = context.seed;
+	var shuu = context.shuu;
+	var six_entries = context.entries;
+	var selects = $("#election select");
+	var entries_in_hand = [];
+	for (var i = 0; i < 3; i ++) {
+		var select = selects[i];
+		var entry = six_entries[select.selectedIndex];
+		entries_in_hand.push(entry);
+	}
+	seed = get_entries_info(shuu, seed, 6, []).seed;
+	var r = get_entries_info(shuu, seed, 3, six_entries);
+	seed = step_seed(r.seed, 24);
+	var prev_enemy_entries = r.entries;
+	for (var i = 2; i <= 6; i ++) {
+		var visited_entries = entries_in_hand.concat(prev_enemy_entries);
+		var r = get_entries_info(shuu, seed, 3, visited_entries);
+		var div = document.getElementById("enemy-entries-"+i);
+		var buf = [];
+		build_table(buf, r.infos)
+		div.innerHTML = buf.join("");
+		seed = step_seed(r.seed, 6);
+		prev_enemy_entries = r.entries;
+	}
+}
+
+function build_select(entries, selectedIndex) {
+	var buf = "<select>";
+	for (var i = 0; i < entries.length; i ++) {
+		buf += "<option"+(selectedIndex===i ? " selected " : "")+">"+entries[i].name+"</option>";
+	}
+	buf += "</select>";
+	return buf;
+}
+
+function build_table(buf, info) {
+	buf.push("<table><thead><tr><th>名前<th>ID<th>裏ID<th>性格値<th>性別<th>特性</tr></thead>");
+	buf.push("<tbody>");
+	for (var i = 0; i < info.length; i ++) {
+		var pid = info[i].pid;
+		buf.push("<tr><td>"+info[i].entry.name+
+		         "<td>"+format_dec(info[i].parent_id, 5)+
+		         "<td>"+format_dec(info[i].secret_id, 5)+
+		         "<td>"+format_hex(pid, 8)+
+		         "<td>"+pid2gender(pid, info[i].entry.pokemon)+
+		         "<td>"+info[i].entry.pokemon.abilities[pid % 2]+"</tr>");
+	}
+	buf.push("</tbody></table>");
+}
+
+function get_pokemon_entry(name) {
+	return pokemon_data[pokemon_name2id[name]];
+}
+
+function pid2gender(pid, pokemon) {
+	var boundary = pokemon.gender_boundary;
+	if (boundary) {
+		return (pid & 0xff) > boundary ? "♂" : "♀";
+	} else {
+		return "不明";
+	}
+}
+
+function seed_to_entry_id(shuu, seed) {
+	var count = shuu_pokemons_count[shuu];
+	var start = shuu_entries_start[shuu];
+	return count - 1 - (seed >>> 16) % count + start;
+}
+
+function get_entries_info(shuu, seed, num, visited_entries) {
+	var entries = [];
+	var infos = [];
+	var i = 0;
+	while (i < num) {
+		var id = seed_to_entry_id(shuu, seed);
+		var entry = factory_data[id];
+		seed = next_seed(seed);
+		if (entries_colision(entry, entries, visited_entries)) continue;
+		entries.push(entry);
+		i ++;
+	}
+	
+	for (var i = 0; i < num; i ++) {
+		var parent_id = seed >>> 16;
+		seed = next_seed(seed);
+		var secret_id = seed >>> 16;
+		seed = next_seed(seed);
+		var nature = entries[i].nature;
+		do {
+			var pid_row = seed >>> 16;
+			seed = next_seed(seed);
+			var pid_high = seed >>> 16;
+			seed = next_seed(seed);
+			var pid = (pid_high << 16 | pid_row) >>> 0;
+		} while (pid % 25 != nature || is_shiny_pid(parent_id, secret_id, pid));
+		infos.push({entry: entries[i],
+		            parent_id: parent_id,
+		            secret_id: secret_id,
+		            pid: pid});
+	}
+	
+	if (num === 6) {
+		var swap1 = (seed >>> 16) % 6;
+		seed = next_seed(seed);
+		var swap2 = (seed >>> 16) % 6;
+		seed = next_seed(seed);
+		
+		ary_swap(infos, 4, swap1);
+		ary_swap(infos, 5, swap2);
+		
+		ary_swap(entries, 4, swap1);
+		ary_swap(entries, 5, swap2);
+	}
+	
+	return {entries: entries, infos: infos, seed: seed};
+}
+
+function entries_colision(entry, entries, visited_entries) {
+	return entries_colision0(entry, entries) || entries_colision0(entry, visited_entries);
+}
+
+function entries_colision0(entry, entries) {
+	for (var i = 0; i < entries.length; i ++) {
+		if (entry === entries[i]) return true;
+		if (entry.item === entries[i].item) return true;
+	}
+	return false;
+}
+
+function find_seed_by_6_entries(entry_ids, parent_ids) {
+	// n = {0,4,5} に対して
+	// n番目のポケモンのトレーナーIDが出る65536通りのseedを走査
+	// そのseedで6匹が一致するか確認
+	var raw_entry_ids;
+	var items = gen_items(entry_ids);
+	for (var i = 0; i < 3; i ++) {
+		var n = [0, 4, 5][i];
+		var entry_id = entry_ids[n];
+		var parent_id = parent_ids[n];
+		for (var j = 0; j < 65536; j ++) {
+			var seed = (parent_id << 16 | j) >>> 0;
+			seed_head = find_entries(1, seed);
+			if(!raw_entry_ids) continue;
+			if (raw_entry_ids[0] !== entry_id) {
+				// 先頭要素が一致しない
+				continue;
+			}
+			seed = match_parent_ids(seed, raw_entry_ids);
+			if (seed === null) continue;
+			var swap1 = (seed >>> 16) % 6;
+			seed = next_seed(seed);
+			var swap2 = (seed >>> 16) % 6;
+			if (!match_swap(raw_entry_ids, swap1, swap2)) continue;
+			return seed_head;
+		}
+	}
+	return null;
+	
+	function gen_items(entry_ids) {
+		var result = [];
+		for (var i = 0; i < entry_ids.length; i ++) {
+			result.push(factory_data[entry_ids[i]].item);
+		}
+		return result;
+	}
+	
+	function match_swap(raw_entry_ids, swap1, swap2) {
+		raw_entry_ids = raw_entry_ids.slice();
+		ary_swap(raw_entry_ids, 4, swap1);
+		ary_swap(raw_entry_ids, 5, swap2);
+		return ary_eq(entry_ids, raw_entry_ids);
+	}
+	
+	function match_parent_ids(seed, raw_entry_ids) {
+		for (var i = 0; i < 6; i ++) {
+			var entry_id = raw_entry_ids[i];
+			var expected_parent_id = parent_ids[indexof(entry_ids, entry_id)];
+			var parent_id = seed >>> 16;
+			seed = next_seed(seed);
+			if (parent_id !== expected_parent_id) return null;
+			var secret_id = seed >>> 16;
+			seed = next_seed(seed);
+			var nature = factory_data[entry_id].nature;
+			do {
+				var pid_row = seed >>> 16;
+				seed = next_seed(seed);
+				var pid_high = seed >>> 16;
+				seed = next_seed(seed);
+				var pid = (pid_high << 16 | pid_row) >>> 0;
+			} while (pid % 25 != nature || is_shiny_pid(parent_id, secret_id, pid));
+		}
+		return seed;
+	}
+	
+	function find_entries(shuu, seed) {
+		seed = prev_seed(seed);
+		var entry_id = seed_to_entry_id(shuu, seed);
+		if (!ary_include(entry_ids, entry_id)) return null;
+		var result = [entry_id];
+		while (result.length < 6) {
+			seed = prev_seed(seed);
+			entry_id = seed_to_entry_id(shuu, seed);
+			if (ary_include(entry_ids, entry_id)) {
+				var index = indexof(result, entry_id);
+				if (index >= 0) {
+					// A B A という並びがあったとき前のAの方が優先される。
+					result.splice(index, 1);
+				}
+				result.push(entry_id);
+			} else {
+				var item = factory_data[entry_id].item;
+				if (!ary_include(items, item)) return null;
+				for (var i = 0; i < result.length; i ++) {
+					if (factory_data[result[i]].item === item) return null;
+				}
+			}
+		}
+		raw_entry_ids = result.reverse();
+		return seed;
+	}
+}
+
+function is_shiny_pid(parent_id, secret_id, pid) {
+	return ((parent_id ^ secret_id ^ (pid >>> 16) ^ (pid & 0xffff)) & ~7) == 0;
+}
+
+function find_factory_entry(shuu, name) {
+	var re = roma2reg(name);
+	var start = shuu_entries_start[shuu];
+	var end = shuu_entries_end[shuu];
+	for (var i = start; i <= end; i ++) {
+		if (re.test(factory_data[i].name)) {
+			return factory_data[i];
+		}
+	}
+	return null;
+}
+
+function roma2reg(text) {
+	var result = [];
+	var len = 0;
+	for (var i = 0; i < text.length; i += len) {
+		len = 1;
+		var t = text.charAt(i)
+		if (!/[a-z-]/.test(t)) {
+			result.push(regexp_escape(t));
+			continue;
+		}
+		var token = roma2reg_search_token(text, i);
+		if (!token) {
+			result.push(t);
+		}
+		var kana = roma2reg.kana_map[token];
+		if (token.length == 2 && kana == "ッ") {
+			result.push("(?:" + token.charAt(0) + "|" + kana + ")");
+		} else {
+			result.push("(?:" + token + "|" + kana + ")");
+			len = token.length;
+		}
+	}
+	return new RegExp("^"+result.join("")+"$");
+}
+
+function regexp_escape(s) {
+	return s.replace(/\W/g,'\\$&');
+}
+
+function roma2reg_search_token(text, i) {
+	for (var n = 4; n >= 1; n --) {
+		var token = text.substr(i, n);
+		if (roma2reg.kana_map.hasOwnProperty(token)) {
+			return token;
+		}
+	}
+	return null;
+}
+
+roma2reg.kana_map = {"a":"ア","i":"イ","yi":"イ","u":"ウ","wu":"ウ","whu":"ウ","e":"エ","o":"オ","la":"ァ","xa":"ァ","li":"ィ","xi":"ィ","lyi":"ィ","xyi":"ィ","lu":"ゥ","xu":"ゥ","le":"ェ","xe":"ェ","lye":"ェ","xye":"ェ","lo":"ォ","xo":"ォ","wha":"ウァ","whi":"ウィ","wi":"ウィ","whe":"ウェ","we":"ウェ","who":"ウォ","ka":"カ","ca":"カ","ki":"キ","ku":"ク","cu":"ク","qu":"ク","ke":"ケ","ko":"コ","co":"コ","lka":"ヵ","xka":"ヵ","lke":"ヶ","xke":"ヶ","ga":"ガ","gi":"ギ","gu":"グ","ge":"ゲ","go":"ゴ","kya":"キャ","kyi":"キィ","kyu":"キュ","kye":"キェ","kyo":"キョ","qya":"クャ","qyu":"クュ","qwa":"クァ","qa":"クァ","kwa":"クァ","qwi":"クィ","qi":"クィ","qyi":"クィ","qwu":"クゥ","qwe":"クェ","qe":"クェ","qye":"クェ","qwo":"クォ","qo":"クォ","gya":"ギャ","gyi":"ギィ","gyu":"ギュ","gye":"ギェ","gyo":"ギョ","gwa":"グァ","gwi":"グィ","gwu":"グゥ","gwe":"グェ","gwo":"グォ","sa":"サ","si":"シ","ci":"シ","shi":"シ","su":"ス","se":"セ","ce":"セ","so":"ソ","za":"ザ","zi":"ジ","ji":"ジ","zu":"ズ","ze":"ゼ","zo":"ゾ","sya":"シャ","sha":"シャ","syi":"シィ","syu":"シュ","shu":"シュ","sye":"シェ","she":"シェ","syo":"ショ","sho":"ショ","swa":"スァ","swi":"スィ","swu":"スゥ","swe":"スェ","swo":"スォ","zya":"ジャ","ja":"ジャ","jya":"ジャ","zyi":"ジィ","jyi":"ジィ","zyu":"ジュ","ju":"ジュ","jyu":"ジュ","zye":"ジェ","je":"ジェ","jye":"ジェ","zyo":"ジョ","jo":"ジョ","jyo":"ジョ","ta":"タ","ti":"チ","chi":"チ","tu":"ツ","tsu":"ツ","te":"テ","to":"ト","ltu":"ッ","xtu":"ッ","ltsu":"ッ","da":"ダ","di":"ヂ","du":"ヅ","de":"デ","do":"ド","tya":"チャ","cha":"チャ","cya":"チャ","tyi":"チィ","cyi":"チィ","tyu":"チュ","chu":"チュ","cyu":"チュ","tye":"チェ","che":"チェ","cye":"チェ","tyo":"チョ","cho":"チョ","cyo":"チョ","tsa":"ツァ","tsi":"ツィ","tse":"ツェ","tso":"ツォ","tha":"テャ","thi":"ティ","thu":"テュ","the":"テェ","tho":"テョ","twa":"トァ","twi":"トィ","twu":"トゥ","twe":"トェ","two":"トォ","dya":"ヂャ","dyi":"ヂィ","dyu":"ヂュ","dye":"ヂェ","dyo":"ヂョ","dha":"デャ","dhi":"ディ","dhu":"デュ","dhe":"デェ","dho":"デョ","dwa":"ドァ","dwi":"ドィ","dwu":"ドゥ","dwe":"ドェ","dwo":"ドォ","na":"ナ","ni":"ニ","nu":"ヌ","ne":"ネ","no":"ノ","nya":"ニャ|ンヤ","nyi":"ニィ","nyu":"ニュ|ンユ","nye":"ニェ","nyo":"ニョ|ンヨ","ha":"ハ","hi":"ヒ","hu":"フ","fu":"フ","he":"ヘ","ho":"ホ","ba":"バ","bi":"ビ","bu":"ブ","be":"ベ","bo":"ボ","pa":"パ","pi":"ピ","pu":"プ","pe":"ペ","po":"ポ","hya":"ヒャ","hyi":"ヒィ","hyu":"ヒュ","hye":"ヒェ","hyo":"ヒョ","fya":"フャ","fyu":"フュ","fyo":"フョ","fwa":"ファ","fa":"ファ","fwi":"フィ","fi":"フィ","fyi":"フィ","fwu":"フゥ","fwe":"フェ","fe":"フェ","fye":"フェ","fwo":"フォ","fo":"フォ","bya":"ビャ","byi":"ビィ","byu":"ビュ","bye":"ビェ","byo":"ビョ","va":"ヴァ","vi":"ヴィ","vu":"ヴ","ve":"ヴェ","vo":"ヴォ","vya":"ヴャ","vyi":"ヴィ","vyu":"ヴュ","vye":"ヴェ","vyo":"ヴョ","pya":"ピャ","pyi":"ピィ","pyu":"ピュ","pye":"ピェ","pyo":"ピョ","ma":"マ","mi":"ミ","mu":"ム","me":"メ","mo":"モ","mya":"ミャ","myi":"ミィ","myu":"ミュ","mye":"ミェ","myo":"ミョ","ya":"ヤ","yu":"ユ","yo":"ヨ","lya":"ャ","xya":"ャ","lyu":"ュ","xyu":"ュ","lyo":"ョ","xyo":"ョ","ra":"ラ","ri":"リ","ru":"ル","re":"レ","ro":"ロ","rya":"リャ","ryi":"リィ","ryu":"リュ","rye":"リェ","ryo":"リョ","wa":"ワ","wo":"ヲ","n":"ン","nn":"ン","n'":"ン","xn":"ン","lwa":"ヮ","xwa":"ヮ","bb":"ッ","cc":"ッ","dd":"ッ","ff":"ッ","gg":"ッ","hh":"ッ","jj":"ッ","kk":"ッ","ll":"ッ","mm":"ッ","pp":"ッ","qq":"ッ","rr":"ッ","ss":"ッ","tt":"ッ","vv":"ッ","ww":"ッ","xx":"ッ","yy":"ッ","zz":"ッ","-":"ー"};
+
+function regularize_word(word) {
+	// ひらがな → カタカナ
+	// 半角カナ → カタカナ
+	// 全角英数字 → 半角英数字
+	// 大文字 → 小文字
+	var map = regularize_word.map;
+	var chr = String.fromCharCode;
+	return word.replace(/(?:[｡-ﾝ][ﾞﾟ]?|[A-Zぁ-ゔ　！-～])/g, function(s) {
+		var s1 = s.charAt(0);
+		if ('｡' <= s1 && s1 <= 'ﾝ' && s.length == 2) {
+			if (s.charAt(1) == 'ﾞ' && (('ｶ' <= s1 && s1 <= 'ﾄ') || ('ﾊ' <= s1 && s1 <= 'ﾎ'))) {
+				return chr(map[s1].charCodeAt(0) + 1);
+			} else if(s.charAt(1) == 'ﾟ' && 'ﾊ' <= s1 && s1 <= 'ﾎ') {
+				return chr(map[s1].charCodeAt(0) + 2);
+			} else {
+				return map[s1] + s.charAt(1);
+			}
+		}
+		if ('ぁ' <= s && s <= 'ゔ') {
+			return chr(s.charCodeAt(0) - 'ぁ'.charCodeAt(0) + 'ァ'.charCodeAt(0));
+		}
+		if ('Ａ' <= s && s <= 'Ｚ') {
+			return chr(s.charCodeAt(0) - 'Ａ'.charCodeAt(0) + 'a'.charCodeAt(0));
+		}
+		if ('A' <= s && s <= 'Z') {
+			return chr(s.charCodeAt(0) - 'A'.charCodeAt(0) + 'a'.charCodeAt(0));
+		}
+		if ('！' <= s && s <= '～') {
+			return chr(s.charCodeAt(0) - '！'.charCodeAt(0) + '!'.charCodeAt(0));
+		}
+		if (map.hasOwnProperty(s)) {
+			return map[s];
+		}
+		return s;
+	});
+}
+
+regularize_word.map = {'　': ' ', '｡': '。', '｢': '「', '｣': '」', '､': '、', '･': '・', 'ｦ': 'ヲ', 'ｧ': 'ァ', 'ｨ': 'ィ', 'ｩ': 'ゥ', 'ｪ': 'ェ', 'ｫ': 'ォ', 'ｬ': 'ャ', 'ｭ': 'ュ', 'ｮ': 'ョ', 'ｯ': 'ッ', 'ｰ': 'ー', 'ｱ': 'ア', 'ｲ': 'イ', 'ｳ': 'ウ', 'ｴ': 'エ', 'ｵ': 'オ', 'ｶ': 'カ', 'ｷ': 'キ', 'ｸ': 'ク', 'ｹ': 'ケ', 'ｺ': 'コ', 'ｻ': 'サ', 'ｼ': 'シ', 'ｽ': 'ス', 'ｾ': 'セ', 'ｿ': 'ソ', 'ﾀ': 'タ', 'ﾁ': 'チ', 'ﾂ': 'ツ', 'ﾃ': 'テ', 'ﾄ': 'ト', 'ﾅ': 'ナ', 'ﾆ': 'ニ', 'ﾇ': 'ヌ', 'ﾈ': 'ネ', 'ﾉ': 'ノ', 'ﾊ': 'ハ', 'ﾋ': 'ヒ', 'ﾌ': 'フ', 'ﾍ': 'ヘ', 'ﾎ': 'ホ', 'ﾏ': 'マ', 'ﾐ': 'ミ', 'ﾑ': 'ム', 'ﾒ': 'メ', 'ﾓ': 'モ', 'ﾔ': 'ヤ', 'ﾕ': 'ユ', 'ﾖ': 'ヨ', 'ﾗ': 'ラ', 'ﾘ': 'リ', 'ﾙ': 'ル', 'ﾚ': 'レ', 'ﾛ': 'ロ', 'ﾜ': 'ワ', 'ﾝ': 'ン'};
+
+function ary_include(ary, e) {
+	return indexof(ary, e) >= 0;
+}
+
+function indexof(ary, e) {
+	for (var i = 0; i < ary.length; i ++) {
+		if (ary[i] === e) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+function ary_eq(a, b) {
+	if (a == b) return true;
+	if (a.length != b.length) return false;
+	var l = a.length;
+	for (var i = 0; i < l; i ++) {
+		if (a[i] !== b[i]) return false;
+	}
+	return true;
+}
+
+function ary_swap(array, i, j) {
+	var tmp = array[i];
+	array[i] = array[j];
+	array[j] = tmp;
+}
+
+function map(array, propname) {
+	var len = array.length;
+	var result = new Array(len);
+	for (var i = 0; i < len; i ++) {
+		result[i] = array[i][propname];
+	}
+	return result;
+}
+
+function format_hex(n, prec) {
+	return "0x" + (str_repeat("0", prec - 1) + n.toString(16)).slice(-prec);
+}
+
+function format_dec(n, prec) {
+	return (str_repeat("0", prec - 1) + n).slice(-prec);
+}
+
+function str_repeat(s, n) {
+	var r = "";
+	for (var i = 0; i < n; i ++) {
+		r += s;
+	}
+	return r;
+}
+
+function step_seed(seed, n) {
+	var fn = next_seed;
+	if (n < 0) {
+		fn = prev_seed;
+		n = -n;
+	}
+	for (var i = 0; i < n; i ++) {
+		seed = fn(seed);
+	}
+	return seed;
+}
+
+function next_seed(seed) {
+	return mul(seed, 0x41c64e6d) + 0x6073 >>> 0;
+}
+
+function prev_seed(seed) {
+	return mul(seed, 0xeeb9eb65) + 0xa3561a1 >>> 0;
+}
+
+function mul(a, b) {
+	var a1 = a >>> 16, a2 = a & 0xffff;
+	var b1 = b >>> 16, b2 = b & 0xffff;
+	return (((a1 * b2 + a2 * b1) << 16) + a2 * b2) >>> 0;
+}
+</script>
+<style type="text/css">
+</style>
+</head>
+<body>
+<h1>ちょうさ・ぶんせきマシン （仮）</h1>
+<p>Lv50 1周目限定。交換でのポケモン変更は未実装</p>
+<form action="" name="f" onsubmit="on_submit();return false;">
+<p>最初の6匹のポケモンと親IDを入力してください</p>
+<p>
+<textarea cols="30" rows="6" id="entries">
+マイナン　11067
+パチリス　63599
+ムクバード　62326
+ハスブレロ　27843
+パッチール　50041
+カラナクシ　10484</textarea>
+</p><p>
+<input type="submit" value="決定">
+</p>
+</form>
+<div id="result"></div>
+</body>
+</html>
