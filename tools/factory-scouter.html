@@ -95,10 +95,10 @@ function on_submit0() {
 	var r = get_entries_info(shuu, seed, 6, []);
 	var entries = r.entries;
 	context = {shuu: shuu, seed: seed, entries: entries};
-	seed = r.seed;
 	
 	var buf = [];
 	buf.push("<p>6匹決定時のseed: "+format_hex(seed, 8)+"</p>");
+	seed = r.seed;
 	build_table(buf, r.infos);
 	buf.push("<p id=\"election\">選出: "+build_select(entries, 0)+" "+build_select(entries, 1)+" "+build_select(entries, 2)+"</p>");
 	buf.push("<p>1戦目</p>");
