@@ -70,7 +70,7 @@ $(function() {
 function on_submit() {
 try{
 	on_submit0();
-}catch(e) { console.log(e); }
+}catch(e) { alert(e); }
 }
 
 var context = null;
@@ -149,7 +149,7 @@ function parse_text(text) {
 			alert((i+1)+"行目: "+entry.name+"が重複しています");
 			return null;
 		}
-		if (entries_colision0(entry, entries)) {
+		if (entries_collision0(entry, entries)) {
 			alert((i+1)+"行目: "+entry.name+"はアイテムが重複しています");
 			return null;
 		}
@@ -241,7 +241,7 @@ function get_entries_info(shuu, seed, num, visited_entries) {
 		var id = seed_to_entry_id(shuu, seed);
 		var entry = factory_data[id];
 		seed = next_seed(seed);
-		if (entries_colision(entry, entries, visited_entries)) continue;
+		if (entries_collision(entry, entries, visited_entries)) continue;
 		entries.push(entry);
 		i ++;
 	}
@@ -281,11 +281,11 @@ function get_entries_info(shuu, seed, num, visited_entries) {
 	return {entries: entries, infos: infos, seed: seed};
 }
 
-function entries_colision(entry, entries, visited_entries) {
-	return entries_colision0(entry, entries) || entries_colision0(entry, visited_entries);
+function entries_collision(entry, entries, visited_entries) {
+	return entries_collision0(entry, entries) || entries_collision0(entry, visited_entries);
 }
 
-function entries_colision0(entry, entries) {
+function entries_collision0(entry, entries) {
 	for (var i = 0; i < entries.length; i ++) {
 		if (entry === entries[i]) return true;
 		if (entry.item === entries[i].item) return true;
@@ -305,19 +305,8 @@ function find_seed_by_6_entries(entry_ids, parent_ids) {
 		var parent_id = parent_ids[n];
 		for (var j = 0; j < 65536; j ++) {
 			var seed = (parent_id << 16 | j) >>> 0;
-			seed_head = find_entries(1, seed);
-			if(!raw_entry_ids) continue;
-			if (raw_entry_ids[0] !== entry_id) {
-				// 先頭要素が一致しない
-				continue;
-			}
-			seed = match_parent_ids(seed, raw_entry_ids);
-			if (seed === null) continue;
-			var swap1 = (seed >>> 16) % 6;
-			seed = next_seed(seed);
-			var swap2 = (seed >>> 16) % 6;
-			if (!match_swap(raw_entry_ids, swap1, swap2)) continue;
-			return seed_head;
+			seed_head = match_entries(1, seed);
+			if (seed_head !== null) return seed_head;
 		}
 	}
 	return null;
@@ -328,6 +317,27 @@ function find_seed_by_6_entries(entry_ids, parent_ids) {
 			result.push(factory_data[entry_ids[i]].item);
 		}
 		return result;
+	}
+	
+	function match_entries(shuu, seed) {
+		var i = 0;
+		for (;;i ++) {
+			var s = seed;
+			var seed_head = find_entries(shuu, seed, i);
+			if(!raw_entry_ids) return null;
+			if (raw_entry_ids[0] !== entry_id) {
+				// 先頭要素が一致しない
+				continue;
+			}
+			s = match_parent_ids(s, raw_entry_ids);
+			if (s === null) continue;
+			var swap1 = (s >>> 16) % 6;
+			s= next_seed(s);
+			var swap2 = (s >>> 16) % 6;
+			if (!match_swap(raw_entry_ids, swap1, swap2)) continue;
+			return seed_head;
+		}
+		return null;
 	}
 	
 	function match_swap(raw_entry_ids, swap1, swap2) {
@@ -358,26 +368,29 @@ function find_seed_by_6_entries(entry_ids, parent_ids) {
 		return seed;
 	}
 	
-	function find_entries(shuu, seed) {
+	function find_entries(shuu, seed, max_back) {
 		seed = prev_seed(seed);
 		var entry_id = seed_to_entry_id(shuu, seed);
 		if (!ary_include(entry_ids, entry_id)) return null;
 		var result = [entry_id];
-		while (result.length < 6) {
+		var i = 0;
+		while (result.length < 6 || i < max_back) {
 			seed = prev_seed(seed);
 			entry_id = seed_to_entry_id(shuu, seed);
 			if (ary_include(entry_ids, entry_id)) {
 				var index = indexof(result, entry_id);
 				if (index >= 0) {
 					// A B A という並びがあったとき前のAの方が優先される。
+					if (result.length == 6) i ++;
 					result.splice(index, 1);
 				}
 				result.push(entry_id);
+				if (result.length > 6) return null;
 			} else {
+				// 結果に出てくるエントリに存在しないエントリの場合はアイテム衝突しかありえない
 				var item = factory_data[entry_id].item;
-				if (!ary_include(items, item)) return null;
-				for (var i = 0; i < result.length; i ++) {
-					if (factory_data[result[i]].item === item) return null;
+				if (!ary_include(items, item)) {
+					return null;
 				}
 			}
 		}
@@ -511,13 +524,20 @@ function ary_swap(array, i, j) {
 	array[j] = tmp;
 }
 
-function map(array, propname) {
+function map(array, fn) {
 	var len = array.length;
+	if (typeof fn === "string") fn = propname_callback(fn);
 	var result = new Array(len);
 	for (var i = 0; i < len; i ++) {
-		result[i] = array[i][propname];
+		result[i] = fn(array[i]);
 	}
 	return result;
+}
+
+function propname_callback(name) {
+	return function(e) {
+		return e[name];
+	};
 }
 
 function format_hex(n, prec) {
