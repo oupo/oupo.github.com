@@ -94,25 +94,39 @@ function on_submit0() {
 	}
 	var r = get_entries_info(shuu, seed, 6, []);
 	var entries = r.entries;
-	context = {shuu: shuu, seed: seed, entries: entries};
+	var seed_head = seed;
+	seed = r.seed;
+	var entries_in_hand = entries.slice(0, 3);
+	context = {shuu: shuu,
+	           seed_list: [seed_head, seed],
+	           entries_list: [entries],
+	           entry_infos_list: [r.infos],
+	           entries_in_hand_list: [null, entries_in_hand]};
 	
 	var buf = [];
-	buf.push("<p>6匹決定時のseed: "+format_hex(seed, 8)+"</p>");
-	seed = r.seed;
+	buf.push("<p>6匹決定時のseed: "+format_hex(seed_head, 8)+"</p>");
 	build_table(buf, r.infos);
 	buf.push("<p id=\"election\">選出: "+build_select(entries, 0)+" "+build_select(entries, 1)+" "+build_select(entries, 2)+"</p>");
 	buf.push("<p>1戦目</p>");
 	var r = get_entries_info(shuu, seed, 3, entries);
+	context.entries_list.push(r.entries);
+	context.entry_infos_list.push(r.infos);
 	buf.push("<div id=\"enemy-entries-1\">");
 	build_table(buf, r.infos);
 	buf.push("</div>");
 	seed = step_seed(r.seed, 24);
-	var entries_in_hand = entries.slice(0, 3);
 	var prev_enemy_entries = r.entries;
 	for (var i = 2; i <= 7; i ++) {
-		buf.push("<p>"+i+"戦目</p>");
 		var visited_entries = entries_in_hand.concat(prev_enemy_entries);
 		var r = get_entries_info(i == 7 ? shuu + 1 : shuu, seed, 3, visited_entries);
+		context.seed_list.push(seed);
+		context.entries_list.push(r.entries);
+		context.entry_infos_list.push(r.infos);
+		context.entries_in_hand_list.push(entries_in_hand);
+		buf.push("<p class=\"exchange\">交換: <select id=\"exchange-part-"+(i-1)+"\"><option></option>"+build_options(entries_in_hand)+"</select>");
+		buf.push("→ <select id=\"exchange-receive-"+(i-1)+"\"><option></option>"+build_options(prev_enemy_entries)+"</select>");
+		buf.push(" (手持ち: <span id=\"entries-in-hand-"+i+"\">"+map(entries_in_hand, "name").join(" ")+"</span>)</p>");
+		buf.push("<p>"+i+"戦目</p>");
 		buf.push("<div id=\"enemy-entries-"+i+"\">");
 		build_table(buf, r.infos);
 		buf.push("</div>");
@@ -121,10 +135,11 @@ function on_submit0() {
 	}
 	div.innerHTML = buf.join("");
 	$("#election select").change(on_select_change).keypress(on_select_change);
+	$("#result > p.exchange select").change(on_exchange_select_change).keypress(on_exchange_select_change);
 }
 
 function read_int_string(s) {
-	if (!/^\s*(?:\d+|0x[0-9a-f]+)\s*$/i.test(s)) {
+	if (!/^\s*(?:-?\d+|0x[0-9a-f]+)\s*$/i.test(s)) {
 		return null;
 	}
 	return Number(s);
@@ -175,9 +190,9 @@ function parse_text(text) {
 }
 
 function on_select_change() {
-	var seed = context.seed;
+	var seed = context.seed_list[2];
 	var shuu = context.shuu;
-	var six_entries = context.entries;
+	var six_entries = context.entries_list[0];
 	var selects = $("#election select");
 	var entries_in_hand = [];
 	for (var i = 0; i < 3; i ++) {
@@ -185,13 +200,39 @@ function on_select_change() {
 		var entry = six_entries[select.selectedIndex];
 		entries_in_hand.push(entry);
 	}
-	seed = get_entries_info(shuu, seed, 6, []).seed;
-	var r = get_entries_info(shuu, seed, 3, six_entries);
-	seed = step_seed(r.seed, 24);
-	var prev_enemy_entries = r.entries;
-	for (var i = 2; i <= 7; i ++) {
+	context.entries_in_hand_list[1] = entries_in_hand;
+	change_enemy_entries(2, entries_in_hand);
+}
+
+function on_exchange_select_change() {
+	var n = Number(/^exchange-(?:part|receive)-(\d)/.exec(this.id)[1]);
+	var part = document.getElementById("exchange-part-"+n).selectedIndex - 1;
+	var receive = document.getElementById("exchange-receive-"+n).selectedIndex - 1;
+	var entries_in_hand = context.entries_in_hand_list[n].slice();
+	var enemy_entries = context.entries_list[n];
+	if (part !== -1 && receive !== -1) {
+		entries_in_hand[part] = enemy_entries[receive];
+	}
+	change_entries_in_hand_text(n + 1, entries_in_hand);
+	// n戦目後に交換してもn+1戦目の3匹は変わらない。n+2戦目以降の3匹が変わる。
+	change_enemy_entries(n + 2, entries_in_hand);
+}
+
+function change_enemy_entries(start, entries_in_hand) {
+	var prev_enemy_entries = context.entries_list[start - 1];
+	var shuu = context.shuu;
+	var seed = context.seed_list[start];
+	for (var i = start; i <= 7; i ++) {
 		var visited_entries = entries_in_hand.concat(prev_enemy_entries);
 		var r = get_entries_info(i == 7 ? shuu + 1 : shuu, seed, 3, visited_entries);
+		context.entries_list[i] = r.entries;
+		context.entry_infos_list[i] = r.infos;
+		context.entries_in_hand_list[i] = entries_in_hand;
+		
+		$("#exchange-part-"+(i-1)).html("<option></option>"+build_options(entries_in_hand));
+		$("#exchange-receive-"+(i-1)).html("<option></option>"+build_options(prev_enemy_entries));
+		change_entries_in_hand_text(i, entries_in_hand);
+		
 		var div = document.getElementById("enemy-entries-"+i);
 		var buf = [];
 		build_table(buf, r.infos)
@@ -201,12 +242,19 @@ function on_select_change() {
 	}
 }
 
+function change_entries_in_hand_text(i, entries) {
+	$("#entries-in-hand-"+i).text(map(entries, "name").join(" "));
+}
+
 function build_select(entries, selectedIndex) {
-	var buf = "<select>";
+	return "<select>" + build_options(entries, selectedIndex) + "</select>";
+}
+
+function build_options(entries, selectedIndex) {
+	var buf = "";
 	for (var i = 0; i < entries.length; i ++) {
 		buf += "<option"+(selectedIndex===i ? " selected " : "")+">"+entries[i].name+"</option>";
 	}
-	buf += "</select>";
 	return buf;
 }
 
@@ -231,7 +279,7 @@ function get_pokemon_entry(name) {
 
 function pid2gender(pid, pokemon) {
 	var boundary = pokemon.gender_boundary;
-	if (boundary) {
+	if (boundary !== null) {
 		return (pid & 0xff) > boundary ? "♂" : "♀";
 	} else {
 		return "不明";
@@ -439,6 +487,7 @@ function roma2reg(text) {
 		var token = roma2reg_search_token(text, i);
 		if (!token) {
 			result.push(t);
+			continue;
 		}
 		var kana = roma2reg.kana_map[token];
 		if (token.length == 2 && kana == "ッ") {
@@ -576,7 +625,7 @@ function step_seed(seed, n) {
 	for (var i = 0; i < n; i ++) {
 		seed = fn(seed);
 	}
-	return seed;
+	return seed >>> 0;
 }
 
 function next_seed(seed) {
@@ -606,7 +655,7 @@ th, td {
 </head>
 <body>
 <h1>ちょうさ・ぶんせきマシン （仮）</h1>
-<p>Lv50 1周目限定。交換でのポケモン変更は未実装</p>
+<p>Lv50 1周目限定</p>
 <form action="" name="f" onsubmit="on_submit();return false;">
 <p>最初の6匹のポケモンと親IDを入力してください</p>
 <p>
