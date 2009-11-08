@@ -83,9 +83,9 @@ function on_submit0() {
 	if (seed !== null) {
 		seed = step_seed(seed, read_int_string(f.consumption.value) || 0);
 	} else {
-		var r = parse_text(f.entries.value);
+		var r = parse_text(shuu, f.entries.value);
 		if (!r) return;
-		var seed = find_seed_by_6_entries(map(r.entries, "id"), r.parent_ids);
+		var seed = find_seed_by_6_entries(shuu, map(r.entries, "id"), r.parent_ids);
 	}
 	var div = document.getElementById("result");
 	if (seed === null) {
@@ -145,7 +145,7 @@ function read_int_string(s) {
 	return Number(s);
 }
 
-function parse_text(text) {
+function parse_text(shuu, text) {
 	var lines = regularize_word(text).split("\n");
 	var entries = [];
 	var parent_ids = [];
@@ -161,7 +161,7 @@ function parse_text(text) {
 			alert("6匹より多く入力されています");
 			return null;
 		}
-		var entry = find_factory_entry(1, m[1]);
+		var entry = find_factory_entry(shuu, m[1]);
 		if (!entry) {
 			alert((i+1)+"行目: \""+m[1]+"\"は存在しません");
 			return null;
@@ -200,8 +200,10 @@ function on_select_change() {
 		var entry = six_entries[select.selectedIndex];
 		entries_in_hand.push(entry);
 	}
-	context.entries_in_hand_list[1] = entries_in_hand;
-	change_enemy_entries(2, entries_in_hand);
+	if (!ary_eq(context.entries_in_hand_list[1], entries_in_hand)) {
+		context.entries_in_hand_list[1] = entries_in_hand;
+		change_enemy_entries(2, entries_in_hand);
+	}
 }
 
 function on_exchange_select_change() {
@@ -213,9 +215,11 @@ function on_exchange_select_change() {
 	if (part !== -1 && receive !== -1) {
 		entries_in_hand[part] = enemy_entries[receive];
 	}
-	change_entries_in_hand_text(n + 1, entries_in_hand);
-	// n戦目後に交換してもn+1戦目の3匹は変わらない。n+2戦目以降の3匹が変わる。
-	change_enemy_entries(n + 2, entries_in_hand);
+	if (!ary_eq(context.entries_in_hand_list[n], entries_in_hand_list)) {
+		change_entries_in_hand_text(n + 1, entries_in_hand);
+		// n戦目後に交換してもn+1戦目の3匹は変わらない。n+2戦目以降の3匹が変わる。
+		change_enemy_entries(n + 2, entries_in_hand);
+	}
 }
 
 function change_enemy_entries(start, entries_in_hand) {
@@ -262,13 +266,15 @@ function build_table(buf, info) {
 	buf.push("<table><thead><tr><th>名前<th>ID<th>裏ID<th>性格値<th>性別<th>特性</tr></thead>");
 	buf.push("<tbody>");
 	for (var i = 0; i < info.length; i ++) {
-		var pid = info[i].pid;
-		buf.push("<tr><td>"+info[i].entry.name+
-		         "<td>"+format_dec(info[i].parent_id, 5)+
-		         "<td>"+format_dec(info[i].secret_id, 5)+
+		var e = info[i];
+		var pid = e.pid;
+		var entry = e.entry;
+		buf.push("<tr><td>"+entry.name+
+		         "<td>"+format_dec(e.parent_id, 5)+
+		         "<td>"+format_dec(e.secret_id, 5)+
 		         "<td>"+format_hex(pid, 8)+
-		         "<td>"+pid2gender(pid, info[i].entry.pokemon)+
-		         "<td>"+info[i].entry.pokemon.abilities[pid % 2]+"</tr>");
+		         "<td>"+pid2gender(pid, entry.pokemon)+
+		         "<td>"+entry.pokemon.abilities[pid % 2]+"</tr>");
 	}
 	buf.push("</tbody></table>");
 }
@@ -352,7 +358,7 @@ function entries_collision0(entry, entries) {
 	return false;
 }
 
-function find_seed_by_6_entries(entry_ids, parent_ids) {
+function find_seed_by_6_entries(shuu, entry_ids, parent_ids) {
 	// n = {0,4,5} に対して
 	// n番目のポケモンのトレーナーIDが出る65536通りのseedを走査
 	// そのseedで6匹が一致するか確認
@@ -364,7 +370,7 @@ function find_seed_by_6_entries(entry_ids, parent_ids) {
 		var parent_id = parent_ids[n];
 		for (var j = 0; j < 65536; j ++) {
 			var seed = (parent_id << 16 | j) >>> 0;
-			seed_head = match_entries(1, seed);
+			seed_head = match_entries(shuu, seed);
 			if (seed_head !== null) return seed_head;
 		}
 	}
@@ -380,6 +386,8 @@ function find_seed_by_6_entries(entry_ids, parent_ids) {
 	
 	function match_entries(shuu, seed) {
 		var i = 0;
+		// 乱数列が A,B,C,D,E,A,F のとき raw_entry_ids は B,C,D,E,A,F になるので先頭要素が一致しなくなる
+		// 先頭要素が一致しない場合はさらに前の乱数列をさかのぼってみる。
 		for (;;i ++) {
 			var s = seed;
 			var seed_head = find_entries(shuu, seed, i);
