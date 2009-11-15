@@ -112,15 +112,27 @@ function get_radio_by_value(radios, value) {
 }
 
 function on_submit() {
-try{
-	on_submit0();
-}catch(e) { alert(e); }
+	try{
+		on_submit0();
+	}catch(e) {
+		show_error(e);
+	}
+}
+
+function show_error(e) {
+	var msg = "JavaScript Error!\n";
+	msg += e+"\n";
+	msg += e.fileName + ":" + e.lineNumber + "\n";
+	alert(msg);
 }
 
 var context = null;
+var during_search = false;
 
 function on_submit0() {
 	if (!factory_data || !pokemon_data) return;
+	if (during_search) return;
+	during_search = true;
 	var shuu = 1;
 	var f = document.forms.f;
 	var input_mode = get_selected_radio_value(f.input_mode, "by_six_entries");
@@ -129,7 +141,21 @@ function on_submit0() {
 	if (input_mode === "by_six_entries") {
 		var r = parse_text(shuu, f.entries.value);
 		if (!r) return;
-		var seed = find_seed_by_6_entries(shuu, map(r.entries, "id"), r.parent_ids);
+		var procedure = new FindSeedProcedure(shuu, map(r.entries, "id"), r.parent_ids);
+		var loopcnt = 0;
+		var progress_div;
+		(function loop() {
+			var seed = procedure.run(100);
+			if (seed === "timeout") {
+				if (!progress_div) progress_div = build_progress_div();
+				set_progress(progress_div, procedure.get_ratio());
+				setTimeout(loop, 0);
+			} else {
+				if (progress_div) remove_progress_div(progress_div);
+				during_search = false;
+				build_result_div(shuu, seed, 0);
+			}
+		})();
 	} else {
 		seed = read_int_string(f.seed.value);
 		consumption = read_int_string(f.consumption.value, 0);
@@ -142,7 +168,34 @@ function on_submit0() {
 			return;
 		}
 		seed = step_seed(seed, consumption);
+		during_search = false;
+		build_result_div(shuu, seed, consumption);
 	}
+}
+
+var progress_width = 200;
+
+function build_progress_div() {
+	var p = document.forms.f.submit_button.parentNode;
+	var div = document.createElement("div");
+	div.className = "progress";
+	div.style.width = (progress_width + 2) + "px";
+	var bar = document.createElement("div");
+	bar.className = "progress_bar";
+	div.appendChild(bar);
+	p.appendChild(div);
+	return div;
+}
+
+function set_progress(div, ratio) {
+	div.firstChild.style.width = Math.floor(ratio * progress_width) + "px";
+}
+
+function remove_progress_div(div) {
+	div.parentNode.removeChild(div);
+}
+
+function build_result_div(shuu, seed, consumption) {
 	var div = document.getElementById("result");
 	if (seed === null) {
 		div.innerHTML = "<p>その組み合わせのseedが見つかりません</p>";
@@ -440,113 +493,130 @@ function entries_collision0(entry, entries) {
 	return false;
 }
 
-function find_seed_by_6_entries(shuu, entry_ids, parent_ids) {
-	// n = {0,4,5} に対して
-	// n番目のポケモンのトレーナーIDが出る65536通りのseedを走査
-	// そのseedで6匹が一致するか確認
-	var raw_entry_ids;
-	var items = gen_items(entry_ids);
-	for (var i = 0; i < 3; i ++) {
-		var n = [0, 4, 5][i];
-		var entry_id = entry_ids[n];
-		var parent_id = parent_ids[n];
-		for (var j = 0; j < 65536; j ++) {
+function FindSeedProcedure(shuu, entry_ids, parent_ids) {
+	this.shuu = shuu;
+	this.entry_ids = entry_ids;
+	this.parent_ids = parent_ids;
+	this.items = FindSeedProcedure.gen_items(entry_ids);
+	this.ns = [0, 4, 5];
+	this.i = 0;
+	this.j = 0;
+}
+
+FindSeedProcedure.gen_items = function(entry_ids) {
+	var result = [];
+	for (var i = 0; i < entry_ids.length; i ++) {
+		result.push(factory_data[entry_ids[i]].item);
+	}
+	return result;
+};
+
+FindSeedProcedure.prototype.run = function(timeout) {
+	var start_time = + new Date;
+	var start_i = this.i;
+	for (; this.i < this.ns.length; this.i ++) {
+		var n = this.ns[this.i];
+		var entry_id = this.entry_ids[n];
+		var parent_id = this.parent_ids[n];
+		var j = this.i === start_i ? this.j : 0;
+		for (; j < 65536; j ++) {
 			var seed = (parent_id << 16 | j) >>> 0;
-			seed_head = match_entries(shuu, seed);
+			seed_head = this.match_entries(seed, entry_id);
 			if (seed_head !== null) return seed_head;
+			if ((j & 255) === 0 && new Date - start_time >= timeout) {
+				this.j = j + 1;
+				return "timeout";
+			}
 		}
 	}
 	return null;
-	
-	function gen_items(entry_ids) {
-		var result = [];
-		for (var i = 0; i < entry_ids.length; i ++) {
-			result.push(factory_data[entry_ids[i]].item);
-		}
-		return result;
-	}
-	
-	function match_entries(shuu, seed) {
-		var i = 0;
-		// 乱数列が A,B,C,D,E,A,F のとき raw_entry_ids は B,C,D,E,A,F になるので先頭要素が一致しなくなる
-		// 先頭要素が一致しない場合はさらに前の乱数列をさかのぼってみる。
-		for (;;i ++) {
-			var s = seed;
-			var seed_head = find_entries(shuu, seed, i);
-			if(!raw_entry_ids) return null;
-			if (raw_entry_ids[0] !== entry_id) {
-				// 先頭要素が一致しない
-				continue;
-			}
-			s = match_parent_ids(s, raw_entry_ids);
-			if (s === null) continue;
-			var swap1 = (s >>> 16) % 6;
-			s= next_seed(s);
-			var swap2 = (s >>> 16) % 6;
-			if (!match_swap(raw_entry_ids, swap1, swap2)) continue;
-			return seed_head;
-		}
-		return null;
-	}
-	
-	function match_swap(raw_entry_ids, swap1, swap2) {
-		raw_entry_ids = raw_entry_ids.slice();
-		ary_swap(raw_entry_ids, 4, swap1);
-		ary_swap(raw_entry_ids, 5, swap2);
-		return ary_eq(entry_ids, raw_entry_ids);
-	}
-	
-	function match_parent_ids(seed, raw_entry_ids) {
-		for (var i = 0; i < 6; i ++) {
-			var entry_id = raw_entry_ids[i];
-			var expected_parent_id = parent_ids[indexof(entry_ids, entry_id)];
-			var parent_id = seed >>> 16;
-			seed = next_seed(seed);
-			if (parent_id !== expected_parent_id) return null;
-			var secret_id = seed >>> 16;
-			seed = next_seed(seed);
-			var nature = factory_data[entry_id].nature;
-			do {
-				var pid_row = seed >>> 16;
-				seed = next_seed(seed);
-				var pid_high = seed >>> 16;
-				seed = next_seed(seed);
-				var pid = (pid_high << 16 | pid_row) >>> 0;
-			} while (pid % 25 != nature || is_shiny_pid(parent_id, secret_id, pid));
-		}
-		return seed;
-	}
-	
-	function find_entries(shuu, seed, max_back) {
-		seed = prev_seed(seed);
-		var entry_id = seed_to_entry_id(shuu, seed);
-		if (!ary_include(entry_ids, entry_id)) return null;
-		var result = [entry_id];
-		var i = 0;
-		while (result.length < 6 || i < max_back) {
-			seed = prev_seed(seed);
-			entry_id = seed_to_entry_id(shuu, seed);
-			if (ary_include(entry_ids, entry_id)) {
-				var index = indexof(result, entry_id);
-				if (index >= 0) {
-					// A B A という並びがあったとき前のAの方が優先される。
-					if (result.length == 6) i ++;
-					result.splice(index, 1);
-				}
-				result.push(entry_id);
-				if (result.length > 6) return null;
-			} else {
-				// 結果に出てくるエントリに存在しないエントリの場合はアイテム衝突しかありえない
-				var item = factory_data[entry_id].item;
-				if (!ary_include(items, item)) {
-					return null;
-				}
-			}
-		}
-		raw_entry_ids = result.reverse();
-		return seed;
-	}
+};
+
+FindSeedProcedure.prototype.get_ratio = function() {
+	return (this.i * 65536 + this.j) / (this.ns.length * 65536);
 }
+
+FindSeedProcedure.prototype.match_entries = function(seed, entry_id) {
+	var i = 0;
+	// 乱数列が A,B,C,D,E,A,F のとき raw_entry_ids は B,C,D,E,A,F になるので先頭要素が一致しなくなる
+	// 先頭要素が一致しない場合はさらに前の乱数列をさかのぼってみる。
+	for (;;i ++) {
+		var s = seed;
+		var r = this.find_entries(seed, i);
+		if(!r) return null;
+		var seed_head = r[0], raw_entry_ids = r[1];
+		if (raw_entry_ids[0] !== entry_id) {
+			// 先頭要素が一致しない
+			continue;
+		}
+		s = this.match_parent_ids(s, raw_entry_ids);
+		if (s === null) continue;
+		var swap1 = (s >>> 16) % 6;
+		s= next_seed(s);
+		var swap2 = (s >>> 16) % 6;
+		if (!this.match_swap(raw_entry_ids, swap1, swap2)) continue;
+		return seed_head;
+	}
+	return null;
+};
+
+FindSeedProcedure.prototype.match_swap = function(raw_entry_ids, swap1, swap2) {
+	raw_entry_ids = raw_entry_ids.slice();
+	ary_swap(raw_entry_ids, 4, swap1);
+	ary_swap(raw_entry_ids, 5, swap2);
+	return ary_eq(this.entry_ids, raw_entry_ids);
+};
+
+FindSeedProcedure.prototype.match_parent_ids = function (seed, raw_entry_ids) {
+	for (var i = 0; i < 6; i ++) {
+		var entry_id = raw_entry_ids[i];
+		var expected_parent_id = this.parent_ids[indexof(this.entry_ids, entry_id)];
+		var parent_id = seed >>> 16;
+		seed = next_seed(seed);
+		if (parent_id !== expected_parent_id) return null;
+		var secret_id = seed >>> 16;
+		seed = next_seed(seed);
+		var nature = factory_data[entry_id].nature;
+		do {
+			var pid_row = seed >>> 16;
+			seed = next_seed(seed);
+			var pid_high = seed >>> 16;
+			seed = next_seed(seed);
+			var pid = (pid_high << 16 | pid_row) >>> 0;
+		} while (pid % 25 != nature || is_shiny_pid(parent_id, secret_id, pid));
+	}
+	return seed;
+};
+
+FindSeedProcedure.prototype.find_entries = function(seed, max_back) {
+	var shuu = this.shuu;
+	seed = prev_seed(seed);
+	var entry_id = seed_to_entry_id(shuu, seed);
+	if (!ary_include(this.entry_ids, entry_id)) return null;
+	var result = [entry_id];
+	var i = 0;
+	while (result.length < 6 || i < max_back) {
+		seed = prev_seed(seed);
+		entry_id = seed_to_entry_id(shuu, seed);
+		if (ary_include(this.entry_ids, entry_id)) {
+			var index = indexof(result, entry_id);
+			if (index >= 0) {
+				// A B A という並びがあったとき前のAの方が優先される。
+				if (result.length == 6) i ++;
+				result.splice(index, 1);
+			}
+			result.push(entry_id);
+			if (result.length > 6) return null;
+		} else {
+			// 結果に出てくるエントリに存在しないエントリの場合はアイテム衝突しかありえない
+			var item = factory_data[entry_id].item;
+			if (!ary_include(this.items, item)) {
+				return null;
+			}
+		}
+	}
+	return [seed, result.reverse()];
+};
 
 function is_shiny_pid(parent_id, secret_id, pid) {
 	return ((parent_id ^ secret_id ^ (pid >>> 16) ^ (pid & 0xffff)) & ~7) == 0;
@@ -746,6 +816,18 @@ p.range {
 	font-size: 80%;
 	color: #888;
 }
+
+div.progress {
+	height: 10px;
+	border: 1px solid #888;
+	display: inline-block;
+	*display: inline;
+}
+
+div.progress_bar {
+	height: 100%;
+	background: #4bd472;
+}
 </style>
 </head>
 <body>
@@ -762,7 +844,7 @@ p.range {
 カラナクシ　10484</textarea>
 </p>
 <p><label><input type="radio" name="input_mode" value="by_seed">seed+消費量で入力:</label> <input type="text" name="seed" size="15">+<input type="text" name="consumption" size="3"></p>
-<p><input type="submit" value="決定"></p>
+<p><input type="submit" name="submit_button" value="決定"></p>
 </form>
 <div id="result"></div>
 </body>
