@@ -16,25 +16,6 @@ var shuu_entries_start  = [null,   0, 150, 250, 350, 486, 622, 758];
 var shuu_entries_end    = [null, 149, 249, 349, 485, 621, 757, 949];
 
 $(function() {
-	var by_focus = false;
-	$(document.forms.f.input_mode).click(function() {
-		if (by_focus) return;
-		if (this.value === "by_six_entries") {
-			document.forms.f.entries.focus();
-		} else {
-			document.forms.f.seed.focus();
-		}
-	});
-	$(document.forms.f.entries).focus(function() {
-		by_focus = true;
-		get_radio_by_value(document.forms.f.input_mode, "by_six_entries").click();
-		by_focus = false;
-	});
-	$([document.forms.f.seed, document.forms.f.consumption]).focus(function() {
-		by_focus = true;
-		get_radio_by_value(document.forms.f.input_mode, "by_seed").click();
-		by_focus = false;
-	});
 	var factory_data_text;
 	var pokedex_csv_text;
 	$.ajax({dataType: "text", url: "factory_data.txt", success: function(data) {
@@ -47,135 +28,102 @@ $(function() {
 	}});
 	function boot() {
 		if (!factory_data_text || !pokedex_csv_text) return;
-		
-		var lines = pokedex_csv_text.split('\n');
-		if (lines[lines.length - 1] == '') lines.pop();
-		var boundaries = {"♂のみ": -1, "♀のみ": 255, "1:7": 30, "1:3": 63, "1:1": 126, "3:1": 190, "ふめい": null};
-		pokemon_data = new Array(lines.length);
-		pokemon_name2id = {};
-		for (var i = 0; i < lines.length; i ++) {
-			var row = lines[i].split(',');
-			var name = row[0];
-			var ability1 = row[1];
-			var ability2 = row[2] || ability1;
-			var gender_boundary = boundaries[row[3]];
-			pokemon_name2id[name] = i;
-			pokemon_data[i] = {
-				id: i,
-				name: name,
-				abilities: [ability1, ability2],
-				gender_boundary: gender_boundary
-			};
-		}
-		
-		var lines = factory_data_text.split('\n');
-		if (lines[lines.length - 1] == '') lines.pop();
-		factory_data = new Array(lines.length);
-		for (var i = 0; i < lines.length; i ++) {
-			var row = lines[i].split('|');
-			factory_data[i] = {
-				id: i,
-				name:   row[1],
-				pokemon: get_pokemon_entry(row[1]),
-				nature: indexof(natures, row[2]),
-				item:   row[3],
-				move:   row[4],
-				effort: row[5]
-			};
-		}
+		initialize_pokemon_data(pokedex_csv_text);
+		initialize_factory_entries(factory_data_text);
+		$(document.forms.entries_form).submit(on_submit_entries);
+		$(document.forms.seed_form).submit(on_submit_seed);
+
 	}
 });
 
-function get_selected_radio_value(radios, default_value) {
-	var radio = get_selected_radio(radios);
-	if (radio) {
-		return radio.value;
-	} else {
-		return default_value;
+function initialize_pokemon_data(pokedex_csv_text) {
+	var lines = pokedex_csv_text.split('\n');
+	if (lines[lines.length - 1] == '') lines.pop();
+	var boundaries = {"♂のみ": -1, "♀のみ": 255, "1:7": 30, "1:3": 63, "1:1": 126, "3:1": 190, "ふめい": null};
+	pokemon_data = new Array(lines.length);
+	pokemon_name2id = {};
+	for (var i = 0; i < lines.length; i ++) {
+		var row = lines[i].split(',');
+		var name = row[0];
+		var ability1 = row[1];
+		var ability2 = row[2] || ability1;
+		var gender_boundary = boundaries[row[3]];
+		pokemon_name2id[name] = i;
+		pokemon_data[i] = {
+			id: i,
+			name: name,
+			abilities: [ability1, ability2],
+			gender_boundary: gender_boundary
+		};
 	}
 }
 
-function get_selected_radio(radios) {
-	for (var i = 0; i < radios.length; i ++) {
-		var radio = radios[i];
-		if (radio.checked) return radio;
+function initialize_factory_entries(factory_data_text) {
+	var lines = factory_data_text.split('\n');
+	if (lines[lines.length - 1] == '') lines.pop();
+	factory_data = new Array(lines.length);
+	for (var i = 0; i < lines.length; i ++) {
+		var row = lines[i].split('|');
+		factory_data[i] = {
+			id: i,
+			name:   row[1],
+			pokemon: get_pokemon_entry(row[1]),
+			nature: indexof(natures, row[2]),
+			item:   row[3],
+			move:   row[4],
+			effort: row[5]
+		};
 	}
-	return null;
-}
-
-function get_radio_by_value(radios, value) {
-	for (var i = 0; i < radios.length; i ++) {
-		var radio = radios[i];
-		if (radio.value === value) return radio;
-	}
-	return null;
-}
-
-function on_submit() {
-	try {
-		on_submit0();
-	} catch(e) {
-		show_error(e);
-	}
-}
-
-function show_error(e) {
-	var msg = "JavaScript Error!\n";
-	msg += e+"\n";
-	msg += e.fileName + ":" + e.lineNumber + "\n";
-	alert(msg);
 }
 
 var context = null;
 var during_search = false;
 
-function on_submit0() {
-	if (!factory_data || !pokemon_data) return;
+function on_submit_entries() {
 	if (during_search) return;
 	var shuu = 1;
-	var f = document.forms.f;
-	var input_mode = get_selected_radio_value(f.input_mode, "by_six_entries");
-	var seed;
-	var consumption = 0;
-	if (input_mode === "by_six_entries") {
-		var r = parse_text(shuu, f.entries.value);
-		if (!r) return;
-		var procedure = new FindSeedProcedure(shuu, map(r.entries, "id"), r.parent_ids);
-		var loopcnt = 0;
-		var progress_div;
-		during_search = true;
-		(function loop() {
-			var seed = procedure.run(100);
-			if (seed === "timeout") {
-				if (!progress_div) progress_div = build_progress_div();
-				set_progress(progress_div, procedure.get_ratio());
-				setTimeout(loop, 0);
-			} else {
-				if (progress_div) remove_progress_div(progress_div);
-				during_search = false;
-				build_result_div(shuu, seed, 0);
-			}
-		})();
-	} else {
-		seed = read_int_string(f.seed.value);
-		consumption = read_int_string(f.consumption.value, 0);
-		if (seed === null) {
-			alert("seedに入力されている値が不正です");
-			return;
+	var f = document.forms.entries_form;
+	var r = parse_text(shuu, f.entries.value);
+	if (!r) return;
+	var procedure = new FindSeedProcedure(shuu, map(r.entries, "id"), r.parent_ids);
+	var progress_div;
+	during_search = true;
+	(function loop() {
+		var seed = procedure.run(100);
+		if (seed === "timeout") {
+			if (!progress_div) progress_div = build_progress_div();
+			set_progress(progress_div, procedure.get_ratio());
+			setTimeout(loop, 0);
+		} else {
+			if (progress_div) remove_progress_div(progress_div);
+			during_search = false;
+			build_result_div(shuu, seed, 0);
 		}
-		if (consumption === null) {
-			alert("消費量に入力されている値が不正です");
-			return;
-		}
-		seed = step_seed(seed, consumption);
-		build_result_div(shuu, seed, consumption);
+	})();
+}
+
+function on_submit_seed() {
+	if (during_search) return;
+	var shuu = 1;
+	var f = document.forms.seed_form;
+	var seed = read_int_string(f.seed.value);
+	var consumption = read_int_string(f.consumption.value, 0);
+	if (seed === null) {
+		alert("seedに入力されている値が不正です");
+		return;
 	}
+	if (consumption === null) {
+		alert("消費量に入力されている値が不正です");
+		return;
+	}
+	seed = step_seed(seed, consumption);
+	build_result_div(shuu, seed, consumption);
 }
 
 var progress_width = 200;
 
 function build_progress_div() {
-	var p = document.forms.f.submit_button.parentNode;
+	var p = document.forms.entries_form.entries_submit.parentNode;
 	var div = document.createElement("div");
 	div.className = "progress";
 	div.style.width = (progress_width + 2) + "px";
@@ -832,18 +780,20 @@ div.progress_bar {
 <body>
 <h1>ちょうさ・ぶんせきマシン （仮）</h1>
 <p>Lv50 1周目限定</p>
-<form action="" name="f" onsubmit="on_submit();return false;">
-<p><label><input type="radio" name="input_mode" value="by_six_entries" checked>6匹のポケモンと親IDで入力</label></p>
+<form action="" name="entries_form" onsubmit="return false;">
+<p>6匹のポケモンと親IDで入力:<br>
 <textarea cols="30" rows="6" id="entries">
 マイナン　11067
 パチリス　63599
 ムクバード　62326
 ハスブレロ　27843
 パッチール　50041
-カラナクシ　10484</textarea>
+カラナクシ　10484</textarea><br>
+<input type="submit" name="entries_submit" value="決定">
 </p>
-<p><label><input type="radio" name="input_mode" value="by_seed">seed+消費量で入力:</label> <input type="text" name="seed" size="15">+<input type="text" name="consumption" size="3"></p>
-<p><input type="submit" name="submit_button" value="決定"></p>
+</form>
+<form action="" name="seed_form" onsubmit="return false;">
+<p>seed+消費量で入力: <input type="text" name="seed" size="15">+<input type="text" name="consumption" size="6"> <input type="submit" name="seed_submit" value="決定"></p>
 </form>
 <div id="result"></div>
 </body>
