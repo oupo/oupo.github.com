@@ -16,6 +16,25 @@ var shuu_entries_start  = [null,   0, 150, 250, 350, 486, 622, 758];
 var shuu_entries_end    = [null, 149, 249, 349, 485, 621, 757, 949];
 
 $(function() {
+	var by_focus = false;
+	$(document.forms.f.input_mode).click(function() {
+		if (by_focus) return;
+		if (this.value === "by_six_entries") {
+			document.forms.f.entries.focus();
+		} else {
+			document.forms.f.seed.focus();
+		}
+	});
+	$(document.forms.f.entries).focus(function() {
+		by_focus = true;
+		get_radio_by_value(document.forms.f.input_mode, "by_six_entries").click();
+		by_focus = false;
+	});
+	$([document.forms.f.seed, document.forms.f.consumption]).focus(function() {
+		by_focus = true;
+		get_radio_by_value(document.forms.f.input_mode, "by_seed").click();
+		by_focus = false;
+	});
 	var factory_data_text;
 	var pokedex_csv_text;
 	$.ajax({dataType: "text", url: "factory_data.txt", success: function(data) {
@@ -67,6 +86,31 @@ $(function() {
 	}
 });
 
+function get_selected_radio_value(radios, default_value) {
+	var radio = get_selected_radio(radios);
+	if (radio) {
+		return radio.value;
+	} else {
+		return default_value;
+	}
+}
+
+function get_selected_radio(radios) {
+	for (var i = 0; i < radios.length; i ++) {
+		var radio = radios[i];
+		if (radio.checked) return radio;
+	}
+	return null;
+}
+
+function get_radio_by_value(radios, value) {
+	for (var i = 0; i < radios.length; i ++) {
+		var radio = radios[i];
+		if (radio.value === value) return radio;
+	}
+	return null;
+}
+
 function on_submit() {
 try{
 	on_submit0();
@@ -79,15 +123,25 @@ function on_submit0() {
 	if (!factory_data || !pokemon_data) return;
 	var shuu = 1;
 	var f = document.forms.f;
-	var seed = read_int_string(f.seed.value);
+	var input_mode = get_selected_radio_value(f.input_mode, "by_six_entries");
+	var seed;
 	var consumption = 0;
-	if (seed !== null) {
-		consumption = read_int_string(f.consumption.value) || 0;
-		seed = step_seed(seed, consumption);
-	} else {
+	if (input_mode === "by_six_entries") {
 		var r = parse_text(shuu, f.entries.value);
 		if (!r) return;
 		var seed = find_seed_by_6_entries(shuu, map(r.entries, "id"), r.parent_ids);
+	} else {
+		seed = read_int_string(f.seed.value);
+		consumption = read_int_string(f.consumption.value, 0);
+		if (seed === null) {
+			alert("seedに入力されている値が不正です");
+			return;
+		}
+		if (consumption === null) {
+			alert("消費量に入力されている値が不正です");
+			return;
+		}
+		seed = step_seed(seed, consumption);
 	}
 	var div = document.getElementById("result");
 	if (seed === null) {
@@ -138,7 +192,10 @@ function on_submit0() {
 	$("#result > p.exchange select").change(on_exchange_select_change).keypress(on_exchange_select_change);
 }
 
-function read_int_string(s) {
+function read_int_string(s, default_value) {
+	if (/^\s*$/.test(s) && default_value !== undefined) {
+		return default_value;
+	}
 	if (!/^\s*(?:-?\d+|0x[0-9a-f]+)\s*$/i.test(s)) {
 		return null;
 	}
@@ -695,8 +752,7 @@ p.range {
 <h1>ちょうさ・ぶんせきマシン （仮）</h1>
 <p>Lv50 1周目限定</p>
 <form action="" name="f" onsubmit="on_submit();return false;">
-<p>最初の6匹のポケモンと親IDを入力してください</p>
-<p>
+<p><label><input type="radio" name="input_mode" value="by_six_entries" checked>6匹のポケモンと親IDで入力</label></p>
 <textarea cols="30" rows="6" id="entries">
 マイナン　11067
 パチリス　63599
@@ -705,7 +761,7 @@ p.range {
 パッチール　50041
 カラナクシ　10484</textarea>
 </p>
-<p>or seed+消費量で入力: <input type="text" name="seed" size="15">+<input type="text" name="consumption" size="3"></p>
+<p><label><input type="radio" name="input_mode" value="by_seed">seed+消費量で入力:</label> <input type="text" name="seed" size="15">+<input type="text" name="consumption" size="3"></p>
 <p><input type="submit" value="決定"></p>
 </form>
 <div id="result"></div>
