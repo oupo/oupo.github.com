@@ -112,9 +112,9 @@ function get_radio_by_value(radios, value) {
 }
 
 function on_submit() {
-	try{
+	try {
 		on_submit0();
-	}catch(e) {
+	} catch(e) {
 		show_error(e);
 	}
 }
@@ -132,7 +132,6 @@ var during_search = false;
 function on_submit0() {
 	if (!factory_data || !pokemon_data) return;
 	if (during_search) return;
-	during_search = true;
 	var shuu = 1;
 	var f = document.forms.f;
 	var input_mode = get_selected_radio_value(f.input_mode, "by_six_entries");
@@ -144,6 +143,7 @@ function on_submit0() {
 		var procedure = new FindSeedProcedure(shuu, map(r.entries, "id"), r.parent_ids);
 		var loopcnt = 0;
 		var progress_div;
+		during_search = true;
 		(function loop() {
 			var seed = procedure.run(100);
 			if (seed === "timeout") {
@@ -168,7 +168,6 @@ function on_submit0() {
 			return;
 		}
 		seed = step_seed(seed, consumption);
-		during_search = false;
 		build_result_div(shuu, seed, consumption);
 	}
 }
