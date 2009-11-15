@@ -77,10 +77,11 @@ function initialize_factory_entries(factory_data_text) {
 }
 
 var context = null;
-var during_search = false;
+var search_timer_id = null;
+var progress_div = null;
 
 function on_submit_entries() {
-	if (during_search) return;
+	cancel_search();
 	var shuu = read_shuu_input();
 	if (shuu === null) return;
 	var f = document.forms.entries_form;
@@ -88,24 +89,23 @@ function on_submit_entries() {
 	if (!r) return;
 	var num_bonus = FindSeedProcedure.gen_bonus_entries(shuu, r.entries).length;
 	var procedure = new FindSeedProcedure(shuu, r.entries, r.parent_ids);
-	var progress_div;
-	during_search = true;
 	(function loop() {
 		var seed = procedure.run(100);
 		if (seed === "timeout") {
 			if (!progress_div) progress_div = build_progress_div();
 			set_progress(progress_div, procedure.get_ratio());
-			setTimeout(loop, 0);
+			search_timer_id = setTimeout(loop, 0);
 		} else {
 			if (progress_div) remove_progress_div(progress_div);
-			during_search = false;
+			progress_div = null;
+			search_timer_id = null;
 			build_result_div(shuu, seed, 0, num_bonus);
 		}
 	})();
 }
 
 function on_submit_seed() {
-	if (during_search) return;
+	cancel_search();
 	var shuu = read_shuu_input();
 	if (shuu === null) return;
 	var f = document.forms.seed_form;
@@ -126,6 +126,12 @@ function on_submit_seed() {
 	}
 	seed = step_seed(seed, consumption);
 	build_result_div(shuu, seed, consumption, num_bonus);
+}
+
+function cancel_search() {
+	clearTimeout(search_timer_id);
+	if (progress_div) remove_progress_div(progress_div);
+	progress_div = null;
 }
 
 function read_shuu_input() {
