@@ -81,11 +81,13 @@ var during_search = false;
 
 function on_submit_entries() {
 	if (during_search) return;
-	var shuu = 1;
+	var shuu = read_shuu_input();
+	if (shuu === null) return;
 	var f = document.forms.entries_form;
 	var r = parse_text(shuu, f.entries.value);
 	if (!r) return;
-	var procedure = new FindSeedProcedure(shuu, map(r.entries, "id"), r.parent_ids);
+	var num_bonus = FindSeedProcedure.gen_bonus_entries(shuu, r.entries).length;
+	var procedure = new FindSeedProcedure(shuu, r.entries, r.parent_ids);
 	var progress_div;
 	during_search = true;
 	(function loop() {
@@ -97,17 +99,19 @@ function on_submit_entries() {
 		} else {
 			if (progress_div) remove_progress_div(progress_div);
 			during_search = false;
-			build_result_div(shuu, seed, 0);
+			build_result_div(shuu, seed, 0, num_bonus);
 		}
 	})();
 }
 
 function on_submit_seed() {
 	if (during_search) return;
-	var shuu = 1;
+	var shuu = read_shuu_input();
+	if (shuu === null) return;
 	var f = document.forms.seed_form;
 	var seed = read_int_string(f.seed.value);
 	var consumption = read_int_string(f.consumption.value, 0);
+	var num_bonus = read_int_string(f.num_bonus.value, 0);
 	if (seed === null) {
 		alert("seedに入力されている値が不正です");
 		return;
@@ -116,11 +120,24 @@ function on_submit_seed() {
 		alert("消費量に入力されている値が不正です");
 		return;
 	}
+	if (num_bonus === null || num_bonus < 0 || num_bonus > 6) {
+		alert("ボーナスポケモンの数に入力されている値が不正です");
+		return;
+	}
 	seed = step_seed(seed, consumption);
-	build_result_div(shuu, seed, consumption);
+	build_result_div(shuu, seed, consumption, num_bonus);
 }
 
-var progress_width = 200;
+function read_shuu_input() {
+	var value = read_int_string(document.getElementById("shuu_input").value);
+	if (value === null || value < 1 || value > 3) {
+		alert("周に入力されている値が不正です");
+		return null;
+	}
+	return value;
+}
+
+var progress_width = 100;
 
 function build_progress_div() {
 	var p = document.forms.entries_form.entries_submit.parentNode;
@@ -142,13 +159,13 @@ function remove_progress_div(div) {
 	div.parentNode.removeChild(div);
 }
 
-function build_result_div(shuu, seed, consumption) {
+function build_result_div(shuu, seed, consumption, num_bonus) {
 	var div = document.getElementById("result");
 	if (seed === null) {
 		div.innerHTML = "<p>その組み合わせのseedが見つかりません</p>";
 		return;
 	}
-	var r = get_entries_info(shuu, seed, consumption, 6, [], null);
+	var r = get_6_entries_info(shuu, seed, consumption, num_bonus);
 	var entries = r.entries;
 	var seed_head = seed;
 	seed = r.seed;
@@ -162,7 +179,7 @@ function build_result_div(shuu, seed, consumption) {
 	build_table(buf, r.infos);
 	buf.push("<p id=\"election\">選出: "+build_select(entries, 0)+" "+build_select(entries, 1)+" "+build_select(entries, 2)+"</p>");
 	buf.push("<p>1戦目</p>");
-	var r = get_entries_info(shuu, seed, r.next_consumption, 3, entries, entries_in_hand);
+	var r = get_3_entries_info(shuu, seed, r.next_consumption, entries, entries_in_hand);
 	context.infos.push(r);
 	buf.push("<p id=\"range-1\" class=\"range\">"+r.rand_range.first+"-"+r.rand_range.last+"</p>");
 	buf.push("<div id=\"enemy-entries-1\">");
@@ -173,7 +190,7 @@ function build_result_div(shuu, seed, consumption) {
 	var prev_enemy_entries = r.entries;
 	for (var i = 2; i <= 7; i ++) {
 		var visited_entries = entries_in_hand.concat(prev_enemy_entries);
-		var r = get_entries_info(i == 7 ? shuu + 1 : shuu, seed, consumption, 3, visited_entries, entries_in_hand);
+		var r = get_3_entries_info(i == 7 ? shuu + 1 : shuu, seed, consumption, visited_entries, entries_in_hand);
 		context.infos.push(r);
 		buf.push("<p class=\"exchange\">交換: <select id=\"exchange-part-"+(i-1)+"\"><option></option>"+build_options(entries_in_hand)+"</select>");
 		buf.push("→ <select id=\"exchange-receive-"+(i-1)+"\"><option></option>"+build_options(prev_enemy_entries)+"</select>");
@@ -209,23 +226,41 @@ function parse_text(shuu, text) {
 	for (var i = 0; i < lines.length; i ++) {
 		var line = lines[i];
 		if (/^\s*$/.test(line)) continue;
-		var m = /^\s*(\S+)\s+(\d+)\s*$/.exec(line);
+		// [ポケモンの種類ID] 名前 親ID [b]
+		// 結果に表示された表からコピペで入力できるように「1 フシギダネ 12345」のような形式を認める
+		var m = /^\s*((?:\d+\s+)?)(\S+)\s+(\d+)((?:\s+b)?)\s*$/.exec(line);
 		if (!m) {
-			alert((i+1)+"行目が不正です");
+			alert((i+1)+"行目が不正です\n> "+line);
 			return null;
 		}
+		var id = read_int_string(m[1]), name = m[2], parent_id = Number(m[3]), is_bonus = m[4] !== "";
 		if (entries.length == 6) {
 			alert("6匹より多く入力されています");
 			return null;
 		}
-		var entry = find_factory_entry(shuu, m[1]);
+		var entry;
+		if (id !== null) {
+			if (id - 1 < shuu_entries_start[shuu] || id - 1 > shuu_entries_end[shuu+1]) {
+				alert((i+1)+"行目: "+id+"は不正なNoです");
+				return;
+			}
+			entry = factory_data[id - 1];
+			if (find_factory_entry(entry_id_to_shuu(id - 1), name) !== entry) {
+				alert((i+1)+"行目: "+id+"と"+name+"が一致しません ("+id+" = "+entry.name+")");
+				return;
+			}
+		} else if (is_bonus) {
+			entry = find_factory_entry(shuu + 1, name);
+		} else {
+			entry = find_factory_entry(shuu, name);
+			if(!entry) entry = find_factory_entry(shuu + 1, name);
+		}
 		if (!entry) {
-			alert((i+1)+"行目: \""+m[1]+"\"は存在しません");
+			alert((i+1)+"行目: \""+name+"\"は存在しません");
 			return null;
 		}
-		var id = Number(m[2]);
-		if (id < 0 || id >= 65536) {
-			alert((i+1)+"行目: "+id+"は不正なIDです");
+		if (parent_id < 0 || parent_id >= 65536) {
+			alert((i+1)+"行目: "+parent_id+"は不正なIDです");
 			return null;
 		}
 		if (ary_include(entries, entry)) {
@@ -237,7 +272,7 @@ function parse_text(shuu, text) {
 			return null;
 		}
 		entries.push(entry);
-		parent_ids.push(id);
+		parent_ids.push(parent_id);
 	}
 	if (entries.length != 6) {
 		alert("6匹入力されていません");
@@ -299,7 +334,7 @@ function change_enemy_entries(start) {
 	var entries_in_hand = context.infos[start - 1].entries_in_hand;
 	for (var i = start; i <= 7; i ++) {
 		var visited_entries = entries_in_hand.concat(prev_enemy_entries);
-		var r = get_entries_info(i == 7 ? shuu + 1 : shuu, seed, consumption, 3, visited_entries, entries_in_hand);
+		var r = get_3_entries_info(i == 7 ? shuu + 1 : shuu, seed, consumption, visited_entries, entries_in_hand);
 		context.infos[i] = r;
 		
 		$("#exchange-part-"+(i-1)).html("<option></option>"+build_options(entries_in_hand));
@@ -335,13 +370,16 @@ function build_options(entries, selectedIndex) {
 }
 
 function build_table(buf, info) {
-	buf.push("<table><thead><tr><th>名前<th>ID<th>裏ID<th>性格値<th>性別<th>特性</tr></thead>");
+	buf.push("<table><thead><tr><th>周<th>No<th>名前<th>ID<th>裏ID<th>性格値<th>性別<th>特性</tr></thead>");
 	buf.push("<tbody>");
 	for (var i = 0; i < info.length; i ++) {
 		var e = info[i];
 		var pid = e.pid;
 		var entry = e.entry;
-		buf.push("<tr><td>"+entry.name+
+		buf.push("<tr>"+
+		         "<td>"+entry_id_to_shuu(entry.id)+
+		         "<td>"+(entry.id+1)+
+		         "<td>"+entry.name+
 		         "<td>"+format_dec(e.parent_id, 5)+
 		         "<td>"+format_dec(e.secret_id, 5)+
 		         "<td>"+format_hex(pid, 8)+
@@ -370,15 +408,27 @@ function seed_to_entry_id(shuu, seed) {
 	return count - 1 - (seed >>> 16) % count + start;
 }
 
-function get_entries_info(shuu, seed, consumption, num, visited_entries, entries_in_hand) {
+function seed_to_entry(shuu, seed) {
+	return factory_data[seed_to_entry_id(shuu, seed)];
+}
+
+function get_3_entries_info(shuu, seed, consumption, visited_entries, entries_in_hand) {
+	return get_entries_info(shuu, seed, consumption, 3, visited_entries, entries_in_hand, 0);
+}
+
+function get_6_entries_info(shuu, seed, consumption, num_bonus) {
+	return get_entries_info(shuu, seed, consumption, 6, [], null, num_bonus);
+}
+
+function get_entries_info(shuu, seed, consumption, num, visited_entries, entries_in_hand, num_bonus) {
 	var entries = [];
 	var infos = [];
 	var i = 0;
 	var seed_start = seed;
 	var c = consumption;
 	while (i < num) {
-		var id = seed_to_entry_id(shuu, seed);
-		var entry = factory_data[id];
+		var is_bonus = num - i <= num_bonus;
+		var entry = seed_to_entry(is_bonus ? shuu + 1 : shuu, seed);
 		seed = next_seed(seed); c ++;
 		if (entries_collision(entry, entries, visited_entries)) continue;
 		entries.push(entry);
@@ -440,22 +490,54 @@ function entries_collision0(entry, entries) {
 	return false;
 }
 
-function FindSeedProcedure(shuu, entry_ids, parent_ids) {
+function FindSeedProcedure(shuu, entries, parent_ids) {
 	this.shuu = shuu;
-	this.entry_ids = entry_ids;
+	this.entries = entries;
 	this.parent_ids = parent_ids;
-	this.items = FindSeedProcedure.gen_items(entry_ids);
-	this.ns = [0, 4, 5];
+	this.items = FindSeedProcedure.gen_items(entries);
+	this.bonus_entries = FindSeedProcedure.gen_bonus_entries(shuu, entries);
+	if (this.bonus_entries.length == 6) {
+		this.bonus_entries = [];
+		this.shuu += 1;
+	}
+	this.num_bonus = this.bonus_entries.length;
+	this.last_candidate_entries = this.num_bonus > 0 ? this.bonus_entries : this.entries;
+	this.last_entry_shuu = this.num_bonus > 0 ? this.shuu + 1 : this.shuu;
+	this.ns = FindSeedProcedure.gen_ns(shuu, entries);
 	this.i = 0;
 	this.j = 0;
 }
 
-FindSeedProcedure.gen_items = function(entry_ids) {
+FindSeedProcedure.gen_items = function(entries) {
 	var result = [];
-	for (var i = 0; i < entry_ids.length; i ++) {
-		result.push(factory_data[entry_ids[i]].item);
+	for (var i = 0; i < entries.length; i ++) {
+		result.push(entries[i].item);
 	}
 	return result;
+};
+
+FindSeedProcedure.gen_bonus_entries = function(shuu, entries) {
+	var start = shuu_entries_start[shuu + 1];
+	var result = [];
+	for (var i = 0; i < 6; i ++) {
+		var entry = entries[i];
+		if (entry.id >= start) result.push(entry);
+	}
+	return result;
+};
+
+FindSeedProcedure.gen_ns = function(shuu, entries) {
+	var start = shuu_entries_start[shuu + 1];
+	var _ns = [0, 4, 5];
+	var ns = [];
+	for (var i = 0; i < 3; i ++) {
+		var n = _ns[i];
+		// ボーナスポケモンは先頭になるはずがないので除外
+		if (entries[n].id < start) {
+			ns.push(n);
+		}
+	}
+	return ns;
 };
 
 FindSeedProcedure.prototype.run = function(timeout) {
@@ -463,12 +545,12 @@ FindSeedProcedure.prototype.run = function(timeout) {
 	var start_i = this.i;
 	for (; this.i < this.ns.length; this.i ++) {
 		var n = this.ns[this.i];
-		var entry_id = this.entry_ids[n];
+		var entry = this.entries[n];
 		var parent_id = this.parent_ids[n];
 		var j = this.i === start_i ? this.j : 0;
 		for (; j < 65536; j ++) {
 			var seed = (parent_id << 16 | j) >>> 0;
-			seed_head = this.match_entries(seed, entry_id);
+			seed_head = this.match_entries(seed, entry);
 			if (seed_head !== null) return seed_head;
 			if ((j & 255) === 0 && new Date - start_time >= timeout) {
 				this.j = j + 1;
@@ -483,47 +565,85 @@ FindSeedProcedure.prototype.get_ratio = function() {
 	return (this.i * 65536 + this.j) / (this.ns.length * 65536);
 }
 
-FindSeedProcedure.prototype.match_entries = function(seed, entry_id) {
-	var i = 0;
-	// 乱数列が A,B,C,D,E,A,F のとき raw_entry_ids は B,C,D,E,A,F になるので先頭要素が一致しなくなる
+FindSeedProcedure.prototype.match_entries = function(seed, first_entry) {
+	var last_entry = seed_to_entry(this.last_entry_shuu, prev_seed(seed));
+	if (!ary_include(this.last_candidate_entries, last_entry)) return null;
+	var n = 6;
+	var seed_head = step_seed(seed, -n);
+	// 乱数列が A,B,C,D,E,A,F のとき raw_entries は B,C,D,E,A,F になるので先頭要素が一致しなくなる
 	// 先頭要素が一致しない場合はさらに前の乱数列をさかのぼってみる。
-	for (;;i ++) {
+	for (;;seed_head=prev_seed(seed_head),n++) {
 		var s = seed;
-		var r = this.find_entries(seed, i);
-		if(!r) return null;
-		var seed_head = r[0], raw_entry_ids = r[1];
-		if (raw_entry_ids[0] !== entry_id) {
+		var raw_entries = this.find_entries(seed_head, n);
+		if (raw_entries === "break") break;
+		if (raw_entries === "next") continue;
+		if (raw_entries[0] !== first_entry) {
 			// 先頭要素が一致しない
 			continue;
 		}
-		s = this.match_parent_ids(s, raw_entry_ids);
+		var s = this.match_parent_ids(seed, raw_entries);
 		if (s === null) continue;
 		var swap1 = (s >>> 16) % 6;
 		s= next_seed(s);
 		var swap2 = (s >>> 16) % 6;
-		if (!this.match_swap(raw_entry_ids, swap1, swap2)) continue;
+		if (!this.match_swap(raw_entries, swap1, swap2)) continue;
 		return seed_head;
 	}
 	return null;
 };
 
-FindSeedProcedure.prototype.match_swap = function(raw_entry_ids, swap1, swap2) {
-	raw_entry_ids = raw_entry_ids.slice();
-	ary_swap(raw_entry_ids, 4, swap1);
-	ary_swap(raw_entry_ids, 5, swap2);
-	return ary_eq(this.entry_ids, raw_entry_ids);
+FindSeedProcedure.prototype.find_entries = function(seed, n) {
+	var shuu = this.shuu;
+	var raw_entries = [];
+	var steps = 0;
+	var i = 0, num = 6 - this.num_bonus;
+	while (i < 6) {
+		var is_bonus = 6 - i <= this.num_bonus;
+		var s = seed;
+		var entry = seed_to_entry(is_bonus ? shuu + 1 : shuu, seed);
+		seed = next_seed(seed);
+		steps ++;
+		if (steps > n) return "next";
+		if (entries_collision0(entry, raw_entries)) continue;
+		// アイテムも一致しないエントリが存在した場合
+		if (!ary_include(this.items, entry.item)) {
+			// ボーナスポケモン決定時でアイテム重複でスキップされたエントリかもしれない
+			var item = seed_to_entry(shuu + 1, s).item;
+			if (this.num_bonus > 0 && !is_bonus && ary_include(this.items, item)) {
+				return "next";
+			} else {
+				return "break";
+			}
+		}
+		raw_entries.push(entry);
+		i ++;
+	}
+	if (steps !== n) return "next";
+	for (var i = 0; i < 6; i ++) {
+		if(!ary_include(this.entries, raw_entries[i])) {
+			return "next";
+		}
+	}
+	return raw_entries;
 };
 
-FindSeedProcedure.prototype.match_parent_ids = function (seed, raw_entry_ids) {
+FindSeedProcedure.prototype.match_swap = function(raw_entries, swap1, swap2) {
+	raw_entries = raw_entries.slice();
+	ary_swap(raw_entries, 4, swap1);
+	ary_swap(raw_entries, 5, swap2);
+	return ary_eq(this.entries, raw_entries);
+};
+
+FindSeedProcedure.prototype.match_parent_ids = function (seed, raw_entries) {
 	for (var i = 0; i < 6; i ++) {
-		var entry_id = raw_entry_ids[i];
-		var expected_parent_id = this.parent_ids[indexof(this.entry_ids, entry_id)];
+		var entry = raw_entries[i];
+		var expected_parent_id = this.parent_ids[indexof(this.entries, entry)];
 		var parent_id = seed >>> 16;
 		seed = next_seed(seed);
 		if (parent_id !== expected_parent_id) return null;
 		var secret_id = seed >>> 16;
 		seed = next_seed(seed);
-		var nature = factory_data[entry_id].nature;
+		var nature = entry.nature;
 		do {
 			var pid_row = seed >>> 16;
 			seed = next_seed(seed);
@@ -533,36 +653,6 @@ FindSeedProcedure.prototype.match_parent_ids = function (seed, raw_entry_ids) {
 		} while (pid % 25 != nature || is_shiny_pid(parent_id, secret_id, pid));
 	}
 	return seed;
-};
-
-FindSeedProcedure.prototype.find_entries = function(seed, max_back) {
-	var shuu = this.shuu;
-	seed = prev_seed(seed);
-	var entry_id = seed_to_entry_id(shuu, seed);
-	if (!ary_include(this.entry_ids, entry_id)) return null;
-	var result = [entry_id];
-	var i = 0;
-	while (result.length < 6 || i < max_back) {
-		seed = prev_seed(seed);
-		entry_id = seed_to_entry_id(shuu, seed);
-		if (ary_include(this.entry_ids, entry_id)) {
-			var index = indexof(result, entry_id);
-			if (index >= 0) {
-				// A B A という並びがあったとき前のAの方が優先される。
-				if (result.length == 6) i ++;
-				result.splice(index, 1);
-			}
-			result.push(entry_id);
-			if (result.length > 6) return null;
-		} else {
-			// 結果に出てくるエントリに存在しないエントリの場合はアイテム衝突しかありえない
-			var item = factory_data[entry_id].item;
-			if (!ary_include(this.items, item)) {
-				return null;
-			}
-		}
-	}
-	return [seed, result.reverse()];
 };
 
 function is_shiny_pid(parent_id, secret_id, pid) {
@@ -750,11 +840,12 @@ function mul(a, b) {
 }
 </script>
 <style type="text/css">
-table {
+#result table {
 	border-collapse: collapse;
 }
 
-th, td {
+#result th,
+#result td {
 	padding: 0.1em 5px;
 	border: 1px solid black;
 }
@@ -780,8 +871,11 @@ div.progress_bar {
 <body>
 <h1>ちょうさ・ぶんせきマシン （仮）</h1>
 <p>Lv50 1周目限定</p>
+<p><input type="text" id="shuu_input" size="2" value="1"> 周目</p>
 <form action="" name="entries_form" onsubmit="return false;">
-<p>6匹のポケモンと親IDで入力:<br>
+<p>6匹のポケモンと親IDで入力:</p>
+<table><tr>
+<td style="vertical-align:top">
 <textarea cols="30" rows="6" id="entries">
 マイナン　11067
 パチリス　63599
@@ -790,10 +884,16 @@ div.progress_bar {
 パッチール　50041
 カラナクシ　10484</textarea><br>
 <input type="submit" name="entries_submit" value="決定">
-</p>
+<td style="vertical-align:top;width:14em">
+<small>
+全角・半角・ひらがな・カタカナは問いません。<br>
+「pikachuu」のようにローマ字のままでもOKです。<br>
+ボーナスポケモンは「○○○&nbsp;12345&nbsp;b」のように後ろにbをつけてください
+</small>
+</tr></table>
 </form>
 <form action="" name="seed_form" onsubmit="return false;">
-<p>seed+消費量で入力: <input type="text" name="seed" size="15">+<input type="text" name="consumption" size="6"> <input type="submit" name="seed_submit" value="決定"></p>
+<p>seed+消費量で入力: <input type="text" name="seed" size="15" value="0x00000000">+<input type="text" name="consumption" size="6" value="0"> ボーナスポケ: <input type="text" name="num_bonus" size="3" value="0"> 匹 <input type="submit" name="seed_submit" value="決定"></p>
 </form>
 <div id="result"></div>
 </body>
