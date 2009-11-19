@@ -10,14 +10,16 @@
 var factory_data = null;
 var pokemon_data = null;
 var pokemon_name2id = null;
+var trainer_names = null;
 var natures = "がんばりや さみしがり ゆうかん いじっぱり やんちゃ ずぶとい すなお のんき わんぱく のうてんき おくびょう せっかち まじめ ようき むじゃき ひかえめ おっとり れいせい てれや うっかりや おだやか おとなしい なまいき しんちょう きまぐれ".split(" ");
 var shuu_entries_count = [null, 150, 100, 100, 136, 136, 136, 192];
-var shuu_entries_start  = [null,   0, 150, 250, 350, 486, 622, 758];
-var shuu_entries_end    = [null, 149, 249, 349, 485, 621, 757, 949];
+var shuu_entries_start = [null,   0, 150, 250, 350, 486, 622, 758];
+var shuu_entries_end   = [null, 149, 249, 349, 485, 621, 757, 949];
 
 $(function() {
 	var factory_data_text;
 	var pokedex_csv_text;
+	var trainer_names_text;
 	$.ajax({dataType: "text", url: "factory_data.txt", success: function(data) {
 		factory_data_text = data;
 		boot();
@@ -26,10 +28,15 @@ $(function() {
 		pokedex_csv_text = data;
 		boot();
 	}});
+	$.ajax({dataType: "text", url: "trainer.txt", success: function(data) {
+		trainer_names_text = data;
+		boot();
+	}});
 	function boot() {
-		if (!factory_data_text || !pokedex_csv_text) return;
+		if (!factory_data_text || !pokedex_csv_text || !trainer_names_text) return;
 		initialize_pokemon_data(pokedex_csv_text);
 		initialize_factory_entries(factory_data_text);
+		initialize_trainer_names(trainer_names_text);
 		$(document.forms.entries_form).submit(on_submit_entries);
 		$(document.forms.seed_form).submit(on_submit_seed);
 
@@ -74,6 +81,15 @@ function initialize_factory_entries(factory_data_text) {
 			effort: row[5]
 		};
 	}
+}
+
+var silver_nejiki_id;
+
+function initialize_trainer_names(trainer_names_text) {
+	var lines = trainer_names = trainer_names_text.split('\n');
+	if (lines[lines.length - 1] == '') lines.pop();
+	silver_nejiki_id = lines.length;
+	lines.push("ファクトリーヘッドのネジキ"); // 300を銀ネジキとして扱う
 }
 
 var context = null;
@@ -174,10 +190,17 @@ function build_result_div(shuu, seed, consumption, num_bonus, input_by_seed) {
 	var r = get_6_entries_info(shuu, seed, consumption, num_bonus);
 	var entries = r.entries;
 	var seed_head = seed;
+	var consumption_head = consumption;
 	seed = r.seed;
+	consumption = r.next_consumption;
 	var entries_in_hand = entries.slice(0, 3);
+	var trainers_candidate = get_trainers_candidate(seed_head, shuu);
+	var trainers = trainers_candidate[0];
+	var trainer_ids = trainers.trainer_ids;
 	context = {shuu: shuu,
-	           infos: [r]};
+	           infos: [r],
+	           trainers: trainers_candidate,
+	           selected_trainers_index: 0};
 	
 	var buf = [];
 	buf.push("<p>6匹決定時のseed: "+format_hex(seed_head, 8));
@@ -189,35 +212,91 @@ function build_result_div(shuu, seed, consumption, num_bonus, input_by_seed) {
 	buf.push("<p id=\"range-0\" class=\"range\">"+r.rand_range.first+"-"+r.rand_range.last+"</p>");
 	build_table(buf, r.infos);
 	buf.push("<p id=\"election\">選出: "+build_select(entries, 0)+" "+build_select(entries, 1)+" "+build_select(entries, 2)+"</p>");
-	buf.push("<p>1戦目</p>");
-	var r = get_3_entries_info(shuu, seed, r.next_consumption, entries, entries_in_hand);
-	context.infos.push(r);
-	buf.push("<p id=\"range-1\" class=\"range\">"+r.rand_range.first+"-"+r.rand_range.last+"</p>");
-	buf.push("<div id=\"enemy-entries-1\">");
-	build_table(buf, r.infos);
-	buf.push("</div>");
-	seed = step_seed(r.seed, 24);
-	consumption = r.next_consumption + 24;
-	var prev_enemy_entries = r.entries;
-	for (var i = 2; i <= 7; i ++) {
-		var visited_entries = entries_in_hand.concat(prev_enemy_entries);
-		var r = get_3_entries_info(i == 7 ? shuu + 1 : shuu, seed, consumption, visited_entries, entries_in_hand);
+	buf.push("<p>トレーナー: <select id=\"trainers\">"+build_trainers_options(trainers_candidate, consumption_head)+"</select><br>");
+	buf.push("<small>トレーナーの種類は相手が何周目のポケモンを使ってくるかに影響します</small></p>");
+	for (var i = 1; i <= 7; i ++) {
+		var visited_entries;
+		if (i === 1) {
+			visited_entries = entries;
+		} else {
+			visited_entries = entries_in_hand.concat(prev_enemy_entries);
+		}
+		var trainer_id = trainer_ids[i-1];
+		var enemy_shuu = trainer_id_to_shuu(trainer_id);
+		var r = get_3_entries_info(enemy_shuu, seed, consumption, visited_entries, entries_in_hand);
 		context.infos.push(r);
-		buf.push("<p class=\"exchange\">交換: <select id=\"exchange-part-"+(i-1)+"\"><option></option>"+build_options(entries_in_hand)+"</select>");
-		buf.push("→ <select id=\"exchange-receive-"+(i-1)+"\"><option></option>"+build_options(prev_enemy_entries)+"</select>");
-		buf.push(" (手持ち: <span id=\"entries-in-hand-"+i+"\">"+map(entries_in_hand, "name").join(" ")+"</span>)</p>");
-		buf.push("<p>"+i+"戦目</p>");
+		if (i > 1) {
+			buf.push("<p class=\"exchange\">交換: <select id=\"exchange-part-"+(i-1)+"\"><option></option>"+build_options(entries_in_hand)+"</select>");
+			buf.push("→ <select id=\"exchange-receive-"+(i-1)+"\"><option></option>"+build_options(prev_enemy_entries)+"</select>");
+			buf.push(" (手持ち: <span id=\"entries-in-hand-"+i+"\">"+map(entries_in_hand, "name").join(" ")+"</span>)</p>");
+		}
+		buf.push("<p>"+i+"戦目 <span id=\"trainer-name-"+i+"\">"+trainer_names[trainer_id]+"</span></p>");
 		buf.push("<p id=\"range-"+i+"\" class=\"range\">"+r.rand_range.first+"-"+r.rand_range.last+"</p>");
 		buf.push("<div id=\"enemy-entries-"+i+"\">");
 		build_table(buf, r.infos);
 		buf.push("</div>");
-		seed = step_seed(r.seed, 6);
-		consumption = r.next_consumption + 6;
+		var c = get_enemy_consuption(shuu, i, enemy_shuu);
+		seed = step_seed(r.seed, c);
+		consumption = r.next_consumption + c;
 		prev_enemy_entries = r.entries;
 	}
 	div.innerHTML = buf.join("");
 	$("#election select").change(on_select_change).keypress(on_select_change);
 	$("#result > p.exchange select").change(on_exchange_select_change).keypress(on_exchange_select_change);
+	$("#trainers").change(on_trainers_select_change).keypress(on_trainers_select_change);
+}
+
+function get_selected_trainer_ids() {
+	return context.trainers[context.selected_trainers_index].trainer_ids;
+}
+
+function get_trainers_candidate(seed_head, shuu) {
+	var i = 14;
+	var seed = step_seed(seed_head, -i);
+	var result = [];
+	while (i < 50) {
+		var r = get_trainers_by_seed(shuu, seed);
+		if (7 <= i - r.c && i - r.c <= 12) {
+			result.push({start: -i, c: r.c, trainer_ids: r.trainer_ids});
+		}
+		i ++;
+		seed = prev_seed(seed);
+	}
+	return result;
+}
+
+function build_trainers_options(trainers_canndidate, consumption) {
+	var buf = "";
+	for (var i = 0; i < trainers_canndidate.length; i ++) {
+		var e = trainers_canndidate[i];
+		buf += "<option>"+(e.start+consumption)+".."+(e.start+e.c+consumption)+": "+map(e.trainer_ids, trainer_id_to_name).join(", ")+"</option>";
+	}
+	return buf;
+}
+
+// 相手の3匹決定後の乱数消費量を取得
+function get_enemy_consuption(shuu, nth, enemy_shuu) {
+	var c = 0;
+	if (nth === 1) {
+		switch(shuu) {
+		case 1: c = 18; break;
+		case 2: c = 36; break;
+		case 3: c = 36; break;
+		default: throw new Error;
+		}
+	}
+	switch(enemy_shuu) {
+	case 1: c +=  6; break;
+	case 2: c += 12; break;
+	case 3: c += 12; break;
+	case 4: c +=  0; break; // XXX
+	default: throw new Error;
+	}
+	return c;
+}
+
+function trainer_id_to_name(i) {
+	return /の([^の]+)$/.exec(trainer_names[i])[1];
 }
 
 function get_entries_back_seeds(shuu, seed, num_bonus) {
@@ -350,20 +429,33 @@ function on_exchange_select_change() {
 	}
 }
 
+function on_trainers_select_change() {
+	context.selected_trainers_index = this.selectedIndex;
+	var trainer_ids = context.trainers[this.selectedIndex].trainer_ids;
+	for (var i = 1; i <= 7; i ++) {
+		$("#trainer-name-"+i).text(trainer_names[trainer_ids[i-1]]);
+	}
+	change_enemy_entries(1);
+}
+
 function change_enemy_entries(start) {
-	var prev_enemy_entries = context.infos[start - 1].entries;
+	var prev_enemy_entries = start > 1 ? context.infos[start - 1].entries : null;
 	var shuu = context.shuu;
 	var seed = context.infos[start].seed_start;
 	var consumption = context.infos[start].rand_range.first;
-	var entries_in_hand = context.infos[start - 1].entries_in_hand;
+	var trainer_ids = get_selected_trainer_ids();
+	var entries_in_hand = context.infos[start > 1 ? start - 1 : 1].entries_in_hand;
 	for (var i = start; i <= 7; i ++) {
-		var visited_entries = entries_in_hand.concat(prev_enemy_entries);
-		var r = get_3_entries_info(i == 7 ? shuu + 1 : shuu, seed, consumption, visited_entries, entries_in_hand);
+		var visited_entries = i === 1 ? context.infos[0].entries : entries_in_hand.concat(prev_enemy_entries);
+		var enemy_shuu = trainer_id_to_shuu(trainer_ids[i-1]);
+		var r = get_3_entries_info(enemy_shuu, seed, consumption, visited_entries, entries_in_hand);
 		context.infos[i] = r;
 		
-		$("#exchange-part-"+(i-1)).html("<option></option>"+build_options(entries_in_hand));
-		$("#exchange-receive-"+(i-1)).html("<option></option>"+build_options(prev_enemy_entries));
-		change_entries_in_hand_text(i);
+		if (i > 1) {
+			$("#exchange-part-"+(i-1)).html("<option></option>"+build_options(entries_in_hand));
+			$("#exchange-receive-"+(i-1)).html("<option></option>"+build_options(prev_enemy_entries));
+			change_entries_in_hand_text(i);
+		}
 		
 		$("#range-"+i).text(r.rand_range.first+"-"+r.rand_range.last);
 		
@@ -371,8 +463,9 @@ function change_enemy_entries(start) {
 		var buf = [];
 		build_table(buf, r.infos)
 		div.innerHTML = buf.join("");
-		seed = step_seed(r.seed, 6);
-		consumption = r.next_consumption + 6;
+		var c = get_enemy_consuption(shuu, i, enemy_shuu);
+		seed = step_seed(r.seed, c);
+		consumption = r.next_consumption + c;
 		prev_enemy_entries = r.entries;
 	}
 }
@@ -424,6 +517,51 @@ function pid2gender(pid, pokemon) {
 	} else {
 		return "不明";
 	}
+}
+
+function get_trainers_by_seed(shuu, seed) {
+	var result = [];
+	var c = 0;
+	var i = 1;
+	while (i <= 7) {
+		if (shuu === 3 && i === 7) {
+			result.push(silver_nejiki_id);
+			break;
+		}
+		var e = seed_to_trainer_id(shuu, i, seed);
+		seed = next_seed(seed);
+		c ++;
+		if (ary_include(result, e)) continue;
+		result.push(e);
+		i ++;
+	}
+	return {trainer_ids: result, c: c};
+}
+
+function seed_to_trainer_id(shuu, nth, seed) {
+	var r = seed >>> 16;
+	if (nth === 7) {
+		switch (shuu) {
+		case 1: return r % 19 + 100;
+		case 2: return r % 19 + 120;
+		}
+	} else {
+		switch (shuu) {
+		case 1: return r % 99 +   0;
+		case 2: return r % 39 +  80;
+		case 3: return r % 39 + 100;
+		}
+	}
+	throw new Error;
+}
+
+function trainer_id_to_shuu(id) {
+	if (id < 0) throw new Error;
+	if (id <= 99) return 1;
+	if (id <= 119) return 2;
+	if (id <= 139) return 3;
+	if (id === silver_nejiki_id) return 4;
+	throw new Error;
 }
 
 function seed_to_entry_id(shuu, seed) {
@@ -894,7 +1032,7 @@ div.progress_bar {
 </head>
 <body>
 <h1>ちょうさ・ぶんせきマシン （仮）</h1>
-<p>Lv50 1周目限定</p>
+<p>Lv50 3周目まで限定</p>
 <p><input type="text" id="shuu_input" size="2" value="1"> 周目</p>
 <form action="" name="entries_form" onsubmit="return false;">
 <p>6匹のポケモンと親IDで入力:</p>
