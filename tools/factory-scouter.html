@@ -52,13 +52,15 @@ function initialize_pokemon_data(pokedex_csv_text) {
 	for (var i = 0; i < lines.length; i ++) {
 		var row = lines[i].split(',');
 		var name = row[0];
-		var ability1 = row[1];
-		var ability2 = row[2] || ability1;
-		var gender_boundary = boundaries[row[3]];
+		var stats = map(row.slice(1, 1 + 6), Number);
+		var ability1 = row[7];
+		var ability2 = row[8] || ability1;
+		var gender_boundary = boundaries[row[9]];
 		pokemon_name2id[name] = i;
 		pokemon_data[i] = {
 			id: i,
 			name: name,
+			stats: stats,
 			abilities: [ability1, ability2],
 			gender_boundary: gender_boundary
 		};
@@ -78,7 +80,7 @@ function initialize_factory_entries(factory_data_text) {
 			nature: indexof(natures, row[2]),
 			item:   row[3],
 			move:   row[4],
-			effort: row[5]
+			effort: omit_effort_text(row[5])
 		};
 	}
 }
@@ -210,7 +212,9 @@ function build_result_div(shuu, seed, consumption, num_bonus, input_by_seed) {
 	}
 	buf.push("</p>");
 	buf.push("<p id=\"range-0\" class=\"range\">"+r.rand_range.first+"-"+r.rand_range.last+"</p>");
-	build_table(buf, r.infos);
+	buf.push("<div class=\"entries\" id=\"entries-0\">");
+	build_table(buf, r.infos, 0);
+	buf.push("</div>");
 	buf.push("<p id=\"election\">選出: "+build_select(entries, 0)+" "+build_select(entries, 1)+" "+build_select(entries, 2)+"</p>");
 	buf.push("<p>トレーナー: <select id=\"trainers\">"+build_trainers_options(trainers_candidate, consumption_head)+"</select><br>");
 	buf.push("<small>トレーナーの種類は相手が何周目のポケモンを使ってくるかに影響します</small></p>");
@@ -232,8 +236,8 @@ function build_result_div(shuu, seed, consumption, num_bonus, input_by_seed) {
 		}
 		buf.push("<p>"+i+"戦目 <span id=\"trainer-name-"+i+"\">"+trainer_names[trainer_id]+"</span></p>");
 		buf.push("<p id=\"range-"+i+"\" class=\"range\">"+r.rand_range.first+"-"+r.rand_range.last+"</p>");
-		buf.push("<div id=\"enemy-entries-"+i+"\">");
-		build_table(buf, r.infos);
+		buf.push("<div class=\"entries\" id=\"entries-"+i+"\">");
+		build_table(buf, r.infos, i);
 		buf.push("</div>");
 		var c = get_enemy_consuption(shuu, i, enemy_shuu);
 		seed = step_seed(r.seed, c);
@@ -244,6 +248,7 @@ function build_result_div(shuu, seed, consumption, num_bonus, input_by_seed) {
 	$("#election select").change(on_select_change).keypress(on_select_change);
 	$("#result > p.exchange select").change(on_exchange_select_change).keypress(on_exchange_select_change);
 	$("#trainers").change(on_trainers_select_change).keypress(on_trainers_select_change);
+	$("#result > div.entries > table > tbody > tr").mouseenter(on_mouseenter_tr).mouseleave(on_mouseleave_tr);
 }
 
 function get_selected_trainer_ids() {
@@ -459,10 +464,11 @@ function change_enemy_entries(start) {
 		
 		$("#range-"+i).text(r.rand_range.first+"-"+r.rand_range.last);
 		
-		var div = document.getElementById("enemy-entries-"+i);
+		var div = document.getElementById("entries-"+i);
 		var buf = [];
-		build_table(buf, r.infos)
+		build_table(buf, r.infos, i)
 		div.innerHTML = buf.join("");
+		$("> table > tbody > tr", div).mouseenter(on_mouseenter_tr).mouseleave(on_mouseleave_tr);
 		var c = get_enemy_consuption(shuu, i, enemy_shuu);
 		seed = step_seed(r.seed, c);
 		consumption = r.next_consumption + c;
@@ -486,24 +492,149 @@ function build_options(entries, selectedIndex) {
 	return buf;
 }
 
-function build_table(buf, info) {
-	buf.push("<table><thead><tr><th>周<th>No<th>名前<th>ID<th>裏ID<th>性格値<th>性別<th>特性</tr></thead>");
+function build_table(buf, info, nth) {
+	buf.push("<table><thead><tr><th>周<th>No<th>名前<th>性別<th>特性<th>アイテム<th>ID<th>裏ID<th>性格値</tr></thead>");
 	buf.push("<tbody>");
 	for (var i = 0; i < info.length; i ++) {
 		var e = info[i];
 		var pid = e.pid;
 		var entry = e.entry;
-		buf.push("<tr>"+
+		buf.push("<tr id=\"entry-"+nth+"-"+i+"\">"+
 		         "<td>"+entry_id_to_shuu(entry.id)+
 		         "<td>"+(entry.id+1)+
 		         "<td>"+entry.name+
+		         "<td>"+pid2gender(pid, entry.pokemon)+
+		         "<td>"+entry.pokemon.abilities[pid % 2]+
+		         "<td>"+entry.item+
 		         "<td>"+format_dec(e.parent_id, 5)+
 		         "<td>"+format_dec(e.secret_id, 5)+
-		         "<td>"+format_hex(pid, 8)+
-		         "<td>"+pid2gender(pid, entry.pokemon)+
-		         "<td>"+entry.pokemon.abilities[pid % 2]+"</tr>");
+		         "<td>"+format_hex(pid, 8)+"</tr>");
 	}
 	buf.push("</tbody></table>");
+}
+
+function on_mouseenter_tr(ev) {
+	var tr = this;
+	if (tr.className === "entry-detail") return;
+	if (tr.nextSibling && tr.nextSibling.className === "entry-detail") {
+		if (tr.nextSibling.style.display === "none") {
+			tr.nextSibling.style.display = "";
+			set_tr_rowspan(tr, 2);
+		}
+		return;
+	}
+	var detail_tr = $("<tr class=\"entry-detail\"></tr>").html("<td colspan=\"6\">"+build_entry_detail(tr)+"</td>");
+	detail_tr.mouseleave(on_mouseleave_detail_tr);
+	$(tr).after(detail_tr);
+	set_tr_rowspan(tr, 2);
+}
+
+function set_tr_rowspan(tr, n) {
+	for (var i = 0; i < 3; i ++) {
+		tr.childNodes[i].setAttribute("rowSpan", n);
+	}
+}
+
+function on_mouseleave_tr(ev) {
+	var tr = this;
+	if (tr.parentNode.tagName.toUpperCase() !== "TBODY") return;
+	if (tr.nextSibling && tr.nextSibling.className === "entry-detail") {
+		if (!elementWithIn(tr.nextSibling, ev.relatedTarget)) {
+			remove_detail_tr(tr);
+		}
+	}
+}
+
+function remove_detail_tr(tr) {
+	tr.nextSibling.style.display = "none";
+	set_tr_rowspan(tr, 1);
+}
+
+function on_mouseleave_detail_tr(ev) {
+	var tr = this.previousSibling;
+	if (!elementWithIn(tr, ev.relatedTarget)) {
+		remove_detail_tr(tr);
+	}
+}
+
+var Lv50 = 50; // あとあとソースからLv50で検索してひっかかるように
+
+function build_entry_detail(tr) {
+	var m = /^entry-(\d)-(\d)$/.exec(tr.id);
+	var i = Number(m[1]);
+	var j = Number(m[2]);
+	var entry = context.infos[i].entries[j];
+	var shuu = entry_id_to_shuu(entry.id);
+	var individual = get_individual_by_shuu(shuu);
+	var buf = "<small>";
+	buf += "性格: "+natures[entry.nature]+" 努力値: "+entry.effort+" 個体値: "+individual+"<br>";
+	buf += "技: "+entry.move+"<br>";
+	buf += "ステータス: "+get_status(Lv50, entry, individual).join("-");
+	buf += "</small>"
+	return buf;
+}
+
+function get_individual_by_shuu(shuu) {
+	if (shuu >= 8) return 31;
+	return (shuu - 1) * 4;
+}
+
+var nature_table = new Array(25);
+(function() {
+	var fix = [0, 1, 4, 2, 3]; // HABSCD順をHABCDS順に
+	for (var i = 0; i < 25; i ++) {
+		var row = [10, 10, 10, 10, 10];
+		row[fix[i / 5 | 0]] ++;
+		row[fix[i % 5]] --;
+		nature_table[i] = row;
+	}
+})();
+
+var status_names = 'HP,攻撃,防御,特攻,特防,すば'.split(',');
+
+function omit_effort_text(text) {
+	// ex. omit_effort_text("HP/攻撃")
+	//  => "HA"
+	var list = text.split("/");
+	var result = "";
+	for(var i = 0; i < list.length; i ++) {
+		result += "HABCDS".charAt(indexof(status_names, list[i]));
+	}
+	return result;
+}
+
+function effort_text_to_array(text) {
+	// ex. effort_text_to_array("HA")
+	//  => [255, 255, 0, 0, 0, 0]
+	var t = "HABCDS";
+	var efforts = [0, 0, 0, 0, 0, 0];
+	for(var i = 0; i < text.length; i ++) {
+		efforts[t.indexOf(text.charAt(i))] = text.length === 3 ? 170 : 255;
+	}
+	return efforts;
+}
+
+function get_status(lv, entry, individual) {
+	// ex. get_status(50, find_factory_entry(1, "フシギダネ"), 0)
+	// => [105, 48, 54, 111, 101, 50]
+	var stats = entry.pokemon.stats;
+	var efforts = effort_text_to_array(entry.effort);
+	var hp = calc_status_hp(lv, stats[0], individual, efforts[0]);
+	if (stats[0] === 1) hp = 1; // ヌケニン
+	var result = [hp];
+	var nature_revisions = nature_table[entry.nature];
+	for (var i = 0; i < 5; i ++) {
+		result.push(calc_status(lv, stats[i + 1], individual, efforts[i + 1], nature_revisions[i]));
+	}
+	return result;
+}
+
+function calc_status_hp(lv, base, individual, effort) {
+	return Math.floor((base * 2 + Math.floor(effort / 4) + individual) * lv / 100) + lv + 10;
+}
+
+function calc_status(lv, base, individual, effort, nature_revision) {
+	return Math.floor((Math.floor((base * 2 + Math.floor(effort / 4) + individual) * lv / 100) + 5) * nature_revision / 10);
 }
 
 function get_pokemon_entry(name) {
@@ -914,6 +1045,16 @@ function regularize_word(word) {
 
 regularize_word.map = {'　': ' ', '｡': '。', '｢': '「', '｣': '」', '､': '、', '･': '・', 'ｦ': 'ヲ', 'ｧ': 'ァ', 'ｨ': 'ィ', 'ｩ': 'ゥ', 'ｪ': 'ェ', 'ｫ': 'ォ', 'ｬ': 'ャ', 'ｭ': 'ュ', 'ｮ': 'ョ', 'ｯ': 'ッ', 'ｰ': 'ー', 'ｱ': 'ア', 'ｲ': 'イ', 'ｳ': 'ウ', 'ｴ': 'エ', 'ｵ': 'オ', 'ｶ': 'カ', 'ｷ': 'キ', 'ｸ': 'ク', 'ｹ': 'ケ', 'ｺ': 'コ', 'ｻ': 'サ', 'ｼ': 'シ', 'ｽ': 'ス', 'ｾ': 'セ', 'ｿ': 'ソ', 'ﾀ': 'タ', 'ﾁ': 'チ', 'ﾂ': 'ツ', 'ﾃ': 'テ', 'ﾄ': 'ト', 'ﾅ': 'ナ', 'ﾆ': 'ニ', 'ﾇ': 'ヌ', 'ﾈ': 'ネ', 'ﾉ': 'ノ', 'ﾊ': 'ハ', 'ﾋ': 'ヒ', 'ﾌ': 'フ', 'ﾍ': 'ヘ', 'ﾎ': 'ホ', 'ﾏ': 'マ', 'ﾐ': 'ミ', 'ﾑ': 'ム', 'ﾒ': 'メ', 'ﾓ': 'モ', 'ﾔ': 'ヤ', 'ﾕ': 'ユ', 'ﾖ': 'ヨ', 'ﾗ': 'ラ', 'ﾘ': 'リ', 'ﾙ': 'ル', 'ﾚ': 'レ', 'ﾛ': 'ロ', 'ﾜ': 'ワ', 'ﾝ': 'ン'};
 
+function elementWithIn(elem1, elem2) {
+	// elem2 が elem1 と同一の要素か、elem1 の子孫要素のとき true を返す
+	var elem = elem2;
+	while (elem) {
+		if (elem === elem1) return true;
+		 elem = elem.parentNode;
+	}
+	return false;
+}
+
 function ary_include(ary, e) {
 	return indexof(ary, e) >= 0;
 }
@@ -1027,6 +1168,11 @@ div.progress {
 div.progress_bar {
 	height: 100%;
 	background: #4bd472;
+}
+
+body {
+	/* 下に余白がないと7戦目の相手の技が見づらいので */
+	padding-bottom: 5em;
 }
 </style>
 </head>
