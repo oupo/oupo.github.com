@@ -994,7 +994,7 @@ function roma2reg(text) {
 			len = token.length;
 		}
 	}
-	return new RegExp("^"+result.join("")+"$");
+	return new RegExp("^"+result.join("")+"$", "i");
 }
 
 function regexp_escape(s) {
