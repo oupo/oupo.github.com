@@ -211,7 +211,10 @@ function build_result_div(shuu, seed, consumption, num_bonus, input_by_seed) {
 		buf.push(" (or "+map(seeds, function(i){return format_hex(i, 8)}).join(", ")+")");
 	}
 	buf.push("</p>");
-	buf.push("<p id=\"range-0\" class=\"range\">"+r.rand_range.first+"-"+r.rand_range.last+"</p>");
+	buf.push("<p>最初の6匹 ");
+	buf.push("<span id=\"range-0\" class=\"range\">"+r.rand_range.first+"-"+r.rand_range.last+"</span>");
+	buf.push(" <button id=\"paste-to-textarea\">この6匹を上のテキストボックスに入力</button>");
+	buf.push("</p>");
 	buf.push("<div class=\"entries\" id=\"entries-0\">");
 	build_table(buf, r.infos, 0);
 	buf.push("</div>");
@@ -234,8 +237,8 @@ function build_result_div(shuu, seed, consumption, num_bonus, input_by_seed) {
 			buf.push("→ <select id=\"exchange-receive-"+(i-1)+"\"><option></option>"+build_options(prev_enemy_entries)+"</select>");
 			buf.push(" (手持ち: <span id=\"entries-in-hand-"+i+"\">"+map(entries_in_hand, "name").join(" ")+"</span>)</p>");
 		}
-		buf.push("<p>"+i+"戦目 <span id=\"trainer-name-"+i+"\">"+trainer_names[trainer_id]+"</span></p>");
-		buf.push("<p id=\"range-"+i+"\" class=\"range\">"+r.rand_range.first+"-"+r.rand_range.last+"</p>");
+		buf.push("<p>"+i+"戦目 <span id=\"trainer-name-"+i+"\">"+trainer_names[trainer_id]+"</span>");
+		buf.push(" <span id=\"range-"+i+"\" class=\"range\">"+r.rand_range.first+"-"+r.rand_range.last+"</span></p>");
 		buf.push("<div class=\"entries\" id=\"entries-"+i+"\">");
 		build_table(buf, r.infos, i);
 		buf.push("</div>");
@@ -247,6 +250,7 @@ function build_result_div(shuu, seed, consumption, num_bonus, input_by_seed) {
 	div.innerHTML = buf.join("");
 	$("#election select").change(on_select_change).keypress(on_select_change);
 	$("#result > p.exchange select").change(on_exchange_select_change).keypress(on_exchange_select_change);
+	$("#paste-to-textarea").click(paste_to_textarea);
 	$("#trainers").change(on_trainers_select_change).keypress(on_trainers_select_change);
 	$("#result > div.entries > table > tbody > tr").mouseenter(on_mouseenter_tr).mouseleave(on_mouseleave_tr);
 }
@@ -334,30 +338,18 @@ function parse_text(shuu, text) {
 	for (var i = 0; i < lines.length; i ++) {
 		var line = lines[i];
 		if (/^\s*$/.test(line)) continue;
-		// [ポケモンの種類ID] 名前 親ID [b]
-		// 結果に表示された表からコピペで入力できるように「1 フシギダネ 12345」のような形式を認める
-		var m = /^\s*((?:\d+\s+)?)(\S+)\s+(\d+)((?:\s+b)?)\s*$/.exec(line);
+		var m = /^\s*(\S+)\s+(\d+)((?:\s+b)?)\s*$/.exec(line);
 		if (!m) {
 			alert((i+1)+"行目が不正です\n> "+line);
 			return null;
 		}
-		var id = read_int_string(m[1]), name = m[2], parent_id = Number(m[3]), is_bonus = m[4] !== "";
+		var name = m[1], parent_id = Number(m[2]), is_bonus = m[3] !== "";
 		if (entries.length == 6) {
 			alert("6匹より多く入力されています");
 			return null;
 		}
 		var entry;
-		if (id !== null) {
-			if (id - 1 < shuu_entries_start[shuu] || id - 1 > shuu_entries_end[shuu+1]) {
-				alert((i+1)+"行目: "+id+"は不正なNoです");
-				return;
-			}
-			entry = factory_data[id - 1];
-			if (find_factory_entry(entry_id_to_shuu(id - 1), name) !== entry) {
-				alert((i+1)+"行目: "+id+"と"+name+"が一致しません ("+id+" = "+entry.name+")");
-				return;
-			}
-		} else if (is_bonus) {
+		if (is_bonus) {
 			entry = find_factory_entry(shuu + 1, name);
 		} else {
 			entry = find_factory_entry(shuu, name);
@@ -511,6 +503,21 @@ function build_table(buf, info, nth) {
 		         "<td>"+format_hex(pid, 8)+"</tr>");
 	}
 	buf.push("</tbody></table>");
+}
+
+function paste_to_textarea() {
+	var shuu = context.shuu;
+	var infos = context.infos[0].infos;
+	var buf = "";
+	for (var i = 0; i < 6; i ++) {
+		if (i > 0) buf += "\n";
+		buf += infos[i].entry.name + " " + infos[i].parent_id;
+		if (entry_id_to_shuu(infos[i].entry.id) === shuu + 1) {
+			buf += " b";
+		}
+	}
+	document.forms.entries_form.entries.value = buf;
+	document.getElementById("shuu_input").value = shuu;
 }
 
 function on_mouseenter_tr(ev) {
@@ -1153,7 +1160,7 @@ function mul(a, b) {
 	border: 1px solid black;
 }
 
-p.range {
+span.range {
 	font-size: 80%;
 	color: #888;
 }
