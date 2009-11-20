@@ -1017,10 +1017,9 @@ function regularize_word(word) {
 	// ひらがな → カタカナ
 	// 半角カナ → カタカナ
 	// 全角英数字 → 半角英数字
-	// 大文字 → 小文字
 	var map = regularize_word.map;
 	var chr = String.fromCharCode;
-	return word.replace(/(?:[｡-ﾝ][ﾞﾟ]?|[A-Zぁ-ゔ　！-～])/g, function(s) {
+	return word.replace(/(?:[｡-ﾝ][ﾞﾟ]?|[ぁ-ゔ　！-～])/g, function(s) {
 		var s1 = s.charAt(0);
 		if ('｡' <= s1 && s1 <= 'ﾝ' && s.length == 2) {
 			if (s.charAt(1) == 'ﾞ' && (('ｶ' <= s1 && s1 <= 'ﾄ') || ('ﾊ' <= s1 && s1 <= 'ﾎ'))) {
@@ -1035,10 +1034,10 @@ function regularize_word(word) {
 			return chr(s.charCodeAt(0) - 'ぁ'.charCodeAt(0) + 'ァ'.charCodeAt(0));
 		}
 		if ('Ａ' <= s && s <= 'Ｚ') {
-			return chr(s.charCodeAt(0) - 'Ａ'.charCodeAt(0) + 'a'.charCodeAt(0));
+			return chr(s.charCodeAt(0) - 'Ａ'.charCodeAt(0) + 'A'.charCodeAt(0));
 		}
-		if ('A' <= s && s <= 'Z') {
-			return chr(s.charCodeAt(0) - 'A'.charCodeAt(0) + 'a'.charCodeAt(0));
+		if ('ａ' <= s && s <= 'ｚ') {
+			return chr(s.charCodeAt(0) - 'ａ'.charCodeAt(0) + 'a'.charCodeAt(0));
 		}
 		if ('！' <= s && s <= '～') {
 			return chr(s.charCodeAt(0) - '！'.charCodeAt(0) + '!'.charCodeAt(0));
