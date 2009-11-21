@@ -214,6 +214,7 @@ function build_result_div(shuu, seed, consumption, num_bonus, input_by_seed) {
 	buf.push("<p>最初の6匹 ");
 	buf.push("<span id=\"range-0\" class=\"range\">"+r.rand_range.first+"-"+r.rand_range.last+"</span>");
 	buf.push(" <button id=\"paste-to-textarea\">この6匹を上のテキストボックスに入力</button>");
+	buf.push(" <button class=\"show-tooltip\" id=\"show-tooltip-0\">6匹決定の乱数列</button>");
 	buf.push("</p>");
 	buf.push("<div class=\"entries\" id=\"entries-0\">");
 	build_table(buf, r.infos, 0);
@@ -238,7 +239,9 @@ function build_result_div(shuu, seed, consumption, num_bonus, input_by_seed) {
 			buf.push(" (手持ち: <span id=\"entries-in-hand-"+i+"\">"+map(entries_in_hand, "name").join(" ")+"</span>)</p>");
 		}
 		buf.push("<p>"+i+"戦目 <span id=\"trainer-name-"+i+"\">"+trainer_names[trainer_id]+"</span>");
-		buf.push(" <span id=\"range-"+i+"\" class=\"range\">"+r.rand_range.first+"-"+r.rand_range.last+"</span></p>");
+		buf.push(" <span id=\"range-"+i+"\" class=\"range\">"+r.rand_range.first+"-"+r.rand_range.last+"</span>");
+		buf.push(" <button class=\"show-tooltip\" id=\"show-tooltip-"+i+"\">3匹決定の乱数列</button>");
+		buf.push("</p>");
 		buf.push("<div class=\"entries\" id=\"entries-"+i+"\">");
 		build_table(buf, r.infos, i);
 		buf.push("</div>");
@@ -253,6 +256,7 @@ function build_result_div(shuu, seed, consumption, num_bonus, input_by_seed) {
 	$("#paste-to-textarea").click(paste_to_textarea);
 	$("#trainers").change(on_trainers_select_change).keypress(on_trainers_select_change);
 	$("#result > div.entries > table > tbody > tr").mouseenter(on_mouseenter_tr).mouseleave(on_mouseleave_tr);
+	$("button.show-tooltip").mouseenter(show_tooltip).mouseleave(hide_tooltip);
 }
 
 function get_selected_trainer_ids() {
@@ -485,7 +489,7 @@ function build_options(entries, selectedIndex) {
 }
 
 function build_table(buf, info, nth) {
-	buf.push("<table><thead><tr><th>周<th>No<th>名前<th>性別<th>特性<th>アイテム<th>ID<th>裏ID<th>性格値</tr></thead>");
+	buf.push("<table><thead><tr><th>周<th>No<th>名前<th>アイテム<th>特性<th>性別<th>ID<th>裏ID<th>性格値</tr></thead>");
 	buf.push("<tbody>");
 	for (var i = 0; i < info.length; i ++) {
 		var e = info[i];
@@ -495,9 +499,9 @@ function build_table(buf, info, nth) {
 		         "<td>"+entry_id_to_shuu(entry.id)+
 		         "<td>"+(entry.id+1)+
 		         "<td>"+entry.name+
-		         "<td>"+pid2gender(pid, entry.pokemon)+
-		         "<td>"+entry.pokemon.abilities[pid % 2]+
 		         "<td>"+entry.item+
+		         "<td>"+entry.pokemon.abilities[pid % 2]+
+		         "<td>"+pid2gender(pid, entry.pokemon)+
 		         "<td>"+format_dec(e.parent_id, 5)+
 		         "<td>"+format_dec(e.secret_id, 5)+
 		         "<td>"+format_hex(pid, 8)+"</tr>");
@@ -518,6 +522,93 @@ function paste_to_textarea() {
 	}
 	document.forms.entries_form.entries.value = buf;
 	document.getElementById("shuu_input").value = shuu;
+}
+
+function show_tooltip() {
+	var button = this;
+	var n = /^show-tooltip-(\d)$/.exec(button.id)[1];
+	var tooltip = document.getElementById("tooltip-"+n);
+	if (tooltip) {
+		tooltip.style.display = "";
+		resize_tooltip(button, tooltip);
+		return;
+	}
+	tooltip = $("<div id=\"tooltip-"+n+"\" class=\"tooltip\"></div>")
+	           .html("<pre>"+get_tooltip_content(n)+"</pre>")[0];
+	$("#result").append(tooltip);
+	resize_tooltip(button, tooltip);
+	$(window).resize(function() {
+		resize_tooltip(button, tooltip);
+	});
+	$(tooltip).mouseleave(function(ev) {
+		if (ev.relatedTarget !== button) {
+			tooltip.style.display = "none";
+		}
+	});
+}
+
+function get_tooltip_content(nth) {
+	var info = context.infos[nth];
+	var shuu = info.shuu;
+	var seed = info.seed_start;
+	var consumption = info.rand_range.first;
+	var n = info.entries.length;
+	var visited_entries = info.visited_entries;
+	var num_bonus = info.num_bonus;
+	var i = 0;
+	var entries = [];
+	var r = [];
+	while (i < n) {
+		var is_bonus = n - i <= num_bonus;
+		var entry_shuu = is_bonus ? shuu + 1 : shuu;
+		var count = shuu_entries_count[entry_shuu];
+		var start = shuu_entries_start[entry_shuu];
+		var id = count - 1 - (seed >>> 16) % count + start;
+		var entry = factory_data[id];
+		var collided_entry = find_collided_entry(entry, entries, visited_entries);
+		
+		r.push({seed: seed, count: count, start: start, id: id, entry: entry, collided_entry: collided_entry});
+		seed = next_seed(seed);
+		if (collided_entry) continue;
+		entries.push(entry);
+		i ++;
+	}
+	var buf = "";
+	var prec = Math.max(String(consumption).length, String(consumption + r.length - 1).length);
+	for (var i = 0; i < r.length; i ++) {
+		var e = r[i];
+		if (i >= 0) buf += "\n";
+		if (e.collided_entry) buf += "<span class=\"collided\">";
+		buf += format_dec(consumption + i, prec, " ") + " (" + format_hex(e.seed, 8) + "): " +
+		       format_dec(e.count, 3, " ") + " - " + format_hex(e.seed >>> 16, 4) + " % " + 
+		       format_dec(e.count, 3, " ") + " + " + format_dec(e.start, 3, " ") + " = " + 
+		       format_dec(e.id + 1, 3, " ") + " " + rjust_name(e.entry.name) + " (" + e.entry.item + ")";
+		if (e.collided_entry) buf += "</span>";
+	}
+	return buf;
+}
+
+function resize_tooltip(button, tooltip) {
+	var width = tooltip.offsetWidth;
+	var height = tooltip.offsetHeight;
+	var offset = $(button).offset();
+	var scrollTop  = document.body.scrollTop  || document.documentElement.scrollTop;
+	// ボタンの上に表示するスペースがなければボタンの下に表示
+	if (offset.top - height >= scrollTop) {
+		tooltip.style.top = (offset.top - height) + "px";
+	} else {
+		tooltip.style.top = (offset.top + button.offsetHeight) + "px";
+	}
+	tooltip.style.left = Math.max(offset.left + button.offsetWidth + 20 - width, 4) + "px";
+}
+
+function hide_tooltip(ev) {
+	var button = this;
+	var n = /^show-tooltip-(\d)$/.exec(button.id)[1];
+	var tooltip = document.getElementById("tooltip-"+n);
+	if (!tooltip) return;
+	if (ev.relatedTarget === tooltip) return;
+	tooltip.style.display = "none";
 }
 
 function on_mouseenter_tr(ev) {
@@ -775,7 +866,10 @@ function get_entries_info(shuu, seed, consumption, num, visited_entries, entries
 	        seed_start: seed_start,
 	        rand_range: range,
 	        next_consumption: c,
-	        entries_in_hand: entries_in_hand};
+	        entries_in_hand: entries_in_hand,
+	        visited_entries: visited_entries,
+	        num_bonus: num_bonus,
+	        shuu: shuu};
 }
 
 function entries_collision(entry, entries, visited_entries) {
@@ -788,6 +882,18 @@ function entries_collision0(entry, entries) {
 		if (entry.item === entries[i].item) return true;
 	}
 	return false;
+}
+
+function find_collided_entry(entry, entries, visited_entries) {
+	return find_collided_entry0(entry, entries) || find_collided_entry0(entry, visited_entries);
+}
+
+function find_collided_entry0(entry, entries) {
+	for (var i = 0; i < entries.length; i ++) {
+		if (entry === entries[i]) return entry;
+		if (entry.item === entries[i].item) return entry;
+	}
+	return null;
 }
 
 function FindSeedProcedure(shuu, entries, parent_ids) {
@@ -803,7 +909,7 @@ function FindSeedProcedure(shuu, entries, parent_ids) {
 	this.num_bonus = this.bonus_entries.length;
 	this.last_candidate_entries = this.num_bonus > 0 ? this.bonus_entries : this.entries;
 	this.last_entry_shuu = this.num_bonus > 0 ? this.shuu + 1 : this.shuu;
-	this.ns = FindSeedProcedure.gen_ns(shuu, entries);
+	this.ns = FindSeedProcedure.gen_ns(this.shuu, entries);
 	this.i = 0;
 	this.j = 0;
 }
@@ -1107,11 +1213,13 @@ function propname_callback(name) {
 }
 
 function format_hex(n, prec) {
-	return "0x" + (str_repeat("0", prec - 1) + n.toString(16)).slice(-prec);
+	var s = n.toString(16);
+	return "0x" + (str_repeat("0", prec - s.length) + s);
 }
 
-function format_dec(n, prec) {
-	return (str_repeat("0", prec - 1) + n).slice(-prec);
+function format_dec(n, prec, c) {
+	var s = String(n);
+	return (str_repeat(c || "0", prec - s.length) + s);
 }
 
 function str_repeat(s, n) {
@@ -1120,6 +1228,12 @@ function str_repeat(s, n) {
 		r += s;
 	}
 	return r;
+}
+
+function rjust_name(name) {
+	var width = name.length * 2;
+	if (/[2Z]$/.test(name)) width -= 1; // ポリゴン[2Z]
+	return str_repeat(" ", 10 - width) + name;
 }
 
 function step_seed(seed, n) {
@@ -1179,6 +1293,34 @@ div.progress_bar {
 body {
 	/* 下に余白がないと7戦目の相手の技が見づらいので */
 	padding-bottom: 5em;
+}
+
+#result button {
+	font-size: x-small;
+	color: #444;
+	border: 1px solid #999;
+	border-left-color: #eee;
+	border-top-color:  #eee;
+	background: #eee;
+}
+
+div.tooltip {
+	position: absolute;
+	top: 0;
+	left: 0;
+	border: 1px solid #000;
+	padding: 3px;
+	background: #ffc;
+	font-size: 80%;
+}
+
+div.tooltip pre {
+	margin: 0;
+	padding: 0;
+}
+
+div.tooltip .collided {
+	color: #dc143c;
 }
 </style>
 </head>
