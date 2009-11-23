@@ -12,9 +12,9 @@ var pokemon_data = null;
 var pokemon_name2id = null;
 var trainer_names = null;
 var natures = "がんばりや さみしがり ゆうかん いじっぱり やんちゃ ずぶとい すなお のんき わんぱく のうてんき おくびょう せっかち まじめ ようき むじゃき ひかえめ おっとり れいせい てれや うっかりや おだやか おとなしい なまいき しんちょう きまぐれ".split(" ");
-var shuu_entries_count = [null, 150, 100, 100, 136, 136, 136, 192];
+var shuu_entries_count = [null, 150, 100, 100, 136, 136, 136, 136];
 var shuu_entries_start = [null,   0, 150, 250, 350, 486, 622, 758];
-var shuu_entries_end   = [null, 149, 249, 349, 485, 621, 757, 949];
+var shuu_entries_end   = [null, 149, 249, 349, 485, 621, 757, 893];
 
 $(function() {
 	var factory_data_text;
@@ -154,7 +154,7 @@ function cancel_search() {
 
 function read_shuu_input() {
 	var value = read_int_string(document.getElementById("shuu_input").value);
-	if (value === null || value < 1 || value > 3) {
+	if (value === null || value < 1 || value > 5) {
 		alert("周に入力されている値が不正です");
 		return null;
 	}
@@ -293,16 +293,22 @@ function get_enemy_consuption(shuu, nth, enemy_shuu) {
 	if (nth === 1) {
 		switch(shuu) {
 		case 1: c = 18; break;
-		case 2: c = 36; break;
-		case 3: c = 36; break;
+		case 2:
+		case 3:
+		case 4:
+		case 5: c = 36; break;
 		default: throw new Error;
 		}
 	}
+	if (shuu === 5) {
+		return c + 24;
+	}
 	switch(enemy_shuu) {
 	case 1: c +=  6; break;
-	case 2: c += 12; break;
-	case 3: c += 12; break;
-	case 4: c +=  0; break; // XXX
+	case 2:
+	case 3:
+	case 4:
+	case 5: c += 12; break;
 	default: throw new Error;
 	}
 	return c;
@@ -772,12 +778,16 @@ function seed_to_trainer_id(shuu, nth, seed) {
 		switch (shuu) {
 		case 1: return r % 19 + 100;
 		case 2: return r % 19 + 120;
+		case 4: return r % 19 + 160;
+		case 5: return r % 19 + 180;
 		}
 	} else {
 		switch (shuu) {
 		case 1: return r % 99 +   0;
 		case 2: return r % 39 +  80;
 		case 3: return r % 39 + 100;
+		case 4: return r % 39 + 120;
+		case 5: return r % 39 + 140;
 		}
 	}
 	throw new Error;
@@ -788,6 +798,10 @@ function trainer_id_to_shuu(id) {
 	if (id <= 99) return 1;
 	if (id <= 119) return 2;
 	if (id <= 139) return 3;
+	if (id <= 159) return 4;
+	if (id <= 179) return 5;
+	if (id <= 199) return 6;
+	if (id <= 219) return 7; // XXX
 	if (id === silver_nejiki_id) return 4;
 	throw new Error;
 }
@@ -877,7 +891,7 @@ function entries_collision(entry, entries, visited_entries) {
 
 function entries_collision0(entry, entries) {
 	for (var i = 0; i < entries.length; i ++) {
-		if (entry === entries[i]) return true;
+		if (entry.pokemon === entries[i].pokemon) return true;
 		if (entry.item === entries[i].item) return true;
 	}
 	return false;
@@ -889,7 +903,7 @@ function find_collided_entry(entry, entries, visited_entries) {
 
 function find_collided_entry0(entry, entries) {
 	for (var i = 0; i < entries.length; i ++) {
-		if (entry === entries[i]) return entry;
+		if (entry.pokemon === entries[i].pokemon) return entry;
 		if (entry.item === entries[i].item) return entry;
 	}
 	return null;
