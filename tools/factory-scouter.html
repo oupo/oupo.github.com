@@ -250,7 +250,7 @@ function build_result_div(shuu, seed, consumption, num_bonus, input_by_seed) {
 		consumption = r.next_consumption + c;
 		prev_enemy_entries = r.entries;
 	}
-	div.innerHTML = buf.join("");
+	$(div).html(buf.join(""));
 	$("#election select").change(on_select_change).keypress(on_select_change);
 	$("#result > p.exchange select").change(on_exchange_select_change).keypress(on_exchange_select_change);
 	$("#paste-to-textarea").click(paste_to_textarea);
@@ -463,7 +463,7 @@ function change_enemy_entries(start) {
 		var div = document.getElementById("entries-"+i);
 		var buf = [];
 		build_table(buf, r.infos, i)
-		div.innerHTML = buf.join("");
+		$(div).html(buf.join(""));
 		$("> table > tbody > tr", div).mouseenter(on_mouseenter_tr).mouseleave(on_mouseleave_tr);
 		var c = get_enemy_consuption(shuu, i, enemy_shuu);
 		seed = step_seed(r.seed, c);
@@ -538,9 +538,6 @@ function show_tooltip() {
 	           .html(get_tooltip_content(n))[0];
 	$("#result").append(tooltip);
 	resize_tooltip(button, tooltip);
-	$(window).resize(function() {
-		resize_tooltip(button, tooltip);
-	});
 	$(tooltip).mouseleave(function(ev) {
 		if (ev.relatedTarget !== button) {
 			tooltip.style.display = "none";
