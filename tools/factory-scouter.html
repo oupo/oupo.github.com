@@ -347,6 +347,7 @@ function get_entries_back_seeds(shuu, seed, num_bonus) {
 }
 
 function read_int_string(s, default_value) {
+	s = regularize_word(s);
 	if (/^\s*$/.test(s) && default_value !== undefined) {
 		return default_value;
 	}
