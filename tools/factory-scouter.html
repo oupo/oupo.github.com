@@ -100,13 +100,15 @@ var progress_div = null;
 
 function on_submit_entries() {
 	cancel_search();
-	var shuu = read_shuu_input();
+	var is_open_level = read_level_radio();
+	var shuu = read_shuu_input(is_open_level);
 	if (shuu === null) return;
 	var f = document.forms.entries_form;
-	var r = parse_text(shuu, f.entries.value);
+	var r = parse_text(shuu, is_open_level, f.entries.value);
 	if (!r) return;
-	var num_bonus = FindSeedProcedure.gen_bonus_entries(shuu, r.entries).length;
-	var procedure = new FindSeedProcedure(shuu, r.entries, r.parent_ids);
+	var fixed_shuu = fix_shuu(shuu, is_open_level)
+	var num_bonus = FindSeedProcedure.gen_bonus_entries(fixed_shuu, r.entries).length;
+	var procedure = new FindSeedProcedure(fixed_shuu, r.entries, r.parent_ids);
 	(function loop() {
 		var seed = procedure.run(100);
 		if (seed === "timeout") {
@@ -117,14 +119,15 @@ function on_submit_entries() {
 			if (progress_div) remove_progress_div(progress_div);
 			progress_div = null;
 			search_timer_id = null;
-			build_result_div(shuu, seed, 0, num_bonus, false);
+			build_result_div(shuu, is_open_level, seed, 0, num_bonus, false);
 		}
 	})();
 }
 
 function on_submit_seed() {
 	cancel_search();
-	var shuu = read_shuu_input();
+	var is_open_level = read_level_radio();
+	var shuu = read_shuu_input(is_open_level);
 	if (shuu === null) return;
 	var f = document.forms.seed_form;
 	var seed = read_int_string(f.seed.value);
@@ -143,7 +146,7 @@ function on_submit_seed() {
 		return;
 	}
 	seed = step_seed(seed, consumption);
-	build_result_div(shuu, seed, consumption, num_bonus, true);
+	build_result_div(shuu, is_open_level, seed, consumption, num_bonus, true);
 }
 
 function cancel_search() {
@@ -152,13 +155,23 @@ function cancel_search() {
 	progress_div = null;
 }
 
-function read_shuu_input() {
+function read_shuu_input(is_open_level) {
 	var value = read_int_string(document.getElementById("shuu_input").value);
-	if (value === null || value < 1 || value > 5) {
+	if (value === null || value < 1) {
 		alert("周に入力されている値が不正です");
 		return null;
 	}
+	if (value > (is_open_level ? 3 : 5)) {
+		alert(value+"周目は未対応です");
+		return null;
+	}
 	return value;
+}
+
+function read_level_radio() {
+	var radios = document.forms.shuu_form.level;
+	var val = radios[1].checked ? radios[1].value : radios[0].value;
+	return val === "100";
 }
 
 var progress_width = 100;
@@ -183,13 +196,14 @@ function remove_progress_div(div) {
 	div.parentNode.removeChild(div);
 }
 
-function build_result_div(shuu, seed, consumption, num_bonus, input_by_seed) {
+function build_result_div(shuu, is_open_level, seed, consumption, num_bonus, input_by_seed) {
 	var div = document.getElementById("result");
 	if (seed === null) {
 		div.innerHTML = "<p>その組み合わせのseedが見つかりません</p>";
 		return;
 	}
-	var r = get_6_entries_info(shuu, seed, consumption, num_bonus);
+	var fixed_shuu = fix_shuu(shuu, is_open_level);
+	var r = get_6_entries_info(shuu, is_open_level, seed, consumption, num_bonus);
 	var entries = r.entries;
 	var seed_head = seed;
 	var consumption_head = consumption;
@@ -200,13 +214,14 @@ function build_result_div(shuu, seed, consumption, num_bonus, input_by_seed) {
 	var trainers = trainers_candidate[0];
 	var trainer_ids = trainers.trainer_ids;
 	context = {shuu: shuu,
+	           is_open_level: is_open_level,
 	           infos: [r],
 	           trainers: trainers_candidate,
 	           selected_trainers_index: 0};
 	
 	var buf = [];
 	buf.push("<p>6匹決定時のseed: "+format_hex(seed_head, 8));
-	var seeds = get_entries_back_seeds(shuu, seed_head, num_bonus);
+	var seeds = get_entries_back_seeds(fixed_shuu, seed_head, num_bonus);
 	if (!input_by_seed && seeds.length > 0) {
 		buf.push(" (or "+map(seeds, function(i){return format_hex(i, 8)}).join(", ")+")");
 	}
@@ -217,7 +232,7 @@ function build_result_div(shuu, seed, consumption, num_bonus, input_by_seed) {
 	buf.push(" <button class=\"show-tooltip\" id=\"show-tooltip-0\">6匹決定の乱数列</button>");
 	buf.push("</p>");
 	buf.push("<div class=\"entries\" id=\"entries-0\">");
-	build_table(buf, r.infos, 0);
+	buf.push(build_table(r.infos, 0, is_open_level));
 	buf.push("</div>");
 	buf.push("<p id=\"election\">選出: "+build_select(entries, 0)+" "+build_select(entries, 1)+" "+build_select(entries, 2)+"</p>");
 	buf.push("<p>トレーナー: <select id=\"trainers\">"+build_trainers_options(trainers_candidate, consumption_head)+"</select><br>");
@@ -230,8 +245,8 @@ function build_result_div(shuu, seed, consumption, num_bonus, input_by_seed) {
 			visited_entries = entries_in_hand.concat(prev_enemy_entries);
 		}
 		var trainer_id = trainer_ids[i-1];
-		var enemy_shuu = trainer_id_to_shuu(trainer_id);
-		var r = get_3_entries_info(enemy_shuu, seed, consumption, visited_entries, entries_in_hand);
+		var enemy_shuu = trainer_id_to_shuu(trainer_id, is_open_level);
+		var r = get_3_entries_info(enemy_shuu, is_open_level, seed, consumption, visited_entries, entries_in_hand);
 		context.infos.push(r);
 		if (i > 1) {
 			buf.push("<p class=\"exchange\">交換: <select id=\"exchange-part-"+(i-1)+"\"><option></option>"+build_options(entries_in_hand)+"</select>");
@@ -243,7 +258,7 @@ function build_result_div(shuu, seed, consumption, num_bonus, input_by_seed) {
 		buf.push(" <button class=\"show-tooltip\" id=\"show-tooltip-"+i+"\">3匹決定の乱数列</button>");
 		buf.push("</p>");
 		buf.push("<div class=\"entries\" id=\"entries-"+i+"\">");
-		build_table(buf, r.infos, i);
+		buf.push(build_table(r.infos, i, is_open_level));
 		buf.push("</div>");
 		var c = get_enemy_consuption(shuu, i, enemy_shuu);
 		seed = step_seed(r.seed, c);
@@ -264,12 +279,12 @@ function get_selected_trainer_ids() {
 }
 
 function get_trainers_candidate(seed_head, shuu) {
-	var i = 14;
+	var i = 13;
 	var seed = step_seed(seed_head, -i);
 	var result = [];
 	while (i < 50) {
 		var r = get_trainers_by_seed(shuu, seed);
-		if (7 <= i - r.c && i - r.c <= 12) {
+		if (6 <= i - r.c && i - r.c <= 12) {
 			result.push({start: -i, c: r.c, trainer_ids: r.trainer_ids});
 		}
 		i ++;
@@ -341,10 +356,11 @@ function read_int_string(s, default_value) {
 	return Number(s);
 }
 
-function parse_text(shuu, text) {
+function parse_text(shuu, is_open_level, text) {
 	var lines = regularize_word(text).split("\n");
 	var entries = [];
 	var parent_ids = [];
+	var fixed_shuu = fix_shuu(shuu, is_open_level);
 	for (var i = 0; i < lines.length; i ++) {
 		var line = lines[i];
 		if (/^\s*$/.test(line)) continue;
@@ -360,10 +376,10 @@ function parse_text(shuu, text) {
 		}
 		var entry;
 		if (is_bonus) {
-			entry = find_factory_entry(shuu + 1, name);
+			entry = find_factory_entry(fixed_shuu + 1, name);
 		} else {
-			entry = find_factory_entry(shuu, name);
-			if(!entry && shuu > 1) entry = find_factory_entry(shuu + 1, name);
+			entry = find_factory_entry(fixed_shuu, name);
+			if(!entry && fixed_shuu > 1) entry = find_factory_entry(fixed_shuu + 1, name);
 		}
 		if (!entry) {
 			alert((i+1)+"行目: \""+name+"\"は存在しません");
@@ -448,14 +464,15 @@ function on_trainers_select_change() {
 function change_enemy_entries(start) {
 	var prev_enemy_entries = start > 1 ? context.infos[start - 1].entries : null;
 	var shuu = context.shuu;
+	var is_open_level = context.is_open_level;
 	var seed = context.infos[start].seed_start;
 	var consumption = context.infos[start].rand_range.first;
 	var trainer_ids = get_selected_trainer_ids();
 	var entries_in_hand = context.infos[start > 1 ? start - 1 : 1].entries_in_hand;
 	for (var i = start; i <= 7; i ++) {
 		var visited_entries = i === 1 ? context.infos[0].entries : entries_in_hand.concat(prev_enemy_entries);
-		var enemy_shuu = trainer_id_to_shuu(trainer_ids[i-1]);
-		var r = get_3_entries_info(enemy_shuu, seed, consumption, visited_entries, entries_in_hand);
+		var enemy_shuu = trainer_id_to_shuu(trainer_ids[i-1], is_open_level);
+		var r = get_3_entries_info(enemy_shuu, is_open_level, seed, consumption, visited_entries, entries_in_hand);
 		context.infos[i] = r;
 		
 		if (i > 1) {
@@ -467,9 +484,7 @@ function change_enemy_entries(start) {
 		$("#range-"+i).text(r.rand_range.first+"-"+r.rand_range.last);
 		
 		var div = document.getElementById("entries-"+i);
-		var buf = [];
-		build_table(buf, r.infos, i)
-		$(div).html(buf.join(""));
+		$(div).html(build_table(r.infos, i, is_open_level));
 		$("> table > tbody > tr", div).mouseenter(on_mouseenter_tr).mouseleave(on_mouseleave_tr);
 		var c = get_enemy_consuption(shuu, i, enemy_shuu);
 		seed = step_seed(r.seed, c);
@@ -494,15 +509,17 @@ function build_options(entries, selectedIndex) {
 	return buf;
 }
 
-function build_table(buf, info, nth) {
+function build_table(info, nth, is_open_level) {
+	var buf = [];
 	buf.push("<table><thead><tr><th>周<th>No<th>名前<th>アイテム<th>特性<th>性別<th>ID<th>裏ID<th>性格値</tr></thead>");
 	buf.push("<tbody>");
 	for (var i = 0; i < info.length; i ++) {
 		var e = info[i];
 		var pid = e.pid;
 		var entry = e.entry;
+		var shuu = unfix_shuu(entry_id_to_shuu(entry.id), is_open_level);
 		buf.push("<tr id=\"entry-"+nth+"-"+i+"\">"+
-		         "<td>"+entry_id_to_shuu(entry.id)+
+		         "<td>"+shuu+
 		         "<td>"+(entry.id+1)+
 		         "<td>"+entry.name+
 		         "<td>"+entry.item+
@@ -513,16 +530,18 @@ function build_table(buf, info, nth) {
 		         "<td>"+format_hex(pid, 8)+"</tr>");
 	}
 	buf.push("</tbody></table>");
+	return buf.join("");
 }
 
 function paste_to_textarea() {
 	var shuu = context.shuu;
+	var is_open_level = context.is_open_level;
 	var infos = context.infos[0].infos;
 	var buf = "";
 	for (var i = 0; i < 6; i ++) {
 		if (i > 0) buf += "\n";
 		buf += infos[i].entry.name + " " + infos[i].parent_id;
-		if (entry_id_to_shuu(infos[i].entry.id) === shuu + 1) {
+		if (unfix_shuu(entry_id_to_shuu(infos[i].entry.id), is_open_level) === shuu + 1) {
 			buf += " b";
 		}
 	}
@@ -554,6 +573,8 @@ function show_tooltip() {
 function get_tooltip_content(nth) {
 	var info = context.infos[nth];
 	var shuu = info.shuu;
+	var is_open_level = context.is_open_level;
+	var fixed_shuu = fix_shuu(shuu, is_open_level);
 	var seed = info.seed_start;
 	var consumption = info.rand_range.first;
 	var n = info.entries.length;
@@ -564,7 +585,7 @@ function get_tooltip_content(nth) {
 	var r = [];
 	while (i < n) {
 		var is_bonus = n - i <= num_bonus;
-		var entry_shuu = is_bonus ? shuu + 1 : shuu;
+		var entry_shuu = is_bonus ? fixed_shuu + 1 : fixed_shuu;
 		var count = shuu_entries_count[entry_shuu];
 		var start = shuu_entries_start[entry_shuu];
 		var id = count - 1 - (seed >>> 16) % count + start;
@@ -660,19 +681,19 @@ function on_mouseleave_detail_tr(ev) {
 	}
 }
 
-var Lv50 = 50; // あとあとソースからLv50で検索してひっかかるように
-
 function build_entry_detail(tr) {
 	var m = /^entry-(\d)-(\d)$/.exec(tr.id);
 	var i = Number(m[1]);
 	var j = Number(m[2]);
 	var entry = context.infos[i].entries[j];
-	var shuu = entry_id_to_shuu(entry.id);
+	var fixed_shuu = entry_id_to_shuu(entry.id);
+	var is_open_level = context.is_open_level;
+	var shuu = unfix_shuu(fixed_shuu, is_open_level);
 	var individual = get_individual_by_shuu(shuu);
 	var buf = "<small>";
 	buf += "性格: "+natures[entry.nature]+" 努力値: "+entry.effort+" 個体値: "+individual+"<br>";
 	buf += "技: "+entry.move+"<br>";
-	buf += "ステータス: "+get_status(Lv50, entry, individual).join("-");
+	buf += "ステータス: "+get_status(is_open_level ? 100 : 50, entry, individual).join("-");
 	buf += "</small>"
 	return buf;
 }
@@ -793,16 +814,21 @@ function seed_to_trainer_id(shuu, nth, seed) {
 	throw new Error;
 }
 
-function trainer_id_to_shuu(id) {
+function trainer_id_to_shuu(id, is_open_level) {
 	if (id < 0) throw new Error;
 	if (id <= 99) return 1;
 	if (id <= 119) return 2;
 	if (id <= 139) return 3;
 	if (id <= 159) return 4;
 	if (id <= 179) return 5;
-	if (id <= 199) return 6;
-	if (id <= 219) return 7; // XXX
-	if (id === silver_nejiki_id) return 4;
+	if (id <= 199) return 6; // XXX
+	if (id === silver_nejiki_id) {
+		if (is_open_level) {
+			return 1;
+		} else {
+			return 4;
+		}
+	}
 	throw new Error;
 }
 
@@ -816,23 +842,24 @@ function seed_to_entry(shuu, seed) {
 	return factory_data[seed_to_entry_id(shuu, seed)];
 }
 
-function get_3_entries_info(shuu, seed, consumption, visited_entries, entries_in_hand) {
-	return get_entries_info(shuu, seed, consumption, 3, visited_entries, entries_in_hand, 0);
+function get_3_entries_info(shuu, is_open_level, seed, consumption, visited_entries, entries_in_hand) {
+	return get_entries_info(shuu, is_open_level, seed, consumption, 3, visited_entries, entries_in_hand, 0);
 }
 
-function get_6_entries_info(shuu, seed, consumption, num_bonus) {
-	return get_entries_info(shuu, seed, consumption, 6, [], null, num_bonus);
+function get_6_entries_info(shuu, is_open_level, seed, consumption, num_bonus) {
+	return get_entries_info(shuu, is_open_level, seed, consumption, 6, [], null, num_bonus);
 }
 
-function get_entries_info(shuu, seed, consumption, num, visited_entries, entries_in_hand, num_bonus) {
+function get_entries_info(shuu, is_open_level, seed, consumption, num, visited_entries, entries_in_hand, num_bonus) {
 	var entries = [];
 	var infos = [];
 	var i = 0;
 	var seed_start = seed;
 	var c = consumption;
+	var fixed_shuu = fix_shuu(shuu, is_open_level);
 	while (i < num) {
 		var is_bonus = num - i <= num_bonus;
-		var entry = seed_to_entry(is_bonus ? shuu + 1 : shuu, seed);
+		var entry = seed_to_entry(is_bonus ? fixed_shuu + 1 : fixed_shuu, seed);
 		seed = next_seed(seed); c ++;
 		if (entries_collision(entry, entries, visited_entries)) continue;
 		entries.push(entry);
@@ -914,7 +941,7 @@ function FindSeedProcedure(shuu, entries, parent_ids) {
 	this.entries = entries;
 	this.parent_ids = parent_ids;
 	this.items = FindSeedProcedure.gen_items(entries);
-	this.bonus_entries = FindSeedProcedure.gen_bonus_entries(shuu, entries);
+	this.bonus_entries = FindSeedProcedure.gen_bonus_entries(this.shuu, entries);
 	if (this.bonus_entries.length == 6) {
 		this.bonus_entries = [];
 		this.shuu += 1;
@@ -1089,6 +1116,24 @@ function find_factory_entry(shuu, name) {
 	}
 	return null;
 }
+
+function fix_shuu(shuu, is_open_level) {
+	if (is_open_level) {
+		return shuu + 3;
+	} else {
+		return shuu;
+	}
+}
+
+function unfix_shuu(shuu, is_open_level) {
+	if (is_open_level) {
+		return shuu - 3;
+	} else {
+		return shuu;
+	}
+}
+
+
 
 function roma2reg(text) {
 	var result = [];
@@ -1340,7 +1385,13 @@ div.tooltip .collided {
 <body>
 <h1>ちょうさ・ぶんせきマシン （仮）</h1>
 <p>Lv50 3周目まで限定</p>
-<p><input type="text" id="shuu_input" size="2" value="1"> 周目</p>
+<form action="" name="shuu_form" onsubmit="return false;">
+<p>
+<input type="text" id="shuu_input" size="2" value="1"> 周目
+<label><input type="radio" name="level" value="50" checked>Lv50</label>
+<label><input type="radio" name="level" value="100">オープンレベル</label>
+</p>
+</form>
 <form action="" name="entries_form" onsubmit="return false;">
 <p>6匹のポケモンと親IDで入力:</p>
 <table><tr>
