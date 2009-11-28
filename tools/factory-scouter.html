@@ -105,7 +105,14 @@ function on_submit_entries() {
 	if (shuu === null) return;
 	var f = document.forms.entries_form;
 	var r = parse_text(shuu, is_open_level, f.entries.value);
-	if (!r) return;
+	if (r.errors.length > 0) {
+		build_parse_text_error_message(r.errors);
+		return;
+	}
+	if (r.item_collided) {
+		build_item_collided_message(shuu, is_open_level, r);
+		return;
+	}
 	var fixed_shuu = fix_shuu(shuu, is_open_level)
 	var num_bonus = FindSeedProcedure.gen_bonus_entries(fixed_shuu, r.entries).length;
 	var procedure = new FindSeedProcedure(fixed_shuu, r.entries, r.parent_ids);
@@ -119,6 +126,14 @@ function on_submit_entries() {
 			if (progress_div) remove_progress_div(progress_div);
 			progress_div = null;
 			search_timer_id = null;
+			if (seed === null) {
+				$("#result").html("<p>その組み合わせのseedが見つかりません。</p>");
+				if (is_exist_bonus_shuu(shuu, is_open_level)) {
+					$("#result").append("<p>親IDかボーナスポケモンの指定が間違っていませんか？</p>");
+					build_bonus_hint(fixed_shuu, r.entries, r.parent_ids);
+				}
+				return;
+			}
 			build_result_div(shuu, is_open_level, seed, 0, num_bonus, false);
 		}
 	})();
@@ -179,10 +194,10 @@ var progress_width = 100;
 function build_progress_div() {
 	var p = document.forms.entries_form.entries_submit.parentNode;
 	var div = document.createElement("div");
-	div.className = "progress";
+	addClass(div, "progress");
 	div.style.width = (progress_width + 2) + "px";
 	var bar = document.createElement("div");
-	bar.className = "progress_bar";
+	addClass(bar, "progress_bar");
 	div.appendChild(bar);
 	p.appendChild(div);
 	return div;
@@ -196,12 +211,116 @@ function remove_progress_div(div) {
 	div.parentNode.removeChild(div);
 }
 
+function build_parse_text_error_message(errors) {
+	var buf = "";
+	buf += "<h2>エラー</h2>";
+	buf += "<ul>";
+	for (var i = 0; i < errors.length; i ++) {
+		buf += "<li>"+ escapeHTML(errors[i]) + "</li>";
+	}
+	buf += "</ul>";
+	$("#result").html(buf);
+}
+
+function build_item_collided_message(shuu, is_open_level, r) {
+	var fixed_shuu = fix_shuu(shuu, is_open_level)
+	var buf = "";
+	buf += "<h2>エラー</h2>";
+	buf += "<ul>";
+	var entries = [];
+	for (var i = 0; i < 6; i ++) {
+		var entry = r.entries[i];
+		if (entries_collision0(entry, entries)) {
+			buf += "<li>"+entry.name+"はアイテムが重複しています</li>";
+		}
+		entries[i] = entry;
+	}
+	buf += "</ul>";
+	$("#result").html(buf);
+	if (is_exist_bonus_shuu(shuu, is_open_level)) {
+		$("#result").append("<p>ボーナスポケモンの指定が間違っていませんか？</p>");
+		build_bonus_hint(fixed_shuu, r.entries, r.parent_ids);
+	}
+}
+
+function is_exist_bonus_shuu(shuu, is_open_level) {
+	return shuu !== 1 && fix_shuu(shuu, is_open_level) !== 3;
+}
+
+function build_bonus_hint(shuu, entries, parent_ids, prepend) {
+	var buf = "";
+	buf += "<form action=\"\" name=\"bonus-hint\" id=\"bonus-hint\" onsubmit=\"return false;\">";
+	buf += "<table><thead><th><th><th>アイテム<th>技</thead>";
+	buf += "<tbody>";
+	for (var i = 0; i < 6; i ++) {
+		var e = entries[i];
+		var name = e.name;
+		var e1 = find_factory_entry(shuu, name);
+		var e2 = find_factory_entry(shuu + 1, name);
+		buf += "<tr class=\"space\"><td colspan=\"4\"></td></tr>";
+		buf += build_row(i, false, e, e1, "<td rowspan=\"2\" class=\"name\">"+name, "通常");
+		buf += build_row(i, true, e, e2, "", "ボーナス");
+	}
+	buf += "</tobdy></table>";
+	buf += "<p><input type=\"submit\" value=\"決定\"> ボーナスポケ: <span id=\"num_bonus\"></span>匹</p>";
+	buf += "</form>"
+	if (prepend) {
+		$("#result").prepend(buf);
+	} else {
+		$("#result").append(buf);
+	}
+	$("#bonus-hint tbody > tr").each(function() {
+		var tr = this;
+		if (hasClass(tr, "space")) return;
+		var input = $("input", tr)[0];
+		var other_tr = hasClass(tr, "normal") ? tr.nextSibling : tr.previousSibling;
+		$(tr).click(function(e) {
+			var td = get_parent_element(e.target, "td");
+			if (!hasClass(td, "name")) {
+				input.click();
+			}
+		});
+		$(input).click(function(e) {
+			addClass(tr, "selected");
+			removeClass(other_tr, "selected");
+			$("#num_bonus").text(calc_num_bonus());
+			e.stopPropagation();
+		});
+	});
+	$("#num_bonus").text(calc_num_bonus());
+	$("#bonus-hint").submit(function() {
+		var buf = "";
+		for (var i = 0; i < 6; i ++) {
+			if (i > 0) buf += "\n";
+			buf += entries[i].name + " " + format_dec(parent_ids[i], 5);
+			if (this["radio-"+i][1].checked) {
+				buf += " b";
+			}
+		}
+		var form = document.forms.entries_form;
+		form.entries.value = buf;
+		on_submit_entries();
+	});
+	
+	function build_row(i, is_bonus, selected_e, e, td, label) {
+		var s = selected_e===e;
+		return "<tr class=\""+(is_bonus?"bonus":"normal")+(s?" selected":"")+"\">"+td+
+		       "<td><input type=\"radio\" name=\"radio-"+i+"\""+(s?" checked":"")+">"+label+"<td>"+e.item+"<td>"+e.move;
+	}
+	function calc_num_bonus() {
+		var form = $("#bonus-hint")[0];
+		var num_bonus = 0;
+		for (var i = 0; i < 6; i ++) {
+			if (form["radio-"+i][1].checked) {
+				num_bonus ++;
+			}
+		}
+		return num_bonus;
+	}
+}
+
 function build_result_div(shuu, is_open_level, seed, consumption, num_bonus, input_by_seed) {
 	var div = document.getElementById("result");
-	if (seed === null) {
-		div.innerHTML = "<p>その組み合わせのseedが見つかりません</p>";
-		return;
-	}
 	var fixed_shuu = fix_shuu(shuu, is_open_level);
 	var r = get_6_entries_info(shuu, is_open_level, seed, consumption, num_bonus);
 	var entries = r.entries;
@@ -230,6 +349,9 @@ function build_result_div(shuu, is_open_level, seed, consumption, num_bonus, inp
 	buf.push("<span id=\"range-0\" class=\"range\">"+r.rand_range.first+"-"+r.rand_range.last+"</span>");
 	buf.push(" <button id=\"paste-to-textarea\">この6匹を上のテキストボックスに入力</button>");
 	buf.push(" <button class=\"show-tooltip\" id=\"show-tooltip-0\">6匹決定の乱数列</button>");
+	if (is_exist_bonus_shuu(shuu, is_open_level)) {
+		buf.push(" <button id=\"change-bonus\">ボーナスポケの指定を変更</button>");
+	}
 	buf.push("</p>");
 	buf.push("<div class=\"entries\" id=\"entries-0\">");
 	buf.push(build_table(r.infos, 0, is_open_level));
@@ -269,6 +391,13 @@ function build_result_div(shuu, is_open_level, seed, consumption, num_bonus, inp
 	$("#election select").change(on_select_change).keypress(on_select_change);
 	$("#result > p.exchange select").change(on_exchange_select_change).keypress(on_exchange_select_change);
 	$("#paste-to-textarea").click(paste_to_textarea);
+	$("#change-bonus").click(function() {
+		if ($("#bonus-hint")[0]) {
+			$("#bonus-hint").remove();
+		} else {
+			build_bonus_hint(fixed_shuu, entries, map(context.infos[0].infos, "parent_id"), true);
+		}
+	});
 	$("#trainers").change(on_trainers_select_change).keypress(on_trainers_select_change);
 	$("#result > div.entries > table > tbody > tr").mouseenter(on_mouseenter_tr).mouseleave(on_mouseleave_tr);
 	$("button.show-tooltip").mouseenter(show_tooltip).mouseleave(hide_tooltip);
@@ -362,19 +491,19 @@ function parse_text(shuu, is_open_level, text) {
 	var entries = [];
 	var parent_ids = [];
 	var fixed_shuu = fix_shuu(shuu, is_open_level);
+	var errors = [];
+	var item_collided = false;
+	var count = 0;
 	for (var i = 0; i < lines.length; i ++) {
 		var line = lines[i];
 		if (/^\s*$/.test(line)) continue;
 		var m = /^\s*(\S+)\s+(\d+)((?:\s+b)?)\s*$/.exec(line);
 		if (!m) {
-			alert((i+1)+"行目が不正です\n> "+line);
-			return null;
+			errors.push((i+1)+"行目が不正です > "+line);
+			continue;
 		}
+		count ++;
 		var name = m[1], parent_id = Number(m[2]), is_bonus = m[3] !== "";
-		if (entries.length == 6) {
-			alert("6匹より多く入力されています");
-			return null;
-		}
 		var entry;
 		if (is_bonus) {
 			entry = find_factory_entry(fixed_shuu + 1, name);
@@ -382,30 +511,33 @@ function parse_text(shuu, is_open_level, text) {
 			entry = find_factory_entry(fixed_shuu, name);
 			if(!entry && fixed_shuu > 1) entry = find_factory_entry(fixed_shuu + 1, name);
 		}
-		if (!entry) {
-			alert((i+1)+"行目: \""+name+"\"は存在しません");
-			return null;
-		}
 		if (parent_id < 0 || parent_id >= 65536) {
-			alert((i+1)+"行目: "+parent_id+"は不正なIDです");
-			return null;
+			errors.push((i+1)+"行目: "+parent_id+"は不正なIDです");
+		}
+		if (!entry) {
+			var pokemon = find_pokemon_entry(name);
+			if (pokemon) {
+				errors.push((i+1)+"行目: "+pokemon.name+"は"+shuu+"周目に存在しません");
+			} else {
+				errors.push((i+1)+"行目: \""+name+"\"は存在しません");
+			}
+			continue;
 		}
 		if (ary_include(entries, entry)) {
-			alert((i+1)+"行目: "+entry.name+"が重複しています");
-			return null;
+			errors.push((i+1)+"行目: "+entry.name+"が重複しています");
 		}
 		if (entries_collision0(entry, entries)) {
-			alert((i+1)+"行目: "+entry.name+"はアイテムが重複しています");
-			return null;
+			item_collided = true;
 		}
 		entries.push(entry);
 		parent_ids.push(parent_id);
 	}
-	if (entries.length != 6) {
-		alert("6匹入力されていません");
-		return null;
+	if (count > 6) {
+		errors.push("6匹より多く入力されています");
+	} else if(count < 6) {
+		errors.push("6匹入力されていません");
 	}
-	return {entries: entries, parent_ids: parent_ids};
+	return {entries: entries, parent_ids: parent_ids, errors: errors, item_collided: item_collided};
 }
 
 function entry_id_to_shuu(id) {
@@ -640,8 +772,8 @@ function hide_tooltip(ev) {
 
 function on_mouseenter_tr(ev) {
 	var tr = this;
-	if (tr.className === "entry-detail") return;
-	if (tr.nextSibling && tr.nextSibling.className === "entry-detail") {
+	if (hasClass(tr, "entry-detail")) return;
+	if (tr.nextSibling && hasClass(tr.nextSibling, "entry-detail")) {
 		if (tr.nextSibling.style.display === "none") {
 			tr.nextSibling.style.display = "";
 			set_tr_rowspan(tr, 2);
@@ -663,7 +795,7 @@ function set_tr_rowspan(tr, n) {
 function on_mouseleave_tr(ev) {
 	var tr = this;
 	if (tr.parentNode.tagName.toUpperCase() !== "TBODY") return;
-	if (tr.nextSibling && tr.nextSibling.className === "entry-detail") {
+	if (tr.nextSibling && hasClass(tr.nextSibling, "entry-detail")) {
 		if (!elementWithIn(tr.nextSibling, ev.relatedTarget)) {
 			remove_detail_tr(tr);
 		}
@@ -1118,6 +1250,17 @@ function find_factory_entry(shuu, name) {
 	return null;
 }
 
+function find_pokemon_entry(name) {
+	var re = roma2reg(name);
+	var l = pokemon_data.length;
+	for (var i = 0; i < l; i ++) {
+		if (re.test(pokemon_data[i].name)) {
+			return pokemon_data[i];
+		}
+	}
+	return null;
+}
+
 function fix_shuu(shuu, is_open_level) {
 	if (is_open_level) {
 		return shuu + 3;
@@ -1224,6 +1367,64 @@ function elementWithIn(elem1, elem2) {
 		 elem = elem.parentNode;
 	}
 	return false;
+}
+
+function escapeHTML(value) {
+	return value.replace(/[&<>"]/g, function(s) { return escapeHTML.map[s]; }); // "
+}
+escapeHTML.map = {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'};
+
+function get_parent_element(e, tagName) {
+	tagName = tagName.toUpperCase();
+	while (e && e.nodeType === 1) {
+		if (e.tagName.toUpperCase() === tagName) return e;
+		e = e.parentNode;
+	}
+	return null;
+}
+
+function hasClass(e, className) {
+	var s = e.className;
+	if (s == className) return true;
+	if (!/\s/.test(s)) return false;
+	var classes = s.split(/\s+/);
+	for (var i = 0, l = classes.length; i < l; i ++) {
+		if (classes[i] == className) {
+			return true;
+		}
+	}
+	return false;
+}
+
+function addClass(e, className) {
+	if (e.className == '') {
+		e.className = className;
+		return;
+	}
+	if (!hasClass(e, className)) {
+		e.className += ' ' + className;
+	}
+}
+
+function removeClass(e, className) {
+	var s = e.className;
+	if (s == className) {
+		e.className = '';
+		return;
+	}
+	if (!/\s/.test(s)) return;
+	var classes = s.split(/\s+/);
+	var index = -1;
+	for (var i = 0, l = classes.length; i < l; i ++) {
+		if (classes[i] == className) {
+			index = i;
+			break;
+		}
+	}
+	if (index >= 0) {
+		classes.splice(index, 1);
+		e.className = classes.join(' ');
+	}
 }
 
 function ary_include(ary, e) {
@@ -1380,6 +1581,24 @@ div.tooltip pre {
 
 div.tooltip .collided {
 	color: #dc143c;
+}
+
+#bonus-hint tr.space td {
+	height: 0px;
+	padding: 0;
+	background: #000;
+}
+
+#bonus-hint tr.selected td {
+	background-color: #d3efc8;
+}
+
+#bonus-hint tr.selected.bonus td {
+	background-color: #efe3c8;
+}
+
+#bonus-hint tr.selected td.name {
+	background: transparent;
 }
 </style>
 </head>
