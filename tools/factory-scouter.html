@@ -261,7 +261,7 @@ function build_bonus_hint(shuu, entries, parent_ids, prepend) {
 		buf += build_row(i, false, e, e1, "<td rowspan=\"2\" class=\"name\">"+name, "通常");
 		buf += build_row(i, true, e, e2, "", "ボーナス");
 	}
-	buf += "</tobdy></table>";
+	buf += "</tbody></table>";
 	buf += "<p><input type=\"submit\" value=\"決定\"> ボーナスポケ: <span id=\"num_bonus\"></span>匹</p>";
 	buf += "</form>"
 	if (prepend) {
