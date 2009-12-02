@@ -279,7 +279,6 @@ function update_bonus_hint() {
 	if (last_data.shuu === shuu && last_data.is_open_level === is_open_level && last_data.text === text) {
 		return;
 	}
-	document.title = "update: "+Number(new Date);
 	var r = parse_text(shuu, is_open_level, text);
 	update_last_data(shuu, is_open_level, text, r);
 	if (r.entries.length === 0) {
