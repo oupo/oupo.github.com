@@ -503,7 +503,7 @@ function build_result_div(shuu, is_open_level, seed, consumption, num_bonus, inp
 	
 	var buf = [];
 	buf.push("<p>6匹決定時のseed: "+format_hex(seed_head, 8));
-	var seeds = get_entries_back_seeds(shuu, is_open_level, seed_head, num_bonus);
+	var seeds = get_entries_back_seeds(fixed_shuu, entries, seed_head, num_bonus);
 	if (!input_by_seed && seeds.length > 0) {
 		buf.push(" (or "+map(seeds, function(i){return format_hex(i, 8)}).join(", ")+")");
 	}
@@ -615,17 +615,32 @@ function trainer_id_to_name(i) {
 	return /の([^の]+)$/.exec(trainer_names[i])[1];
 }
 
-function get_entries_back_seeds(shuu, is_open_level, seed, num_bonus) {
+function get_entries_back_seeds(shuu, entries, seed_base, num_bonus) {
 	var first_shuu = num_bonus === 6 ? shuu + 1 : shuu;
-	var e = seed_to_entry(shuu, 0, first_shuu, seed);
 	var result = [];
+	var seed = seed_base;
 	while (true) {
 		seed = prev_seed(seed);
-		var prev_e = seed_to_entry(shuu, 0, first_shuu, seed);
-		if (e !== prev_e) break;
-		result.push(seed);
+		var e = seed_to_entry(shuu, 0, first_shuu, seed);
+		if (!ary_include(entries, e)) break;
+		if (is_match(seed)) {
+			result.push(seed);
+		}
 	}
 	return result;
+	function is_match(seed) {
+		var es = [];
+		var i = 0;
+		while (seed !== seed_base) {
+			var e = seed_to_entry(shuu, 0, first_shuu, seed);
+			seed = next_seed(seed);
+			if (entries_collision0(e, es)) continue;
+			if (e !== entries[i]) return false;
+			es[i] = e;
+			i ++;
+		}
+		return true;
+	}
 }
 
 function read_int_string(s, default_value) {
