@@ -503,7 +503,7 @@ function build_result_div(shuu, is_open_level, seed, consumption, num_bonus, inp
 	
 	var buf = [];
 	buf.push("<p>6匹決定時のseed: "+format_hex(seed_head, 8));
-	var seeds = get_entries_back_seeds(fixed_shuu, entries, seed_head, num_bonus);
+	var seeds = get_entries_back_seeds(fixed_shuu, r.raw_entries, seed_head, num_bonus);
 	if (!input_by_seed && seeds.length > 0) {
 		buf.push(" (or "+map(seeds, function(i){return format_hex(i, 8)}).join(", ")+")");
 	}
@@ -1327,7 +1327,9 @@ function get_entries_info(shuu, is_open_level, nth, enemy_shuu, seed, consumptio
 	
 	var range = {first: consumption, last: c - 1};
 	
+	var raw_entries = entries;
 	if (num === 6) {
+		entries = entries.slice();
 		var swap1 = (seed >>> 16) % 6;
 		seed = next_seed(seed); c ++;
 		var swap2 = (seed >>> 16) % 6;
@@ -1341,6 +1343,7 @@ function get_entries_info(shuu, is_open_level, nth, enemy_shuu, seed, consumptio
 	}
 	
 	return {entries: entries,
+	        raw_entries: raw_entries,
 	        infos: infos,
 	        seed: seed,
 	        seed_start: seed_start,
