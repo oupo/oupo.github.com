@@ -166,10 +166,30 @@ function start_search(shuu, is_open_level, entries, parent_ids, is_bonus_list) {
 			search_timer_id = null;
 			if (seed === null) {
 				$("#result").html("<p>その組み合わせのseedが見つかりません。</p>");
+				var insufficient = get_insufficient_parent_ids(parent_ids, is_bonus_list);
+				if (insufficient) {
+					$("#result").append("<p>"+insufficient+"の親IDも指定してみてください。</p>");
+				}
 				return;
 			}
 			build_result_div(shuu, is_open_level, seed, 0, num_bonus, false);
 		}
+	}
+}
+
+function get_insufficient_parent_ids(parent_ids, is_bonus_list) {
+	var result = [];
+	var ns = [0, 4, 5]
+	for (var i = 0; i < 3; i ++) {
+		var n = ns[i];
+		if (!is_bonus_list[n] && parent_ids[n] === null) {
+			result.push((n+1)+"匹目");
+		}
+	}
+	if (result.length > 0) {
+		return result.join(", ");
+	} else {
+		return result;
 	}
 }
 
@@ -438,11 +458,12 @@ function update_bonus_hint() {
 		var i;
 		for (i = 0; i < lines.length; i ++) {
 			if (find_pokemon_entry(regularize_word(/\S+/.exec(lines[i])[0])) !== candidate.entry.pokemon) continue;
-			var m = /^\s*\S+\s+\d+/.exec(lines[i]);
+			var m = /^\s*\S+((?:\s+(?:\d+|\?))?)/.exec(lines[i]);
 			if (!m) continue;
 			lines[i] = m[0];
 			var entry_shuu = is_bonus ? fixed_shuu + 1 : fixed_shuu;
 			if (candidate.no !== null && entry_shuu >= 8) {
+				if (m[1] === "") lines[i] += " ?";
 				lines[i] += " " + candidate.no;
 			}
 			if (is_bonus) {
@@ -667,19 +688,21 @@ function parse_text(shuu, is_open_level, text) {
 	for (var i = 0; i < lines.length; i ++) {
 		var line = lines[i];
 		if (/^\s*$/.test(line)) continue;
-		// ポケモン名 親ID [何番目] [b]
+		// ポケモン名 [親ID] [何番目] [b]
 		// 何番目: 何番目の候補か (オープンレベル4周目以降で必要になる)
 		// b: ボーナスポケモン指定
-		var m = /^\s*(\S+)\s+(\d+)((?:\s+\d)?)((?:\s+b)?)\s*$/.exec(line);
+		// 親IDを省略して「何番目」を指定した場合、「何番目」が親IDとして認識されてしまうので
+		// 親IDの代わりに "?" を指定できるようにしてある
+		var m = /^\s*(\S+)((?:\s+(?:\d+|\?))?)((?:\s+\d)?)((?:\s+b)?)\s*$/.exec(line);
 		if (!m) {
 			errors.push((i+1)+"行目が不正です > "+line);
 			invalid_line = true;
 			continue;
 		}
 		count ++;
-		var name = m[1], parent_id = Number(m[2]), no = Number(m[3]), is_bonus = m[4] !== "";
+		var name = m[1], parent_id = read_int_string(m[2]), no = Number(m[3]), is_bonus = m[4] !== "";
 		var pokemon = find_pokemon_entry(name);
-		if (parent_id < 0 || parent_id >= 65536) {
+		if (parent_id !== null && (parent_id < 0 || parent_id >= 65536)) {
 			errors.push((i+1)+"行目: "+parent_id+"は不正なIDです");
 		}
 		if (!pokemon) {
@@ -1393,7 +1416,7 @@ function FindSeedProcedure(shuu, entries, parent_ids, is_bonus_list) {
 	this.num_bonus = this.bonus_entries.length;
 	this.last_candidate_entries = this.num_bonus > 0 ? this.bonus_entries : this.entries;
 	this.last_entry_shuu = this.num_bonus > 0 ? this.shuu + 1 : this.shuu;
-	this.ns = FindSeedProcedure.gen_ns(this.shuu, is_bonus_list);
+	this.ns = FindSeedProcedure.gen_ns(this.shuu, is_bonus_list, parent_ids);
 	this.i = 0;
 	this.j = 0;
 }
@@ -1414,13 +1437,13 @@ FindSeedProcedure.gen_bonus_entries = function(entries, is_bonus_list) {
 	return result;
 };
 
-FindSeedProcedure.gen_ns = function(shuu, is_bonus_list) {
+FindSeedProcedure.gen_ns = function(shuu, is_bonus_list, parent_ids) {
 	var _ns = [0, 4, 5];
 	var ns = [];
 	for (var i = 0; i < 3; i ++) {
 		var n = _ns[i];
 		// ボーナスポケモンは先頭になるはずがないので除外
-		if (!is_bonus_list[n]) {
+		if (!is_bonus_list[n] && parent_ids[n] !== null) {
 			ns.push(n);
 		}
 	}
@@ -1527,7 +1550,7 @@ FindSeedProcedure.prototype.match_parent_ids = function (seed, raw_entries) {
 		var expected_parent_id = this.parent_ids[indexof(this.entries, entry)];
 		var parent_id = seed >>> 16;
 		seed = next_seed(seed);
-		if (parent_id !== expected_parent_id) return null;
+		if (expected_parent_id !== null && parent_id !== expected_parent_id) return null;
 		var secret_id = seed >>> 16;
 		seed = next_seed(seed);
 		var nature = entry.nature;
@@ -1961,7 +1984,7 @@ div.tooltip .collided {
 <small>
 全角・半角・ひらがな・カタカナは問いません。<br>
 「pikachuu」のようにローマ字のままでもOKです。<br>
-ボーナスポケモンは「○○○&nbsp;12345&nbsp;b」のように後ろにbをつけてください
+6匹全員の親IDを入力するのが面倒な場合は、1匹目だけ入力して決定してみてください
 </small>
 </td>
 </tr>
