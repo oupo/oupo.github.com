@@ -179,7 +179,7 @@ function start_search(shuu, is_open_level, entries, parent_ids, is_bonus_list) {
 
 function get_insufficient_parent_ids(parent_ids, is_bonus_list) {
 	var result = [];
-	var ns = [0, 4, 5]
+	var ns = [0, 4, 5];
 	for (var i = 0; i < 3; i ++) {
 		var n = ns[i];
 		if (!is_bonus_list[n] && parent_ids[n] === null) {
