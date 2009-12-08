@@ -531,8 +531,8 @@ function build_result_div(shuu, is_open_level, seed, consumption, num_bonus, inp
 	buf.push("</p>");
 	buf.push("<p>最初の6匹 ");
 	buf.push("<span id=\"range-0\" class=\"range\">"+r.rand_range.first+"-"+r.rand_range.last+"</span>");
-	buf.push(" <button id=\"paste-to-textarea\">この6匹を上のテキストボックスに入力</button>");
-	buf.push(" <button class=\"show-tooltip\" id=\"show-tooltip-0\">6匹決定の乱数列</button>");
+	buf.push("<button id=\"paste-to-textarea\">この6匹を上のテキストボックスに入力</button>");
+	buf.push("<button class=\"show-tooltip\" id=\"show-tooltip-0\">6匹決定の乱数列</button>");
 	buf.push("</p>");
 	buf.push("<div class=\"entries\" id=\"entries-0\">");
 	buf.push(build_table(r.infos, 0, is_open_level));
@@ -558,7 +558,7 @@ function build_result_div(shuu, is_open_level, seed, consumption, num_bonus, inp
 		}
 		buf.push("<p>"+i+"戦目 <span id=\"trainer-name-"+i+"\">"+trainer_names[trainer_id]+"</span>");
 		buf.push(" <span id=\"range-"+i+"\" class=\"range\">"+r.rand_range.first+"-"+r.rand_range.last+"</span>");
-		buf.push(" <button class=\"show-tooltip\" id=\"show-tooltip-"+i+"\">3匹決定の乱数列</button>");
+		buf.push("<button class=\"show-tooltip\" id=\"show-tooltip-"+i+"\">3匹決定の乱数列</button>");
 		buf.push("</p>");
 		buf.push("<div class=\"entries\" id=\"entries-"+i+"\">");
 		buf.push(build_table(r.infos, i, is_open_level));
@@ -1872,6 +1872,10 @@ td {
 	border: 1px solid black;
 }
 
+fieldset {
+	padding: 0.5em;
+}
+
 #entries-form-table th,
 #entries-form-table td {
 	border: none;
@@ -1888,6 +1892,8 @@ div.progress {
 	border: 1px solid #888;
 	display: inline-block;
 	*display: inline;
+	*zoom: 1;
+	margin-left: 5px;
 }
 
 div.progress_bar {
@@ -1907,6 +1913,7 @@ body {
 	border-left-color: #eee;
 	border-top-color:  #eee;
 	background: #eee;
+	margin-left: 10px;
 }
 
 div.tooltip {
@@ -1978,7 +1985,7 @@ div.tooltip .collided {
 ハスブレロ　27843
 パッチール　50041
 カラナクシ　10484</textarea>
-<br><input type="submit" name="entries_submit" value="決定">
+<div><input type="submit" name="entries_submit" value="決定"></div>
 </td>
 <td style="vertical-align:top;width:14em">
 <small>
