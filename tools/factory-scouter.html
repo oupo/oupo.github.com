@@ -48,13 +48,13 @@ $(function() {
 });
 
 function initialize_pokemon_data(pokedex_csv_text) {
-	var lines = pokedex_csv_text.split('\n');
-	if (lines[lines.length - 1] == '') lines.pop();
+	var lines = pokedex_csv_text.split("\n");
+	if (lines[lines.length - 1] === "") lines.pop();
 	var boundaries = {"♂のみ": -1, "♀のみ": 255, "1:7": 30, "1:3": 63, "1:1": 126, "3:1": 190, "ふめい": null};
 	pokemon_data = new Array(lines.length);
 	pokemon_name2id = {};
 	for (var i = 0; i < lines.length; i ++) {
-		var row = lines[i].split(',');
+		var row = lines[i].split(",");
 		var name = row[0];
 		var stats = map(row.slice(1, 1 + 6), Number);
 		var ability1 = row[7];
@@ -68,17 +68,17 @@ function initialize_pokemon_data(pokedex_csv_text) {
 			abilities: [ability1, ability2],
 			gender_boundary: gender_boundary,
 			group: null,
-			id_in_group: null,
+			id_in_group: null
 		};
 	}
 }
 
 function initialize_factory_entries(factory_data_text) {
-	var lines = factory_data_text.split('\n');
-	if (lines[lines.length - 1] == '') lines.pop();
+	var lines = factory_data_text.split("\n");
+	if (lines[lines.length - 1] === "") lines.pop();
 	factory_data = new Array(lines.length);
 	for (var i = 0; i < lines.length; i ++) {
-		var row = lines[i].split('|');
+		var row = lines[i].split("|");
 		var pokemon = get_pokemon_entry(row[1]);
 		factory_data[i] = {
 			id: i,
@@ -124,8 +124,8 @@ function set_pokemon_data_group() {
 var silver_nejiki_id;
 
 function initialize_trainer_names(trainer_names_text) {
-	var lines = trainer_names = trainer_names_text.split('\n');
-	if (lines[lines.length - 1] == '') lines.pop();
+	var lines = trainer_names = trainer_names_text.split("\n");
+	if (lines[lines.length - 1] === "") lines.pop();
 	silver_nejiki_id = lines.length;
 	lines.push("ファクトリーヘッドのネジキ"); // 300を銀ネジキとして扱う
 }
@@ -379,7 +379,7 @@ function update_bonus_hint() {
 				if (input) input.click();
 			}
 		});
-		if(input) $(input).click(function(e) {
+		if (input) $(input).click(function(e) {
 			disable_selected_tr(n);
 			addClass(tr, "selected");
 			$("#num_bonus").text(calc_num_bonus());
@@ -747,7 +747,7 @@ function parse_text(shuu, is_open_level, text) {
 	if (!invalid_line) {
 		if (count > 6) {
 			errors.push("6匹より多く入力されています");
-		} else if(count < 6) {
+		} else if (count < 6) {
 			errors.push("6匹入力されていません");
 		}
 	}
@@ -809,7 +809,7 @@ function entry_id_to_shuu(id) {
 	if (id < 486) return 4;
 	if (id < 622) return 5;
 	if (id < 758) return 6;
-	if (id < 898) return 7
+	if (id < 898) return 7;
 	return 8;
 }
 
@@ -1150,14 +1150,14 @@ var nature_table = new Array(25);
 	}
 })();
 
-var status_names = 'HP,攻撃,防御,特攻,特防,すば'.split(',');
+var status_names = "HP,攻撃,防御,特攻,特防,すば".split(",");
 
 function omit_effort_text(text) {
 	// ex. omit_effort_text("HP/攻撃")
 	//  => "HA"
 	var list = text.split("/");
 	var result = "";
-	for(var i = 0; i < list.length; i ++) {
+	for (var i = 0; i < list.length; i ++) {
 		result += "HABCDS".charAt(indexof(status_names, list[i]));
 	}
 	return result;
@@ -1168,7 +1168,7 @@ function effort_text_to_array(text) {
 	//  => [255, 255, 0, 0, 0, 0]
 	var t = "HABCDS";
 	var efforts = [0, 0, 0, 0, 0, 0];
-	for(var i = 0; i < text.length; i ++) {
+	for (var i = 0; i < text.length; i ++) {
 		efforts[t.indexOf(text.charAt(i))] = text.length === 3 ? 170 : 255;
 	}
 	return efforts;
@@ -1342,7 +1342,7 @@ function get_entries_info(shuu, is_open_level, nth, enemy_shuu, seed, consumptio
 			var pid_high = seed >>> 16;
 			seed = next_seed(seed); c ++;
 			var pid = (pid_high << 16 | pid_row) >>> 0;
-		} while (pid % 25 != nature || is_shiny_pid(parent_id, secret_id, pid));
+		} while (pid % 25 !== nature || is_shiny_pid(parent_id, secret_id, pid));
 		infos[i].parent_id = parent_id;
 		infos[i].secret_id = secret_id;
 		infos[i].pid = pid;
@@ -1409,7 +1409,7 @@ function FindSeedProcedure(shuu, entries, parent_ids, is_bonus_list) {
 	this.is_bonus_list = is_bonus_list;
 	this.items = FindSeedProcedure.gen_items(entries);
 	this.bonus_entries = FindSeedProcedure.gen_bonus_entries(entries, is_bonus_list);
-	if (this.bonus_entries.length == 6) {
+	if (this.bonus_entries.length === 6) {
 		this.bonus_entries = [];
 		this.shuu += 1;
 	}
@@ -1530,7 +1530,7 @@ FindSeedProcedure.prototype.find_entries = function(seed, n) {
 	}
 	if (steps !== n) return "next";
 	for (var i = 0; i < 6; i ++) {
-		if(!ary_include(this.entries, raw_entries[i])) {
+		if (!ary_include(this.entries, raw_entries[i])) {
 			return "next";
 		}
 	}
@@ -1544,7 +1544,7 @@ FindSeedProcedure.prototype.match_swap = function(raw_entries, swap1, swap2) {
 	return ary_eq(this.entries, raw_entries);
 };
 
-FindSeedProcedure.prototype.match_parent_ids = function (seed, raw_entries) {
+FindSeedProcedure.prototype.match_parent_ids = function(seed, raw_entries) {
 	for (var i = 0; i < 6; i ++) {
 		var entry = raw_entries[i];
 		var expected_parent_id = this.parent_ids[indexof(this.entries, entry)];
@@ -1560,13 +1560,13 @@ FindSeedProcedure.prototype.match_parent_ids = function (seed, raw_entries) {
 			var pid_high = seed >>> 16;
 			seed = next_seed(seed);
 			var pid = (pid_high << 16 | pid_row) >>> 0;
-		} while (pid % 25 != nature || is_shiny_pid(parent_id, secret_id, pid));
+		} while (pid % 25 !== nature || is_shiny_pid(parent_id, secret_id, pid));
 	}
 	return seed;
 };
 
 function is_shiny_pid(parent_id, secret_id, pid) {
-	return ((parent_id ^ secret_id ^ (pid >>> 16) ^ (pid & 0xffff)) & ~7) == 0;
+	return ((parent_id ^ secret_id ^ (pid >>> 16) ^ (pid & 0xffff)) & ~7) === 0;
 }
 
 function find_factory_entry(shuu, name) {
@@ -1626,7 +1626,7 @@ function roma2reg(text) {
 			continue;
 		}
 		var kana = roma2reg.kana_map[token];
-		if (token.length == 2 && kana == "ッ") {
+		if (token.length === 2 && kana === "ッ") {
 			result.push("(?:" + token.charAt(0) + "|" + kana + ")");
 		} else {
 			result.push("(?:" + token + "|" + kana + ")");
@@ -1637,7 +1637,7 @@ function roma2reg(text) {
 }
 
 function regexp_escape(s) {
-	return s.replace(/\W/g,'\\$&');
+	return s.replace(/\W/g,"\\$&");
 }
 
 function roma2reg_search_token(text, i) {
@@ -1660,26 +1660,26 @@ function regularize_word(word) {
 	var chr = String.fromCharCode;
 	return word.replace(/(?:[｡-ﾝ][ﾞﾟ]?|[ぁ-ゔ　！-～])/g, function(s) {
 		var s1 = s.charAt(0);
-		if ('｡' <= s1 && s1 <= 'ﾝ' && s.length == 2) {
-			if (s.charAt(1) == 'ﾞ' && (('ｶ' <= s1 && s1 <= 'ﾄ') || ('ﾊ' <= s1 && s1 <= 'ﾎ'))) {
+		if ("｡" <= s1 && s1 <= "ﾝ" && s.length === 2) {
+			if (s.charAt(1) === "ﾞ" && (("ｶ" <= s1 && s1 <= "ﾄ") || ("ﾊ" <= s1 && s1 <= "ﾎ"))) {
 				return chr(map[s1].charCodeAt(0) + 1);
-			} else if(s.charAt(1) == 'ﾟ' && 'ﾊ' <= s1 && s1 <= 'ﾎ') {
+			} else if (s.charAt(1) === "ﾟ" && "ﾊ" <= s1 && s1 <= "ﾎ") {
 				return chr(map[s1].charCodeAt(0) + 2);
 			} else {
 				return map[s1] + s.charAt(1);
 			}
 		}
-		if ('ぁ' <= s && s <= 'ゔ') {
-			return chr(s.charCodeAt(0) - 'ぁ'.charCodeAt(0) + 'ァ'.charCodeAt(0));
+		if ("ぁ" <= s && s <= "ゔ") {
+			return chr(s.charCodeAt(0) - "ぁ".charCodeAt(0) + "ァ".charCodeAt(0));
 		}
-		if ('Ａ' <= s && s <= 'Ｚ') {
-			return chr(s.charCodeAt(0) - 'Ａ'.charCodeAt(0) + 'A'.charCodeAt(0));
+		if ("Ａ" <= s && s <= "Ｚ") {
+			return chr(s.charCodeAt(0) - "Ａ".charCodeAt(0) + "A".charCodeAt(0));
 		}
-		if ('ａ' <= s && s <= 'ｚ') {
-			return chr(s.charCodeAt(0) - 'ａ'.charCodeAt(0) + 'a'.charCodeAt(0));
+		if ("ａ" <= s && s <= "ｚ") {
+			return chr(s.charCodeAt(0) - "ａ".charCodeAt(0) + "a".charCodeAt(0));
 		}
-		if ('！' <= s && s <= '～') {
-			return chr(s.charCodeAt(0) - '！'.charCodeAt(0) + '!'.charCodeAt(0));
+		if ("！" <= s && s <= "～") {
+			return chr(s.charCodeAt(0) - "！".charCodeAt(0) + "!".charCodeAt(0));
 		}
 		if (map.hasOwnProperty(s)) {
 			return map[s];
@@ -1688,7 +1688,7 @@ function regularize_word(word) {
 	});
 }
 
-regularize_word.map = {'　': ' ', '｡': '。', '｢': '「', '｣': '」', '､': '、', '･': '・', 'ｦ': 'ヲ', 'ｧ': 'ァ', 'ｨ': 'ィ', 'ｩ': 'ゥ', 'ｪ': 'ェ', 'ｫ': 'ォ', 'ｬ': 'ャ', 'ｭ': 'ュ', 'ｮ': 'ョ', 'ｯ': 'ッ', 'ｰ': 'ー', 'ｱ': 'ア', 'ｲ': 'イ', 'ｳ': 'ウ', 'ｴ': 'エ', 'ｵ': 'オ', 'ｶ': 'カ', 'ｷ': 'キ', 'ｸ': 'ク', 'ｹ': 'ケ', 'ｺ': 'コ', 'ｻ': 'サ', 'ｼ': 'シ', 'ｽ': 'ス', 'ｾ': 'セ', 'ｿ': 'ソ', 'ﾀ': 'タ', 'ﾁ': 'チ', 'ﾂ': 'ツ', 'ﾃ': 'テ', 'ﾄ': 'ト', 'ﾅ': 'ナ', 'ﾆ': 'ニ', 'ﾇ': 'ヌ', 'ﾈ': 'ネ', 'ﾉ': 'ノ', 'ﾊ': 'ハ', 'ﾋ': 'ヒ', 'ﾌ': 'フ', 'ﾍ': 'ヘ', 'ﾎ': 'ホ', 'ﾏ': 'マ', 'ﾐ': 'ミ', 'ﾑ': 'ム', 'ﾒ': 'メ', 'ﾓ': 'モ', 'ﾔ': 'ヤ', 'ﾕ': 'ユ', 'ﾖ': 'ヨ', 'ﾗ': 'ラ', 'ﾘ': 'リ', 'ﾙ': 'ル', 'ﾚ': 'レ', 'ﾛ': 'ロ', 'ﾜ': 'ワ', 'ﾝ': 'ン'};
+regularize_word.map = {"　": " ", "｡": "。", "｢": "「", "｣": "」", "､": "、", "･": "・", "ｦ": "ヲ", "ｧ": "ァ", "ｨ": "ィ", "ｩ": "ゥ", "ｪ": "ェ", "ｫ": "ォ", "ｬ": "ャ", "ｭ": "ュ", "ｮ": "ョ", "ｯ": "ッ", "ｰ": "ー", "ｱ": "ア", "ｲ": "イ", "ｳ": "ウ", "ｴ": "エ", "ｵ": "オ", "ｶ": "カ", "ｷ": "キ", "ｸ": "ク", "ｹ": "ケ", "ｺ": "コ", "ｻ": "サ", "ｼ": "シ", "ｽ": "ス", "ｾ": "セ", "ｿ": "ソ", "ﾀ": "タ", "ﾁ": "チ", "ﾂ": "ツ", "ﾃ": "テ", "ﾄ": "ト", "ﾅ": "ナ", "ﾆ": "ニ", "ﾇ": "ヌ", "ﾈ": "ネ", "ﾉ": "ノ", "ﾊ": "ハ", "ﾋ": "ヒ", "ﾌ": "フ", "ﾍ": "ヘ", "ﾎ": "ホ", "ﾏ": "マ", "ﾐ": "ミ", "ﾑ": "ム", "ﾒ": "メ", "ﾓ": "モ", "ﾔ": "ヤ", "ﾕ": "ユ", "ﾖ": "ヨ", "ﾗ": "ラ", "ﾘ": "リ", "ﾙ": "ル", "ﾚ": "レ", "ﾛ": "ロ", "ﾜ": "ワ", "ﾝ": "ン"};
 
 function elementWithIn(elem1, elem2) {
 	// elem2 が elem1 と同一の要素か、elem1 の子孫要素のとき true を返す
@@ -1703,7 +1703,7 @@ function elementWithIn(elem1, elem2) {
 function escapeHTML(value) {
 	return value.replace(/[&<>"]/g, function(s) { return escapeHTML.map[s]; }); // "
 }
-escapeHTML.map = {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'};
+escapeHTML.map = {"&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;"};
 
 function get_parent_element(e, tagName) {
 	tagName = tagName.toUpperCase();
@@ -1716,11 +1716,11 @@ function get_parent_element(e, tagName) {
 
 function hasClass(e, className) {
 	var s = e.className;
-	if (s == className) return true;
+	if (s === className) return true;
 	if (!/\s/.test(s)) return false;
 	var classes = s.split(/\s+/);
 	for (var i = 0, l = classes.length; i < l; i ++) {
-		if (classes[i] == className) {
+		if (classes[i] === className) {
 			return true;
 		}
 	}
@@ -1728,33 +1728,33 @@ function hasClass(e, className) {
 }
 
 function addClass(e, className) {
-	if (e.className == '') {
+	if (e.className === "") {
 		e.className = className;
 		return;
 	}
 	if (!hasClass(e, className)) {
-		e.className += ' ' + className;
+		e.className += " " + className;
 	}
 }
 
 function removeClass(e, className) {
 	var s = e.className;
-	if (s == className) {
-		e.className = '';
+	if (s === className) {
+		e.className = "";
 		return;
 	}
 	if (!/\s/.test(s)) return;
 	var classes = s.split(/\s+/);
 	var index = -1;
 	for (var i = 0, l = classes.length; i < l; i ++) {
-		if (classes[i] == className) {
+		if (classes[i] === className) {
 			index = i;
 			break;
 		}
 	}
 	if (index >= 0) {
 		classes.splice(index, 1);
-		e.className = classes.join(' ');
+		e.className = classes.join(" ");
 	}
 }
 
@@ -1772,8 +1772,8 @@ function indexof(ary, e) {
 }
 
 function ary_eq(a, b) {
-	if (a == b) return true;
-	if (a.length != b.length) return false;
+	if (a === b) return true;
+	if (a.length !== b.length) return false;
 	var l = a.length;
 	for (var i = 0; i < l; i ++) {
 		if (a[i] !== b[i]) return false;
