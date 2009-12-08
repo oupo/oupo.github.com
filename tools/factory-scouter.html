@@ -290,7 +290,7 @@ function update_bonus_hint() {
 	var shuu = read_shuu_input(is_open_level, false);
 	if (shuu === null) {
 		$("#bonus-hint").empty();
-		update_last_data(shuu, is_open_level, null, null);
+		update_last_data(shuu, is_open_level, null, null, null);
 		return;
 	}
 	var fixed_shuu = fix_shuu(shuu, is_open_level);
