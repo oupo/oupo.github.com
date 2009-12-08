@@ -300,11 +300,6 @@ function update_bonus_hint() {
 		return;
 	}
 	var r = parse_text(shuu, is_open_level, text);
-	update_last_data(shuu, is_open_level, text, r);
-	if (r.entries.length === 0) {
-		$("#bonus-hint").empty();
-		return;
-	}
 	var entries = [];
 	var pokemons = [];
 	var is_bonus_list = [];
@@ -315,6 +310,15 @@ function update_bonus_hint() {
 		entries.push(entry);
 		is_bonus_list.push(r.is_bonus_list[i]);
 		pokemons.push(entry.pokemon);
+	}
+	var same = last_data.entries && ary_eq(entries, last_data.entries) && ary_eq(is_bonus_list, last_data.is_bonus_list);
+	update_last_data(shuu, is_open_level, text, entries, is_bonus_list);
+	if (same) {
+		return;
+	}
+	if (entries.length === 0) {
+		$("#bonus-hint").empty();
+		return;
 	}
 	var candidates = [];
 	for (var i = 0; i < entries.length; i ++) {
@@ -487,11 +491,12 @@ function update_bonus_hint() {
 		        label: label,
 		        no: no};
 	}
-	function update_last_data(shuu, is_open_level, text, result) {
+	function update_last_data(shuu, is_open_level, text, entries, is_bonus_list) {
 		last_data.shuu = shuu;
 		last_data.is_open_level = is_open_level;
 		last_data.text = text;
-		last_data.result = result;
+		last_data.entries = entries;
+		last_data.is_bonus_list = is_bonus_list;
 	}
 }
 
