@@ -804,6 +804,7 @@ function match_shuu_and_group(shuu, group) {
 // ポケモンが指定した周の最初の6匹に存在しえるか (ボーナスポケモンも含めて)
 function exist_pokemon_in_shuu(shuu, pokemon) {
 	var group = pokemon.group;
+	if (group === null) return false;
 	return match_shuu_and_group(shuu, group) || match_shuu_and_group(shuu + 1, group);
 }
 
