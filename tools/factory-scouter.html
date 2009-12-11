@@ -136,6 +136,7 @@ var progress_div = null;
 
 function on_submit_entries() {
 	cancel_search();
+	Lock.cancel();
 	var is_open_level = read_level_radio();
 	var shuu = read_shuu_input(is_open_level, true);
 	if (shuu === null) return;
@@ -195,6 +196,7 @@ function get_insufficient_parent_ids(parent_ids, is_bonus_list) {
 
 function on_submit_seed() {
 	cancel_search();
+	Lock.cancel();
 	var is_open_level = read_level_radio();
 	var shuu = read_shuu_input(is_open_level, true);
 	if (shuu === null) return;
@@ -542,7 +544,11 @@ function build_result_div(shuu, is_open_level, seed, consumption, num_bonus, inp
 	buf.push("<div class=\"entries\" id=\"entries-0\">");
 	buf.push(build_table(r.infos, 0, is_open_level));
 	buf.push("</div>");
-	buf.push("<p id=\"election\">選出: "+build_select(entries, 0)+" "+build_select(entries, 1)+" "+build_select(entries, 2)+"</p>");
+	buf.push("<p>選出:");
+	for (var i = 0; i < 3; i ++) {
+		buf.push("<br>　"+(i+1)+"匹目 <span id=\"election-"+i+"\">"+build_select(entries, i)+"</span>");
+	}
+	buf.push("</p>");
 	buf.push("<p>トレーナー: <select id=\"trainers\">"+build_trainers_options(trainers_candidate, consumption_head)+"</select><br>");
 	buf.push("<small>トレーナーの種類は相手が何周目のポケモンを使ってくるかに影響します</small></p>");
 	for (var i = 1; i <= 7; i ++) {
@@ -557,9 +563,11 @@ function build_result_div(shuu, is_open_level, seed, consumption, num_bonus, inp
 		var r = get_3_entries_info(shuu, is_open_level, i, enemy_shuu, seed, consumption, visited_entries, entries_in_hand);
 		context.infos.push(r);
 		if (i > 1) {
-			buf.push("<p class=\"exchange\">交換: <select id=\"exchange-part-"+(i-1)+"\"><option></option>"+build_options(entries_in_hand)+"</select>");
-			buf.push("→ <select id=\"exchange-receive-"+(i-1)+"\"><option></option>"+build_options(prev_enemy_entries)+"</select>");
-			buf.push(" (手持ち: <span id=\"entries-in-hand-"+i+"\">"+map(entries_in_hand, "name").join(" ")+"</span>)</p>");
+			buf.push("<p style=\"margin-bottom:0\">交換: <span id=\"exchange-description-"+(i-1)+"\"></span></p>");
+			buf.push("<table class=\"for-layout\">");
+			buf.push("<tr><td style=\"text-align:right\">手放す<td id=\"exchange-part-"+(i-1)+"\">"+build_select(entries_in_hand, null)+"<td rowspan=\"2\"><button class=\"pokemon-select\" id=\"exchange-clear-"+(i-1)+"\">なし</button></td></tr>");
+			buf.push("<tr><td style=\"text-align:right\">受け取る<td id=\"exchange-receive-"+(i-1)+"\">"+build_select(prev_enemy_entries, null)+"</tr>");
+			buf.push("</table>");
 		}
 		buf.push("<p>"+i+"戦目 <span id=\"trainer-name-"+i+"\">"+trainer_names[trainer_id]+"</span>");
 		buf.push(" <span id=\"range-"+i+"\" class=\"range\">"+r.rand_range.first+"-"+r.rand_range.last+"</span>");
@@ -574,8 +582,15 @@ function build_result_div(shuu, is_open_level, seed, consumption, num_bonus, inp
 		prev_enemy_entries = r.entries;
 	}
 	$(div).html(buf.join(""));
-	$("#election select").change(on_select_change).keypress(on_select_change);
-	$("#result > p.exchange select").change(on_exchange_select_change).keypress(on_exchange_select_change);
+	for (var i = 0; i < 3; i ++) {
+		$("#election-"+i+" button").click(on_election_change);
+	}
+	for (var i = 1; i <= 6; i ++) {
+		$("#exchange-part-"+i+" button").click(on_exchange_select_change);
+		$("#exchange-receive-"+i+" button").click(on_exchange_select_change);
+		$("#exchange-clear-"+i).click(on_exchange_select_change);
+		change_exchange_description(i);
+	}
 	$("#paste-to-textarea").click(paste_to_textarea);
 	$("#trainers").change(on_trainers_select_change).keypress(on_trainers_select_change);
 	$("#result > div.entries > table > tbody > tr").mouseenter(on_mouseenter_tr).mouseleave(on_mouseleave_tr);
@@ -819,42 +834,59 @@ function entry_id_to_shuu(id) {
 	return 8;
 }
 
-function on_select_change() {
+function on_election_change(ev) {
+	if (Lock.is_locked()) return;
+	var button = this;
+	var changed_index = /^election-(\d)$/.exec(button.parentNode.id)[1];
+	$("button.selected", button.parentNode).removeClass("selected");
+	addClass(button, "selected");
 	var shuu = context.shuu;
 	var six_entries = context.infos[0].entries;
-	var selects = $("#election select");
 	var entries_in_hand = [];
 	for (var i = 0; i < 3; i ++) {
-		var select = selects[i];
-		var entry = six_entries[select.selectedIndex];
+		var parent = document.getElementById("election-"+i);
+		var index = get_selected_button_index(parent);
+		var entry = six_entries[index];
 		entries_in_hand.push(entry);
 	}
 	if (!ary_eq(context.infos[1].entries_in_hand, entries_in_hand)) {
-		context.infos[1].entries_in_hand = entries_in_hand;
-		change_enemy_entries(2);
+		// 体感速度を上げるため、先にボタンの色を反映させてから遅延して内容を更新する
+		Lock.setTimeout(function() {
+			context.infos[1].entries_in_hand = entries_in_hand;
+			change_enemy_entries(2);
+		}, 0);
 	}
 }
 
 function on_exchange_select_change() {
-	var n = Number(/^exchange-(?:part|receive)-(\d)/.exec(this.id)[1]);
-	var part = document.getElementById("exchange-part-"+n).selectedIndex - 1;
-	var receive = document.getElementById("exchange-receive-"+n).selectedIndex - 1;
-	var entries_in_hand = context.infos[n].entries_in_hand.slice();
-	var enemy_entries = context.infos[n].entries;
-	if (part !== -1 && receive !== -1) {
-		entries_in_hand[part] = enemy_entries[receive];
+	if (Lock.is_locked()) return;
+	var button = this;
+	var m = /^exchange-clear-(\d)$/.exec(button.id);
+	var n;
+	if (m) {
+		n = Number(m[1]);
+		$("#exchange-part-"+n+" button.selected").removeClass("selected");
+		$("#exchange-receive-"+n+" button.selected").removeClass("selected");
+	} else {
+		n = Number(/^exchange-(?:part|receive)-(\d)/.exec(this.parentNode.id)[1]);
+		$("button.selected", button.parentNode).removeClass("selected");
+		addClass(button, "selected");
 	}
-	if (!ary_eq(context.infos[n + 1].entries_in_hand, entries_in_hand)) {
-		context.infos[n + 1].entries_in_hand = entries_in_hand;
-		change_entries_in_hand_text(n + 1);
-		// n戦目後に交換してもn+1戦目の3匹は変わらない。n+2戦目以降の3匹が変わる。
-		if (n + 2 <= 7) {
-			change_enemy_entries(n + 2);
-		}
+	var next_entries_in_hand = get_next_entries_in_hand(n);
+	if (!ary_eq(context.infos[n + 1].entries_in_hand, next_entries_in_hand)) {
+		change_exchange_description(n);
+		Lock.setTimeout(function() {
+			context.infos[n + 1].entries_in_hand = next_entries_in_hand;
+			// n戦目後に交換してもn+1戦目の3匹は変わらない。n+2戦目以降の3匹が変わる。
+			if (n + 2 <= 7) {
+				change_enemy_entries(n + 2);
+			}
+		}, 0);
 	}
 }
 
 function on_trainers_select_change() {
+	if (Lock.is_locked()) return;
 	context.selected_trainers_index = this.selectedIndex;
 	var trainer_ids = context.trainers[this.selectedIndex].trainer_ids;
 	for (var i = 1; i <= 7; i ++) {
@@ -878,9 +910,11 @@ function change_enemy_entries(start) {
 		context.infos[i] = r;
 		
 		if (i > 1) {
-			$("#exchange-part-"+(i-1)).html("<option></option>"+build_options(entries_in_hand));
-			$("#exchange-receive-"+(i-1)).html("<option></option>"+build_options(prev_enemy_entries));
-			change_entries_in_hand_text(i);
+			$("#exchange-part-"+(i-1)).html(build_select(entries_in_hand));
+			$("#exchange-receive-"+(i-1)).html(build_select(prev_enemy_entries));
+			$("#exchange-part-"+(i-1)+" button").click(on_exchange_select_change);
+			$("#exchange-receive-"+(i-1)+" button").click(on_exchange_select_change);
+			change_exchange_description(i-1);
 		}
 		
 		$("#range-"+i).text(r.rand_range.first+"-"+r.rand_range.last);
@@ -895,18 +929,48 @@ function change_enemy_entries(start) {
 	}
 }
 
-function change_entries_in_hand_text(i) {
-	$("#entries-in-hand-"+i).text(map(context.infos[i].entries_in_hand, "name").join(" "));
+function change_exchange_description(i) {
+	var entries_in_hand = context.infos[i].entries_in_hand;
+	var enemy_entries = context.infos[i].entries;
+	var part = get_selected_button_index($("#exchange-part-"+i)[0]);
+	var receive = get_selected_button_index($("#exchange-receive-"+i)[0]);
+	var text;
+	var next_entries_in_hand = get_next_entries_in_hand(i);
+	if (part !== -1 && receive !== -1) {
+		text = entries_in_hand[part].name + "→" + enemy_entries[receive].name;
+	} else {
+		text = "なし";
+	}
+	text += " (" + map(next_entries_in_hand, "name").join(" ") + ")";
+	$("#exchange-description-"+i).text(text);
+}
+
+function get_next_entries_in_hand(i) {
+	var entries_in_hand = context.infos[i].entries_in_hand.slice();
+	var enemy_entries = context.infos[i].entries;
+	var part = get_selected_button_index($("#exchange-part-"+i)[0]);
+	var receive = get_selected_button_index($("#exchange-receive-"+i)[0]);
+	if (part !== -1 && receive !== -1) {
+		entries_in_hand[part] = enemy_entries[receive];
+	}
+	return entries_in_hand;
+}
+
+function get_selected_button_index(parent) {
+	var buttons = $("button", parent);
+	for (var i = 0; i < buttons.length; i ++) {
+		if (hasClass(buttons[i], "selected")) {
+			return i;
+		}
+	}
+	return -1;
 }
 
 function build_select(entries, selectedIndex) {
-	return "<select>" + build_options(entries, selectedIndex) + "</select>";
-}
-
-function build_options(entries, selectedIndex) {
 	var buf = "";
 	for (var i = 0; i < entries.length; i ++) {
-		buf += "<option"+(selectedIndex===i ? " selected " : "")+">"+entries[i].name+"</option>";
+		var klass = selectedIndex === i ? " selected" : "";
+		buf += "<button class=\"pokemon-select"+klass+"\">"+entries[i].name+"</button>";
 	}
 	return buf;
 }
@@ -1614,7 +1678,25 @@ function unfix_shuu(shuu, is_open_level) {
 	}
 }
 
-
+// setTimeoutで待っているときに別な操作をされないように
+Lock = {
+	timer_id: null,
+	setTimeout: function(fn, msec) {
+		Lock.timer_id = setTimeout(function() {
+			Lock.timer_id = null;
+			fn();
+		}, msec);
+	},
+	is_locked: function() {
+		return Lock.timer_id !== null;
+	},
+	cancel: function() {
+		if (Lock.timer_id !== null) {
+			clearTimeout(Lock.timer_id);
+			Lock.timer_id = null;
+		}
+	}
+};
 
 function roma2reg(text) {
 	var result = [];
@@ -1882,8 +1964,8 @@ fieldset {
 	padding: 0.5em;
 }
 
-#entries-form-table th,
-#entries-form-table td {
+table.for-layout th,
+table.for-layout td {
 	border: none;
 }
 
@@ -1920,6 +2002,19 @@ body {
 	border-top-color:  #eee;
 	background: #eee;
 	margin-left: 10px;
+}
+
+#result button.pokemon-select {
+	color: #000;
+	width: 6em;
+	padding: 0;
+	margin-left: 0px;
+}
+
+#result button.pokemon-select.selected {
+	background: #eac2a9;
+	border-left-color: #f1dacc;
+	border-top-color:  #f1dacc;
 }
 
 div.tooltip {
@@ -1982,7 +2077,7 @@ div.tooltip .collided {
 <form action="" name="entries_form" onsubmit="return false;">
 <fieldset>
 <legend>6匹のポケモンと親IDで入力</legend>
-<table id="entries-form-table"><tr>
+<table class="for-layout"><tr>
 <td style="vertical-align:top">
 <textarea cols="30" rows="6" name="entries">
 マイナン　11067
