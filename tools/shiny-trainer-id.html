@@ -25,6 +25,7 @@ function on_submit() {
 	button.value = "停止";
 	button.disabled = false;
 	resume = loop;
+	progress.innerHTML = "";
 	loop();
 	function loop() {
 		var result = procedure.run(500);
