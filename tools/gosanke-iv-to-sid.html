@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<meta http-equiv="Content-Script-Type" content="text/javascript">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<title>御三家個体値→裏ID</title>
+<script type="text/javascript">
+var addEvent =
+ window.addEventListener ? function(e, n, f) { e.addEventListener(n, f, false); }
+                         : function(e, n, f) { e.attachEvent("on" + n, f); };
+
+var natures = "がんばりや さみしがり ゆうかん いじっぱり やんちゃ ずぶとい すなお のんき わんぱく のうてんき おくびょう せっかち まじめ ようき むじゃき ひかえめ おっとり れいせい てれや うっかりや おだやか おとなしい なまいき しんちょう きまぐれ".split(" ");
+
+addEvent(window, "load", function() {
+	addEvent(document.forms.f, "submit", on_submit);
+});
+
+var TIMEOUT_MSEC = 500;
+
+function on_submit() {
+	var f = document.forms.f;
+	var iv = read_iv_value(f.iv.value);
+	if (!iv) {
+		alert("個体値に入力されている値が不正です");
+		return;
+	}
+	var nature = indexof(natures, f.nature.value);
+	if (nature < 0) {
+		alert("性格に入力されている値が不正です");
+		return;
+	}
+	var public_id = read_public_id(f.public_id.value);
+	if (public_id === null) {
+		alert("表IDに入力されている値が不正です");
+		return;
+	}
+	var seeds = search_seeds_by_iv(iv, nature);
+	if (seeds.length === 0) {
+		alert("その個体値と性格の組み合わせは見つかりませんでした");
+		return;
+	}
+	var c = 0;
+	loop();
+	function loop() {
+		var start_time = +new Date;
+		while (true) {
+			for (var i = 0; i < seeds.length; i ++) {
+				var seed = seeds[i];
+				if ((seed >> 16 & 0xff) < 24) {
+					var id = calc_trainer_id_by_seed(seed);
+					if ((id & 0xffff) === public_id) {
+						$("output").value = format_hex(seed, 8) + "("+(-c)+") 裏ID: "+format_dec(id >>> 16, 5);
+						return;
+					}
+				}
+				seeds[i] = prev_seed(seed);
+			}
+			c ++;
+			if ((c & 15) === 0 && (new Date - start_time) >= TIMEOUT_MSEC) {
+				setTimeout(loop, 0);
+				$("progress").innerHTML = "進捗: "+c;
+				return;
+			}
+		}
+	}
+}
+
+function read_iv_value(text) {
+	if (!/^\s*(?:\d+-){5}\d+\s*$/.test(text)) return null;
+	var iv = map(text.split("-"), Number);
+	if (!ary_every(iv, function(i) { return i < 32 })) return null;
+	return iv;
+}
+
+function read_public_id(text) {
+	if (!/^\s*\d+\s*$/.test(text)) return null;
+	var n = Number(text);
+	if (!(0 <= n && n < 65536)) return null;
+	return n;
+}
+
+function search_seeds_by_iv(iv, nature) {
+	var hab = iv[0] | iv[1] << 5 | iv[2] << 10;
+	var scd = iv[5] | iv[3] << 5 | iv[4] << 10;
+	var result = [];
+	for (var i = 0; i < 0x20000; i ++) {
+		var seed = (i >> 16 << 31 | hab << 16 | (i & 0xffff)) >>> 0;
+		if ((next_seed(seed) >>> 16 & 0x7fff) === scd) {
+			var s = prev_seed(seed);
+			var pid_high = s >>> 16;
+			s = prev_seed(s);
+			var pid_row = s >>> 16;
+			var pid = (pid_high << 16 | pid_row) >>> 0;
+			if (pid % 25 === nature) {
+				result.push(s);
+			}
+		}
+	}
+	return result;
+}
+
+function calc_trainer_id_by_seed(seed) {
+	var mt0 = seed >>> 0;
+	var mt1 = mul(1812433253, mt0 ^ (mt0 >>> 30)) + 1;
+	var mt2 = mul(1812433253, mt1 ^ (mt1 >>> 30)) + 2;
+	var mt_last = mt2;
+	for (var i = 3; i <= 398; i++) {
+		mt_last = mul(1812433253, mt_last ^ (mt_last >>> 30)) + i;
+	}
+	var value;
+	value = (mt1 & 0x80000000) | (mt2 & 0x7fffffff);
+	value = mt_last ^ (value >>> 1) ^ ((value & 1) ? 0x9908b0df : 0);
+	value ^=  value >>> 11;
+	value ^= (value <<   7) & 0x9d2c5680;
+	value ^= (value <<  15) & 0xefc60000;
+	value ^=  value >>> 18;
+	return value >>> 0;
+}
+
+function next_seed(seed) {
+	return mul(seed, 0x41c64e6d) + 0x6073 >>> 0;
+}
+
+function prev_seed(seed) {
+	return mul(seed, 0xeeb9eb65) + 0xa3561a1 >>> 0;
+}
+
+function mul(a, b) {
+	var a1 = a >>> 16, a2 = a & 0xffff;
+	var b1 = b >>> 16, b2 = b & 0xffff;
+	return (((a1 * b2 + a2 * b1) << 16) + a2 * b2) >>> 0;
+}
+
+function format_hex(n, prec) {
+	var s = n.toString(16);
+	return "0x" + (str_repeat("0", prec - s.length) + s);
+}
+
+function format_dec(n, prec, c) {
+	var s = String(n);
+	return (str_repeat(c || "0", prec - s.length) + s);
+}
+
+function str_repeat(s, n) {
+	var r = "";
+	for (var i = 0; i < n; i ++) {
+		r += s;
+	}
+	return r;
+}
+
+function map(array, fn) {
+	var len = array.length;
+	var result = new Array(len);
+	for (var i = 0; i < len; i ++) {
+		result[i] = fn(array[i]);
+	}
+	return result;
+}
+
+function ary_every(array, fn) {
+	var len = array.length;
+	for (var i = 0; i < len; i ++) {
+		if (!fn(array[i])) return false;
+	}
+	return true;
+}
+
+function indexof(ary, e) {
+	for (var i = 0; i < ary.length; i ++) {
+		if (ary[i] === e) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+function $(id) {
+	return document.getElementById(id);
+}
+
+</script>
+<style type="text/css">
+th {
+	text-align: right;
+}
+</style>
+</head>
+<body>
+<h1>御三家個体値→裏ID</h1>
+<form action="" name="f" onsubmit="return false;">
+<table>
+<tbody>
+<tr><th>個体値: <td><input type="text" size="30" name="iv" value="31-31-31-31-31-31"></tr>
+<tr><th>性格: <td><input type="text" size="10" name="nature" value="おくびょう"></tr>
+<tr><th>表ID: <td><input type="text" size="10" name="public_id" value="09344"></tr>
+<tr><td><td><input type="submit" value="検索"></tr>
+<tr><td colspan="2"><textarea cols="50" rows="2" id="output"></textarea></tr>
+<tr><td colspan="2" id="progress"></tr>
+</tbody>
+</table>
+</form>
+</body>
+</html>
