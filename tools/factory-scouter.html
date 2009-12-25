@@ -231,7 +231,7 @@ function read_shuu_input(is_open_level, show_error) {
 	var error = null;
 	if (value === null || value < 1) {
 		error = "周に入力されている値が不正です";
-	} else if (value > (is_open_level ? 4 : 5)) {
+	} else if (value > (is_open_level ? 5 : 5)) {
 		error = value+"周目は未対応です";
 	}
 	if (error) {
@@ -1358,14 +1358,14 @@ function seed_to_entry_id(shuu, nth, entry_shuu, seed) {
 }
 
 function get_entries_start(shuu, nth, entry_shuu) {
-	if (entry_shuu === 8 && nth === 0) return 622;
-	if (entry_shuu === 8) return 350;
+	if (entry_shuu >= 8 && nth === 0) return 622;
+	if (entry_shuu >= 8) return 350;
 	return shuu_entries_start[entry_shuu];
 }
 
 function get_entries_count(shuu, nth, entry_shuu) {
-	if (entry_shuu === 8 && nth === 0) return 328;
-	if (entry_shuu === 8) return 600;
+	if (entry_shuu >= 8 && nth === 0) return 328;
+	if (entry_shuu >= 8) return 600;
 	return shuu_entries_count[entry_shuu];
 }
 
