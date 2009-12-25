@@ -581,6 +581,8 @@ function build_result_div(shuu, is_open_level, seed, consumption, num_bonus, inp
 		consumption = r.next_consumption + c;
 		prev_enemy_entries = r.entries;
 	}
+	buf.push("<p>ログ</p>");
+	buf.push("<textarea id=\"result-log\" cols=\"60\" rows=\"10\"></textarea>");
 	$(div).html(buf.join(""));
 	for (var i = 0; i < 3; i ++) {
 		$("#election-"+i+" button").click(on_election_change);
@@ -595,6 +597,7 @@ function build_result_div(shuu, is_open_level, seed, consumption, num_bonus, inp
 	$("#trainers").change(on_trainers_select_change).keypress(on_trainers_select_change);
 	$("#result > div.entries > table > tbody > tr").mouseenter(on_mouseenter_tr).mouseleave(on_mouseleave_tr);
 	$("button.show-tooltip").mouseenter(show_tooltip).mouseleave(hide_tooltip);
+	update_log_textarea();
 }
 
 function get_selected_trainer_ids() {
@@ -878,9 +881,7 @@ function on_exchange_select_change() {
 		Lock.setTimeout(function() {
 			context.infos[n + 1].entries_in_hand = next_entries_in_hand;
 			// n戦目後に交換してもn+1戦目の3匹は変わらない。n+2戦目以降の3匹が変わる。
-			if (n + 2 <= 7) {
-				change_enemy_entries(n + 2);
-			}
+			change_enemy_entries(n + 2);
 		}, 0);
 	}
 }
@@ -896,6 +897,13 @@ function on_trainers_select_change() {
 }
 
 function change_enemy_entries(start) {
+	if (start <= 7) {
+		change_enemy_entries0(start);
+	}
+	update_log_textarea();
+}
+
+function change_enemy_entries0(start) {
 	var prev_enemy_entries = start > 1 ? context.infos[start - 1].entries : null;
 	var shuu = context.shuu;
 	var is_open_level = context.is_open_level;
@@ -943,6 +951,24 @@ function change_exchange_description(i) {
 	}
 	text += " (" + map(next_entries_in_hand, "name").join(" ") + ")";
 	$("#exchange-description-"+i).text(text);
+}
+
+function update_log_textarea() {
+	var buf = [];
+	buf.push((context.is_open_level ? "オープンレベル" : "Lv50")+" "+context.shuu+"周目");
+	buf.push(format_hex(context.infos[0].seed_start, 8)+" (ボーナスポケ:"+context.infos[0].num_bonus + ")");
+	buf.push($("#trainers").val());
+	buf.push("選出: "+map(context.infos[1].entries_in_hand, "name").join(","));
+	for (var i = 1; i <= 6; i ++) {
+		var part_index = get_selected_button_index($("#exchange-part-"+i)[0]);
+		var receive_index = get_selected_button_index($("#exchange-receive-"+i)[0]);
+		if (part_index !== -1 && receive_index !== -1) {
+			var part = context.infos[i].entries_in_hand[part_index];
+			var receive = context.infos[i].entries[receive_index];
+			buf.push(i+"戦目後: "+part.name+"→"+receive.name);
+		}
+	}
+	$("#result-log").val(buf.join("\n"));
 }
 
 function get_next_entries_in_hand(i) {
