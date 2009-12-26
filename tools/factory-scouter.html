@@ -623,7 +623,7 @@ function build_trainers_options(trainers_canndidate, consumption) {
 	var buf = "";
 	for (var i = 0; i < trainers_canndidate.length; i ++) {
 		var e = trainers_canndidate[i];
-		buf += "<option>"+(e.start+consumption)+".."+(e.start+e.c+consumption)+": "+map(e.trainer_ids, trainer_id_to_name).join(", ")+"</option>";
+		buf += "<option>"+(e.start+consumption)+".."+(e.start+e.c-1+consumption)+": "+map(e.trainer_ids, trainer_id_to_name).join(", ")+"</option>";
 	}
 	return buf;
 }
