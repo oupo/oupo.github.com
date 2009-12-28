@@ -16,6 +16,14 @@ function on_submit() {
 	var f = document.forms.f;
 	var pid = read_int_string(f.pid.value);
 	var seed_row_min = read_int_string(f.seed_row_min.value);
+	if (pid === null) {
+		alert("性格値に入力されている値が不正です");
+		return;
+	}
+	if (seed_row_min === null) {
+		alert("初期seed下4桁最小値に入力されている値が不正です");
+		return;
+	}
 	var procedure = new SearchSeedProcedure(pid, seed_row_min);
 	var buf = [];
 	var output = $("output");
