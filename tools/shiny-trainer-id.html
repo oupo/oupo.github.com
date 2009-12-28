@@ -5,7 +5,6 @@
 <meta http-equiv="Content-Script-Type" content="text/javascript">
 <meta http-equiv="Content-Style-Type" content="text/css">
 <title>性格値→色違いが出るトレーナーIDの初期seed</title>
-<script type="text/javascript" src="mt.js"></script>
 <script type="text/javascript">
 var timer_id = null;
 var resume = null;
@@ -28,7 +27,7 @@ function on_submit() {
 	progress.innerHTML = "";
 	loop();
 	function loop() {
-		var result = procedure.run(500);
+		var result = procedure.run(300);
 		for (var i = 0; i < result.length; i ++) {
 				buf.push("初期seed: "+format_hex(result[i].seed, 8)+
 				         " 表ID: "+format_dec(result[i].id, 5)+
@@ -61,14 +60,12 @@ function SearchSeedProcedure(pid, seed_row_min) {
 	this.h2 = 0;
 	this.count = 0;
 	this.hitCount = 0;
-	this.mt = new MersenneTwister(0);
 }
 
 SearchSeedProcedure.prototype.run = function(timeout) {
 	var start_time = +new Date;
 	var result = [];
 	var start_row = this.row;
-	var mt = this.mt;
 	var search_value = this.search_value;
 	for (;; this.row ++) {
 		var row = this.row;
@@ -78,9 +75,7 @@ SearchSeedProcedure.prototype.run = function(timeout) {
 		for (; h2 < 24; h2 ++) {
 			for (var h1 = 0; h1 < 0x100; h1 ++) {
 				var seed = (h1 << 24 | h2 << 16 | row) >>> 0;
-				mt.setSeed(seed);
-				mt.nextInt();
-				var id = mt.nextInt();
+				var id = calc_trainer_id_by_seed(seed);
 				if ((((id >>> 16) ^ (id & 0xffff)) & ~7) === search_value) {
 					result.push({seed: seed, id: id & 0xffff, sid: id >>> 16});
 					this.hitCount ++;
@@ -94,6 +89,30 @@ SearchSeedProcedure.prototype.run = function(timeout) {
 		}
 	}
 };
+
+function calc_trainer_id_by_seed(seed) {
+	var mt0 = seed >>> 0;
+	var mt1 = mul(1812433253, mt0 ^ (mt0 >>> 30)) + 1;
+	var mt2 = mul(1812433253, mt1 ^ (mt1 >>> 30)) + 2;
+	var mt_last = mt2;
+	for (var i = 3; i <= 398; i++) {
+		mt_last = mul(1812433253, mt_last ^ (mt_last >>> 30)) + i;
+	}
+	var value;
+	value = (mt1 & 0x80000000) | (mt2 & 0x7fffffff);
+	value = mt_last ^ (value >>> 1) ^ ((value & 1) ? 0x9908b0df : 0);
+	value ^=  value >>> 11;
+	value ^= (value <<   7) & 0x9d2c5680;
+	value ^= (value <<  15) & 0xefc60000;
+	value ^=  value >>> 18;
+	return value >>> 0;
+}
+
+function mul(a, b) {
+	var a1 = a >>> 16, a2 = a & 0xffff;
+	var b1 = b >>> 16, b2 = b & 0xffff;
+	return (((a1 * b2 + a2 * b1) << 16) + a2 * b2) >>> 0;
+}
 
 function format_hex(n, prec) {
 	return "0x" + (str_repeat("0", prec - 1) + n.toString(16)).slice(-prec);
