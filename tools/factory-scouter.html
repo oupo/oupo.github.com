@@ -576,10 +576,13 @@ function build_result_div(shuu, is_open_level, seed, consumption, num_bonus, inp
 		buf.push("<div class=\"entries\" id=\"entries-"+i+"\">");
 		buf.push(build_table(r.infos, i, is_open_level));
 		buf.push("</div>");
-		var c = get_enemy_consuption(shuu, i, enemy_shuu);
+		var c = get_enemy_consuption(shuu, i, trainer_id);
 		seed = step_seed(r.seed, c);
 		consumption = r.next_consumption + c;
 		prev_enemy_entries = r.entries;
+	}
+	if (shuu === 3) {
+		buf.push("<p>ネジキが言ってくるパーセント: <span id=\"nejiki-percent\">"+((seed >>> 16) % 90 + 10)+"</span>%</p>");
 	}
 	buf.push("<p>ログ</p>");
 	buf.push("<textarea id=\"result-log\" cols=\"60\" rows=\"10\"></textarea>");
@@ -629,7 +632,7 @@ function build_trainers_options(trainers_canndidate, consumption) {
 }
 
 // 相手の3匹決定後の乱数消費量を取得
-function get_enemy_consuption(shuu, nth, enemy_shuu) {
+function get_enemy_consuption(shuu, nth, trainer_id) {
 	var c = 0;
 	if (nth === 1) {
 		switch(shuu) {
@@ -644,6 +647,7 @@ function get_enemy_consuption(shuu, nth, enemy_shuu) {
 	if (shuu === 5) {
 		return c + 24;
 	}
+	var enemy_shuu = trainer_id === silver_nejiki_id ? 4 : trainer_id_to_shuu(trainer_id, null);
 	switch(enemy_shuu) {
 	case 1: c +=  6; break;
 	case 2:
@@ -913,7 +917,8 @@ function change_enemy_entries0(start) {
 	var entries_in_hand = context.infos[start > 1 ? start - 1 : 1].entries_in_hand;
 	for (var i = start; i <= 7; i ++) {
 		var visited_entries = i === 1 ? context.infos[0].entries : entries_in_hand.concat(prev_enemy_entries);
-		var enemy_shuu = trainer_id_to_shuu(trainer_ids[i-1], is_open_level);
+		var trainer_id = trainer_ids[i-1];
+		var enemy_shuu = trainer_id_to_shuu(trainer_id, is_open_level);
 		var r = get_3_entries_info(shuu, is_open_level, i, enemy_shuu, seed, consumption, visited_entries, entries_in_hand);
 		context.infos[i] = r;
 		
@@ -930,10 +935,13 @@ function change_enemy_entries0(start) {
 		var div = document.getElementById("entries-"+i);
 		$(div).html(build_table(r.infos, i, is_open_level));
 		$("> table > tbody > tr", div).mouseenter(on_mouseenter_tr).mouseleave(on_mouseleave_tr);
-		var c = get_enemy_consuption(shuu, i, enemy_shuu);
+		var c = get_enemy_consuption(shuu, i, trainer_id);
 		seed = step_seed(r.seed, c);
 		consumption = r.next_consumption + c;
 		prev_enemy_entries = r.entries;
+	}
+	if (shuu === 3) {
+		$("#nejiki-percent").text((seed >>> 16) % 90 + 10);
 	}
 }
 
