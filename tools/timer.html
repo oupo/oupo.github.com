@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<meta http-equiv="Content-Script-Type" content="text/javascript">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<title>タイマー</title>
+<script type="text/javascript">
+var addEvent =
+ window.addEventListener ? function(e, n, f) { e.addEventListener(n, f, false); }
+                         : function(e, n, f) { e.attachEvent("on" + n, f); };
+
+var natures = "がんばりや さみしがり ゆうかん いじっぱり やんちゃ ずぶとい すなお のんき わんぱく のうてんき おくびょう せっかち まじめ ようき むじゃき ひかえめ おっとり れいせい てれや うっかりや おだやか おとなしい なまいき しんちょう きまぐれ".split(" ");
+
+addEvent(window, "load", function() {
+	addEvent(document.forms.f, "submit", on_submit);
+	addEvent($("clear_button"), "click", clear_timer);
+});
+
+var interval_id = null;
+
+function on_submit() {
+	clear_timer();
+	var f = document.forms.f;
+	var time1 = read_time_string(f.time1.value);
+	var time2 = read_time_string(f.time2.value);
+	if (time1 === null || time2 === null) {
+		alert("入力内容が不正です");
+		return;
+	}
+	var start_time = + new Date;
+	var target_time1 = start_time + time1;
+	var target_time2 = target_time1 + time2;
+	var view1 = $("timer1");
+	var view2 = $("timer2");
+	var view3 = $("timer3");
+	view1.className = "";
+	interval_id = setInterval(loop, 33);
+	var state = 1;
+	function loop() {
+		var now = + new Date;
+		var diff1 = Math.max(target_time1 - now, 0);
+		var diff2 = Math.max(target_time2 - now, 0);
+		if (diff2 === 0) {
+			clear_timer();
+			return;
+		}
+		if (state === 1 && diff1 === 0) {
+			state = 2;
+			view1.className = "quiet";
+			view2.className = "";
+		}
+		view1.innerHTML = format_time(diff1);
+		view2.innerHTML = format_time(diff2);
+	}
+}
+
+function clear_timer() {
+	if (interval_id !== null) {
+		clearInterval(interval_id);
+		interval_id = null;
+	}
+	$("timer1").innerHTML = "00.00";
+	$("timer2").innerHTML = "00.00";
+	$("timer1").className = "quiet";
+	$("timer2").className = "quiet";
+}
+
+function format_time(msec) {
+	var sec = msec / 1000;
+	var s = sec.toFixed(2);
+	return sec < 10 ? "0" + s : s;
+}
+
+function read_time_string(s) {
+	if (!/^\s*[0-9]+(?:\.[0-9]+)?\s*$/.test(s)) {
+		return null;
+	}
+	return parseFloat(s) * 1000;
+}
+
+
+function $(id) {
+	return document.getElementById(id);
+}
+
+</script>
+<style type="text/css">
+th {
+	text-align: right;
+}
+
+input.button {
+	font-size: 200%;
+}
+
+#timer1, #timer2 {
+	font-size: 200%;
+}
+
+td.quiet {
+	color: #888;
+}
+</style>
+</head>
+<body>
+<h1>タイマー</h1>
+<form action="" name="f" onsubmit="return false;">
+<table>
+<tbody>
+<tr><th>ソフトを選択するまで: <td><input type="text" size="10" name="time1" value="10.0"> 秒</tr>
+<tr><th>ソフト選択から続きからを選択するまで: <td><input type="text" size="10" name="time2" value="15.0"> 秒</tr>
+<tr><td><td><input type="submit" value="開始" class="button"> <input type="button" value="×" class="button" id="clear_button"></tr>
+<tr><th>ソフト選択まであと<td id="timer1" class="quiet">00.00</tr>
+<tr><th>続きからを押すまであと<td id="timer2" class="quiet">00.00</tr>
+</tbody>
+</table>
+</form>
+</body>
+</html>
