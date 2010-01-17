@@ -582,7 +582,7 @@ function build_result_div(shuu, is_open_level, seed, consumption, num_bonus, inp
 		prev_enemy_entries = r.entries;
 	}
 	if (shuu === 3) {
-		buf.push("<p>ネジキが言ってくるパーセント: <span id=\"nejiki-percent\">"+((seed >>> 16) % 90 + 10)+"</span>%</p>");
+		buf.push("<p>ネジキが言ってくるパーセント: <span id=\"nejiki-percent\">"+get_nejiki_percentage(seed)+"</span>%</p>");
 	}
 	buf.push("<p>ログ</p>");
 	buf.push("<textarea id=\"result-log\" cols=\"60\" rows=\"10\"></textarea>");
@@ -601,6 +601,11 @@ function build_result_div(shuu, is_open_level, seed, consumption, num_bonus, inp
 	$("#result > div.entries > table > tbody > tr").mouseenter(on_mouseenter_tr).mouseleave(on_mouseleave_tr);
 	$("button.show-tooltip").mouseenter(show_tooltip).mouseleave(hide_tooltip);
 	update_log_textarea();
+}
+
+function get_nejiki_percentage(seed) {
+	// thanks) http://schiphol.2ch.net/test/read.cgi/gameurawaza/1228689195/125
+	return (seed >>> 16) % 90 + 10;
 }
 
 function get_selected_trainer_ids() {
@@ -941,7 +946,7 @@ function change_enemy_entries0(start) {
 		prev_enemy_entries = r.entries;
 	}
 	if (shuu === 3) {
-		$("#nejiki-percent").text((seed >>> 16) % 90 + 10);
+		$("#nejiki-percent").text(get_nejiki_percentage(seed));
 	}
 }
 
