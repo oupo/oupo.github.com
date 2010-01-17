@@ -231,7 +231,7 @@ function read_shuu_input(is_open_level, show_error) {
 	var error = null;
 	if (value === null || value < 1) {
 		error = "周に入力されている値が不正です";
-	} else if (value > (is_open_level ? 5 : 5)) {
+	} else if (value > (is_open_level ? 6 : 5)) {
 		error = value+"周目は未対応です";
 	}
 	if (error) {
@@ -618,7 +618,7 @@ function get_trainers_candidate(seed_head, shuu) {
 	var result = [];
 	while (i < 50) {
 		var r = get_trainers_by_seed(shuu, seed);
-		if (6 <= i - r.c && i - r.c <= 12) {
+		if (6 <= i - r.c && i - r.c <= 13) {
 			result.push({start: -i, c: r.c, trainer_ids: r.trainer_ids});
 		}
 		i ++;
@@ -645,11 +645,12 @@ function get_enemy_consuption(shuu, nth, trainer_id) {
 		case 2:
 		case 3:
 		case 4:
-		case 5: c = 36; break;
+		case 5:
+		case 6: c = 36; break;
 		default: UNREACHABLE();
 		}
 	}
-	if (shuu === 5) {
+	if (shuu >= 5) {
 		return c + 24;
 	}
 	var enemy_shuu = trainer_id === silver_nejiki_id ? 4 : trainer_id_to_shuu(trainer_id, null);
@@ -1348,6 +1349,7 @@ function seed_to_trainer_id(shuu, nth, seed) {
 		case 2: return r % 19 + 120;
 		case 4: return r % 19 + 160;
 		case 5: return r % 19 + 180;
+		case 6: return r % 19 + 200;
 		}
 	} else {
 		switch (shuu) {
@@ -1356,6 +1358,7 @@ function seed_to_trainer_id(shuu, nth, seed) {
 		case 3: return r % 39 + 100;
 		case 4: return r % 39 + 120;
 		case 5: return r % 39 + 140;
+		case 6: return r % 39 + 160;
 		}
 	}
 	UNREACHABLE();
@@ -1369,6 +1372,7 @@ function trainer_id_to_shuu(id, is_open_level) {
 	if (id <= 159) return 4;
 	if (id <= 179) return 5;
 	if (id <= 199) return 6; // XXX
+	if (id <= 219) return 7; // XXX
 	if (id === silver_nejiki_id) {
 		if (is_open_level) {
 			return 1;
