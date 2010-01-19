@@ -562,13 +562,6 @@ function build_result_div(shuu, is_open_level, seed, consumption, num_bonus, inp
 		var enemy_shuu = trainer_id_to_shuu(trainer_id, is_open_level);
 		var r = get_3_entries_info(shuu, is_open_level, i, enemy_shuu, seed, consumption, visited_entries, entries_in_hand);
 		context.infos.push(r);
-		if (i > 1) {
-			buf.push("<p style=\"margin-bottom:0\">交換: <span id=\"exchange-description-"+(i-1)+"\"></span></p>");
-			buf.push("<table class=\"for-layout\">");
-			buf.push("<tr><td style=\"text-align:right\">手放す<td id=\"exchange-part-"+(i-1)+"\">"+build_select(entries_in_hand, null)+"<td rowspan=\"2\"><button class=\"pokemon-select\" id=\"exchange-clear-"+(i-1)+"\">なし</button></td></tr>");
-			buf.push("<tr><td style=\"text-align:right\">受け取る<td id=\"exchange-receive-"+(i-1)+"\">"+build_select(prev_enemy_entries, null)+"</tr>");
-			buf.push("</table>");
-		}
 		buf.push("<p>"+i+"戦目 <span id=\"trainer-name-"+i+"\">"+trainer_names[trainer_id]+"</span>");
 		buf.push(" <span id=\"range-"+i+"\" class=\"range\">"+r.rand_range.first+"-"+r.rand_range.last+"</span>");
 		buf.push("<button class=\"show-tooltip\" id=\"show-tooltip-"+i+"\">3匹決定の乱数列</button>");
@@ -576,6 +569,13 @@ function build_result_div(shuu, is_open_level, seed, consumption, num_bonus, inp
 		buf.push("<div class=\"entries\" id=\"entries-"+i+"\">");
 		buf.push(build_table(r.infos, i, is_open_level));
 		buf.push("</div>");
+		if (i <= 6) {
+			buf.push("<p style=\"margin-bottom:0\">交換: <span id=\"exchange-description-"+i+"\"></span></p>");
+			buf.push("<table class=\"for-layout\">");
+			buf.push("<tr><td style=\"text-align:right\">手放す<td id=\"exchange-part-"+i+"\">"+build_select(entries_in_hand, null)+"<td rowspan=\"2\"><button class=\"pokemon-select\" id=\"exchange-clear-"+i+"\">なし</button></td></tr>");
+			buf.push("<tr><td style=\"text-align:right\">受け取る<td id=\"exchange-receive-"+i+"\">"+build_select(r.entries, null)+"</tr>");
+			buf.push("</table>");
+		}
 		var c = get_enemy_consuption(shuu, i, trainer_id);
 		seed = step_seed(r.seed, c);
 		consumption = r.next_consumption + c;
@@ -865,8 +865,7 @@ function on_election_change(ev) {
 	if (!ary_eq(context.infos[1].entries_in_hand, entries_in_hand)) {
 		// 体感速度を上げるため、先にボタンの色を反映させてから遅延して内容を更新する
 		Lock.setTimeout(function() {
-			context.infos[1].entries_in_hand = entries_in_hand;
-			change_enemy_entries(2);
+			change_enemy_entries(1, entries_in_hand);
 		}, 0);
 	}
 }
@@ -889,9 +888,7 @@ function on_exchange_select_change() {
 	if (!ary_eq(context.infos[n + 1].entries_in_hand, next_entries_in_hand)) {
 		change_exchange_description(n);
 		Lock.setTimeout(function() {
-			context.infos[n + 1].entries_in_hand = next_entries_in_hand;
-			// n戦目後に交換してもn+1戦目の3匹は変わらない。n+2戦目以降の3匹が変わる。
-			change_enemy_entries(n + 2);
+			change_enemy_entries(n + 1, next_entries_in_hand);
 		}, 0);
 	}
 }
@@ -903,38 +900,41 @@ function on_trainers_select_change() {
 	for (var i = 1; i <= 7; i ++) {
 		$("#trainer-name-"+i).text(trainer_names[trainer_ids[i-1]]);
 	}
-	change_enemy_entries(1);
+	change_enemy_entries(0, context.infos[1].entries_in_hand);
 }
 
-function change_enemy_entries(start) {
-	if (start <= 7) {
-		change_enemy_entries0(start);
+function change_enemy_entries(start, entries_in_hand) {
+	// start戦後の交換フォームとそれ以降を書き換える
+	// 0を指定すると1戦目の相手の手持ちから書き換え
+	if (start <= 6) {
+		change_enemy_entries0(start, entries_in_hand);
 	}
 	update_log_textarea();
 }
 
-function change_enemy_entries0(start) {
-	var prev_enemy_entries = start > 1 ? context.infos[start - 1].entries : null;
+function change_enemy_entries0(start, entries_in_hand) {
+	var prev_enemy_entries = start > 0 ? context.infos[start].entries : null;
 	var shuu = context.shuu;
 	var is_open_level = context.is_open_level;
-	var seed = context.infos[start].seed_start;
-	var consumption = context.infos[start].rand_range.first;
+	var seed = context.infos[start + 1].seed_start;
+	var consumption = context.infos[start + 1].rand_range.first;
 	var trainer_ids = get_selected_trainer_ids();
-	var entries_in_hand = context.infos[start > 1 ? start - 1 : 1].entries_in_hand;
-	for (var i = start; i <= 7; i ++) {
+	if (start > 0) context.infos[start].entries_in_hand = entries_in_hand;
+	var i = start;
+	while (i <= 6) {
+		if (i >= 1) {
+			$("#exchange-part-"+i).html(build_select(entries_in_hand));
+			$("#exchange-receive-"+i).html(build_select(prev_enemy_entries));
+			$("#exchange-part-"+i+" button").click(on_exchange_select_change);
+			$("#exchange-receive-"+i+" button").click(on_exchange_select_change);
+			change_exchange_description(i);
+		}
+		i ++;
 		var visited_entries = i === 1 ? context.infos[0].entries : entries_in_hand.concat(prev_enemy_entries);
 		var trainer_id = trainer_ids[i-1];
 		var enemy_shuu = trainer_id_to_shuu(trainer_id, is_open_level);
 		var r = get_3_entries_info(shuu, is_open_level, i, enemy_shuu, seed, consumption, visited_entries, entries_in_hand);
 		context.infos[i] = r;
-		
-		if (i > 1) {
-			$("#exchange-part-"+(i-1)).html(build_select(entries_in_hand));
-			$("#exchange-receive-"+(i-1)).html(build_select(prev_enemy_entries));
-			$("#exchange-part-"+(i-1)+" button").click(on_exchange_select_change);
-			$("#exchange-receive-"+(i-1)+" button").click(on_exchange_select_change);
-			change_exchange_description(i-1);
-		}
 		
 		$("#range-"+i).text(r.rand_range.first+"-"+r.rand_range.last);
 		
