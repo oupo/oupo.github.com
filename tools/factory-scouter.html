@@ -603,6 +603,70 @@ function build_result_div(shuu, is_open_level, seed, consumption, num_bonus, inp
 	update_log_textarea();
 }
 
+function change_enemy_entries(start, entries_in_hand) {
+	// start戦後の交換フォームとそれ以降を書き換える
+	// 0を指定すると1戦目の相手の手持ちから書き換え
+	if (start <= 6) {
+		change_enemy_entries0(start, entries_in_hand);
+	}
+	update_log_textarea();
+}
+
+function change_enemy_entries0(start, entries_in_hand) {
+	var prev_enemy_entries = start > 0 ? context.infos[start].entries : null;
+	var shuu = context.shuu;
+	var is_open_level = context.is_open_level;
+	var seed = context.infos[start + 1].seed_start;
+	var consumption = context.infos[start + 1].rand_range.first;
+	var trainer_ids = get_selected_trainer_ids();
+	if (start > 0) context.infos[start].entries_in_hand = entries_in_hand;
+	var i = start;
+	while (i <= 6) {
+		if (i >= 1) {
+			$("#exchange-part-"+i).html(build_select(entries_in_hand));
+			$("#exchange-receive-"+i).html(build_select(prev_enemy_entries));
+			$("#exchange-part-"+i+" button").click(on_exchange_select_change);
+			$("#exchange-receive-"+i+" button").click(on_exchange_select_change);
+			change_exchange_description(i);
+		}
+		i ++;
+		var visited_entries = i === 1 ? context.infos[0].entries : entries_in_hand.concat(prev_enemy_entries);
+		var trainer_id = trainer_ids[i-1];
+		var enemy_shuu = trainer_id_to_shuu(trainer_id, is_open_level);
+		var r = get_3_entries_info(shuu, is_open_level, i, enemy_shuu, seed, consumption, visited_entries, entries_in_hand);
+		context.infos[i] = r;
+		
+		$("#range-"+i).text(r.rand_range.first+"-"+r.rand_range.last);
+		
+		var div = document.getElementById("entries-"+i);
+		$(div).html(build_table(r.infos, i, is_open_level));
+		$("> table > tbody > tr", div).mouseenter(on_mouseenter_tr).mouseleave(on_mouseleave_tr);
+		var c = get_enemy_consuption(shuu, i, trainer_id);
+		seed = step_seed(r.seed, c);
+		consumption = r.next_consumption + c;
+		prev_enemy_entries = r.entries;
+	}
+	if (shuu === 3) {
+		$("#nejiki-percent").text(get_nejiki_percentage(seed));
+	}
+}
+
+function change_exchange_description(i) {
+	var entries_in_hand = context.infos[i].entries_in_hand;
+	var enemy_entries = context.infos[i].entries;
+	var part = get_selected_button_index($("#exchange-part-"+i)[0]);
+	var receive = get_selected_button_index($("#exchange-receive-"+i)[0]);
+	var text;
+	var next_entries_in_hand = get_next_entries_in_hand(i);
+	if (part !== -1 && receive !== -1) {
+		text = entries_in_hand[part].name + "→" + enemy_entries[receive].name;
+	} else {
+		text = "なし";
+	}
+	text += " (" + map(next_entries_in_hand, "name").join(" ") + ")";
+	$("#exchange-description-"+i).text(text);
+}
+
 function get_nejiki_percentage(seed) {
 	// thanks) http://schiphol.2ch.net/test/read.cgi/gameurawaza/1228689195/125
 	return (seed >>> 16) % 90 + 10;
@@ -901,70 +965,6 @@ function on_trainers_select_change() {
 		$("#trainer-name-"+i).text(trainer_names[trainer_ids[i-1]]);
 	}
 	change_enemy_entries(0, context.infos[1].entries_in_hand);
-}
-
-function change_enemy_entries(start, entries_in_hand) {
-	// start戦後の交換フォームとそれ以降を書き換える
-	// 0を指定すると1戦目の相手の手持ちから書き換え
-	if (start <= 6) {
-		change_enemy_entries0(start, entries_in_hand);
-	}
-	update_log_textarea();
-}
-
-function change_enemy_entries0(start, entries_in_hand) {
-	var prev_enemy_entries = start > 0 ? context.infos[start].entries : null;
-	var shuu = context.shuu;
-	var is_open_level = context.is_open_level;
-	var seed = context.infos[start + 1].seed_start;
-	var consumption = context.infos[start + 1].rand_range.first;
-	var trainer_ids = get_selected_trainer_ids();
-	if (start > 0) context.infos[start].entries_in_hand = entries_in_hand;
-	var i = start;
-	while (i <= 6) {
-		if (i >= 1) {
-			$("#exchange-part-"+i).html(build_select(entries_in_hand));
-			$("#exchange-receive-"+i).html(build_select(prev_enemy_entries));
-			$("#exchange-part-"+i+" button").click(on_exchange_select_change);
-			$("#exchange-receive-"+i+" button").click(on_exchange_select_change);
-			change_exchange_description(i);
-		}
-		i ++;
-		var visited_entries = i === 1 ? context.infos[0].entries : entries_in_hand.concat(prev_enemy_entries);
-		var trainer_id = trainer_ids[i-1];
-		var enemy_shuu = trainer_id_to_shuu(trainer_id, is_open_level);
-		var r = get_3_entries_info(shuu, is_open_level, i, enemy_shuu, seed, consumption, visited_entries, entries_in_hand);
-		context.infos[i] = r;
-		
-		$("#range-"+i).text(r.rand_range.first+"-"+r.rand_range.last);
-		
-		var div = document.getElementById("entries-"+i);
-		$(div).html(build_table(r.infos, i, is_open_level));
-		$("> table > tbody > tr", div).mouseenter(on_mouseenter_tr).mouseleave(on_mouseleave_tr);
-		var c = get_enemy_consuption(shuu, i, trainer_id);
-		seed = step_seed(r.seed, c);
-		consumption = r.next_consumption + c;
-		prev_enemy_entries = r.entries;
-	}
-	if (shuu === 3) {
-		$("#nejiki-percent").text(get_nejiki_percentage(seed));
-	}
-}
-
-function change_exchange_description(i) {
-	var entries_in_hand = context.infos[i].entries_in_hand;
-	var enemy_entries = context.infos[i].entries;
-	var part = get_selected_button_index($("#exchange-part-"+i)[0]);
-	var receive = get_selected_button_index($("#exchange-receive-"+i)[0]);
-	var text;
-	var next_entries_in_hand = get_next_entries_in_hand(i);
-	if (part !== -1 && receive !== -1) {
-		text = entries_in_hand[part].name + "→" + enemy_entries[receive].name;
-	} else {
-		text = "なし";
-	}
-	text += " (" + map(next_entries_in_hand, "name").join(" ") + ")";
-	$("#exchange-description-"+i).text(text);
 }
 
 function update_log_textarea() {
