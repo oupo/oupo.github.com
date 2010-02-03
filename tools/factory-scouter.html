@@ -636,20 +636,19 @@ function build_result_div(shuu, is_open_level, seed, consumption,
 function change_enemy_entries(start, entries_in_hand) {
 	// start戦後の交換フォームとそれ以降を書き換える
 	// 0を指定すると1戦目の相手の手持ちから書き換え
-	if (start <= 6) {
-		change_enemy_entries0(start, entries_in_hand);
-	}
+	change_enemy_entries0(start, entries_in_hand);
 	update_log_textarea();
 }
 
 function change_enemy_entries0(start, entries_in_hand) {
+	if (start > 0) context.infos[start].entries_in_hand = entries_in_hand;
+	if (start >= 7) return;
 	var prev_enemy_entries = start > 0 ? context.infos[start].entries : null;
 	var shuu = context.shuu;
 	var is_open_level = context.is_open_level;
 	var seed = context.infos[start + 1].seed_start;
 	var consumption = context.infos[start + 1].rand_range.first;
 	var trainer_ids = get_selected_trainer_ids();
-	if (start > 0) context.infos[start].entries_in_hand = entries_in_hand;
 	var i = start;
 	while (i <= 6) {
 		if (i >= 1) {
