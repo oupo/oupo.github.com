@@ -837,7 +837,7 @@ function get_entries_back_seeds(shuu, entries, seed_base, num_bonus) {
 }
 
 function is_influenced_by_trainers_shuu(shuu, is_open_level) {
-	// トレーナーの種類が6戦目までの相手の手持ちに影響される周か
+	// 6戦目までの相手の手持ちがトレーナーの種類に影響される周か
 	// 9周目からは前のランクも今のランクも手持ちが変わらない
 	return shuu !== 1 && fix_shuu(shuu, is_open_level) < 9;
 }
@@ -2129,11 +2129,6 @@ div.progress_bar {
 	background: #4bd472;
 }
 
-body {
-	/* 下に余白がないと7戦目の相手の技が見づらいので */
-	padding-bottom: 5em;
-}
-
 #result button {
 	font-size: x-small;
 	color: #444;
@@ -2251,5 +2246,6 @@ div.tooltip .collided {
 </fieldset>
 </form>
 <div id="result"></div>
+<p style="text-align:right"><small style="color:#999">要望や不具合報告があれば<a href="http://d.hatena.ne.jp/oupo/">ブログ</a>のコメント欄などでどうぞ</small></p>
 </body>
 </html>
