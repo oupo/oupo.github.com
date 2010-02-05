@@ -536,8 +536,6 @@ function build_result_div(shuu, is_open_level, seed, consumption,
 	var entries = r.entries;
 	var seed_head = seed;
 	var consumption_head = consumption;
-	seed = r.seed;
-	consumption = r.next_consumption;
 	var entries_in_hand = entries.slice(0, 3);
 	var trainers_candidate = get_trainers_candidate(seed_head, shuu);
 	var trainers_index = get_selected_trainers_index(trainers_candidate, trainers_start_offset);
@@ -557,7 +555,7 @@ function build_result_div(shuu, is_open_level, seed, consumption,
 	}
 	buf.push("</p>");
 	buf.push("<p>最初の6匹 ");
-	buf.push("<span id=\"range-0\" class=\"range\">"+r.rand_range.first+"-"+r.rand_range.last+"</span>");
+	buf.push("<span id=\"range-0\" class=\"range\">"+rand_range_to_string(r)+"</span>");
 	buf.push("<button id=\"paste-to-textarea\">この6匹を上のテキストボックスに入力</button>");
 	buf.push("<button class=\"show-tooltip\" id=\"show-tooltip-0\">6匹決定の乱数列</button>");
 	buf.push("</p>");
@@ -581,73 +579,56 @@ function build_result_div(shuu, is_open_level, seed, consumption,
 		buf.push("<small>トレーナーの種類は相手が何周目のポケモンを使ってくるかに影響します</small></p>");
 	}
 	for (var i = 1; i <= 7; i ++) {
-		var visited_entries;
-		if (i === 1) {
-			visited_entries = entries;
-		} else {
-			visited_entries = entries_in_hand.concat(prev_enemy_entries);
-		}
-		var trainer_id = trainer_ids[i-1];
-		var enemy_shuu = trainer_id_to_shuu(trainer_id, is_open_level);
-		var r = get_3_entries_info(shuu, is_open_level, i, enemy_shuu, seed, consumption, visited_entries, entries_in_hand);
-		context.infos.push(r);
-		buf.push("<p>"+i+"戦目 <span id=\"trainer-name-"+i+"\">"+trainer_names[trainer_id]+"</span>");
-		buf.push(" <span id=\"range-"+i+"\" class=\"range\">"+r.rand_range.first+"-"+r.rand_range.last+"</span>");
+		buf.push("<p>"+i+"戦目 <span id=\"trainer-name-"+i+"\"></span>");
+		buf.push(" <span id=\"range-"+i+"\" class=\"range\"></span>");
 		buf.push("<button class=\"show-tooltip\" id=\"show-tooltip-"+i+"\">3匹決定の乱数列</button>");
 		buf.push("</p>");
 		buf.push("<div class=\"entries\" id=\"entries-"+i+"\">");
-		buf.push(build_table(r.infos, i, is_open_level));
 		buf.push("</div>");
 		if (i <= 6) {
 			buf.push("<p style=\"margin-bottom:0\">交換: <span id=\"exchange-description-"+i+"\"></span></p>");
 			buf.push("<table class=\"for-layout\">");
-			buf.push("<tr><td style=\"text-align:right\">手放す<td id=\"exchange-part-"+i+"\">"+build_select(entries_in_hand, null)+"<td rowspan=\"2\"><button class=\"pokemon-select\" id=\"exchange-clear-"+i+"\">なし</button></td></tr>");
-			buf.push("<tr><td style=\"text-align:right\">受け取る<td id=\"exchange-receive-"+i+"\">"+build_select(r.entries, null)+"</tr>");
+			buf.push("<tr><td style=\"text-align:right\">手放す<td id=\"exchange-part-"+i+"\"><td rowspan=\"2\"><button class=\"pokemon-select\" id=\"exchange-clear-"+i+"\">なし</button></td></tr>");
+			buf.push("<tr><td style=\"text-align:right\">受け取る<td id=\"exchange-receive-"+i+"\"></tr>");
 			buf.push("</table>");
 		}
-		var c = get_enemy_consuption(shuu, i, trainer_id);
-		seed = step_seed(r.seed, c);
-		consumption = r.next_consumption + c;
-		prev_enemy_entries = r.entries;
 	}
 	if (shuu === 3) {
-		buf.push("<p>ネジキが言ってくるパーセント: <span id=\"nejiki-percent\">"+get_nejiki_percentage(seed)+"</span>%</p>");
+		buf.push("<p>ネジキが言ってくるパーセント: <span id=\"nejiki-percent\"></span>%</p>");
 	}
 	buf.push("<p>ログ</p>");
 	buf.push("<textarea id=\"result-log\" cols=\"60\" rows=\"10\"></textarea>");
 	$(div).html(buf.join(""));
+	update_seed_on_trainers();
+	update_trainer_names();
+	change_enemy_entries0(0, entries_in_hand, r.seed, r.next_consumption);
+	update_log_textarea();
 	for (var i = 0; i < 3; i ++) {
 		$("#election-"+i+" button").click(on_election_change);
 	}
 	for (var i = 1; i <= 6; i ++) {
-		$("#exchange-part-"+i+" button").click(on_exchange_select_change);
-		$("#exchange-receive-"+i+" button").click(on_exchange_select_change);
 		$("#exchange-clear-"+i).click(on_exchange_select_change);
-		change_exchange_description(i);
 	}
 	$("#paste-to-textarea").click(paste_to_textarea);
 	$("#trainers").change(on_trainers_select_change).keypress(on_trainers_select_change);
 	$("#result > div.entries > table > tbody > tr").mouseenter(on_mouseenter_tr).mouseleave(on_mouseleave_tr);
 	$("button.show-tooltip").mouseenter(show_tooltip).mouseleave(hide_tooltip);
-	update_seed_on_trainers();
-	update_log_textarea();
 }
 
 function change_enemy_entries(start, entries_in_hand) {
 	// start戦後の交換フォームとそれ以降を書き換える
 	// 0を指定すると1戦目の相手の手持ちから書き換え
-	change_enemy_entries0(start, entries_in_hand);
+	var r = context.infos[start + 1];
+	change_enemy_entries0(start, entries_in_hand, r.seed_start, r.rand_range.first);
 	update_log_textarea();
 }
 
-function change_enemy_entries0(start, entries_in_hand) {
+function change_enemy_entries0(start, entries_in_hand, seed, consumption) {
 	if (start > 0) context.infos[start].entries_in_hand = entries_in_hand;
 	if (start >= 7) return;
 	var prev_enemy_entries = start > 0 ? context.infos[start].entries : null;
 	var shuu = context.shuu;
 	var is_open_level = context.is_open_level;
-	var seed = context.infos[start + 1].seed_start;
-	var consumption = context.infos[start + 1].rand_range.first;
 	var trainer_ids = get_selected_trainer_ids();
 	var i = start;
 	while (i <= 6) {
@@ -665,7 +646,7 @@ function change_enemy_entries0(start, entries_in_hand) {
 		var r = get_3_entries_info(shuu, is_open_level, i, enemy_shuu, seed, consumption, visited_entries, entries_in_hand);
 		context.infos[i] = r;
 		
-		$("#range-"+i).text(r.rand_range.first+"-"+r.rand_range.last);
+		$("#range-"+i).text(rand_range_to_string(r));
 		
 		var div = document.getElementById("entries-"+i);
 		$(div).html(build_table(r.infos, i, is_open_level));
@@ -694,6 +675,10 @@ function change_exchange_description(i) {
 	}
 	text += " (" + map(next_entries_in_hand, "name").join(" ") + ")";
 	$("#exchange-description-"+i).text(text);
+}
+
+function rand_range_to_string(r) {
+	return r.rand_range.first+"-"+r.rand_range.last
 }
 
 function get_nejiki_percentage(seed) {
@@ -1041,12 +1026,16 @@ function on_exchange_select_change() {
 function on_trainers_select_change() {
 	if (Lock.is_locked()) return;
 	context.selected_trainers_index = this.selectedIndex;
-	var trainer_ids = context.trainers[this.selectedIndex].trainer_ids;
 	update_seed_on_trainers();
-	for (var i = 1; i <= 7; i ++) {
-		$("#trainer-name-"+i).text(trainer_names[trainer_ids[i-1]]);
-	}
+	update_trainer_names();
 	change_enemy_entries(0, context.infos[1].entries_in_hand);
+}
+
+function update_trainer_names() {
+	var ids = get_selected_trainer_ids();
+	for (var i = 1; i <= 7; i ++) {
+		$("#trainer-name-"+i).text(trainer_names[ids[i-1]]);
+	}
 }
 
 function update_log_textarea() {
