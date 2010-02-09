@@ -12,9 +12,60 @@ var pokemon_data = null;
 var pokemon_name2id = null;
 var trainer_names = null;
 var natures = "がんばりや さみしがり ゆうかん いじっぱり やんちゃ ずぶとい すなお のんき わんぱく のうてんき おくびょう せっかち まじめ ようき むじゃき ひかえめ おっとり れいせい てれや うっかりや おだやか おとなしい なまいき しんちょう きまぐれ".split(" ");
-var shuu_entries_count = [null, 150, 100, 100, 136, 136, 136, 136];
-var shuu_entries_start = [null,   0, 150, 250, 350, 486, 622, 758];
-var shuu_entries_end   = [null, 149, 249, 349, 485, 621, 757, 893];
+var rank_entries_count = [null, 150, 100, 100, 136, 136, 136, 136];
+var rank_entries_start;
+var rank_entries_end;
+
+// rankという変数だけでポケモンがどの決定方法かを判別できるようにするため
+// 以下の特殊なランクを設定する
+var RANK_8_ENEMY                 =  9, // ランク8 (相手)
+    RANK_OPEN_SILVER_NEJIKI_PT   = 10, // オープン銀ネジキ(pt)
+    RANK_OPEN_SILVER_NEJIKI_HGSS = 11, // オープン銀ネジキ(hgss)
+    RANK_LV50_GOLD_NEJIKI_PT     = 12, // Lv50金ネジキ(pt)
+    RANK_LV50_GOLD_NEJIKI_HGSS   = 13, // Lv50金ネジキ(hgss)
+    RANK_OPEN_GOLD_NEJIKI        = 14; // オープン金ネジキ
+
+(function() {
+	function set(i, j) {
+		// ランクjの最初から準伝説の最後までの範囲に設定
+		var start = rank_entries_start[j];
+		var count = 950 - start;
+		rank_entries_start[i] = start;
+		rank_entries_count[i] = count;
+	}
+	function copy(to, from) {
+		rank_entries_count[to] = rank_entries_count[from];
+		rank_entries_start[to] = rank_entries_start[from];
+	}
+	function set_start() {
+		// ランク1～7までのrank_entries_startを設定
+		rank_entries_start = [null];
+		var n = 0;
+		for (var i = 1; i <= 7; i ++) {
+			rank_entries_start[i] = n;
+			n += rank_entries_count[i];
+		}
+	}
+	function set_end() {
+		// すべてのランクのrank_entries_endを設定
+		rank_entries_end = [null];
+		for (var i = 1; i < rank_entries_count.length; i ++) {
+			var count = rank_entries_count[i];
+			var start = rank_entries_start[i];
+			rank_entries_end[i] = start + count - 1;
+		}
+	}
+	
+	set_start();
+	set(8, 6);
+	set(RANK_8_ENEMY, 4);
+	set(RANK_OPEN_SILVER_NEJIKI_PT, 7);
+	copy(RANK_OPEN_SILVER_NEJIKI_HGSS, 4);
+	copy(RANK_LV50_GOLD_NEJIKI_PT, 4);
+	set(RANK_LV50_GOLD_NEJIKI_HGSS, 7);
+	set(RANK_OPEN_GOLD_NEJIKI, 7);
+	set_end();
+})();
 
 $(function() {
 	var factory_data_text;
@@ -93,26 +144,26 @@ function initialize_factory_entries(factory_data_text) {
 }
 
 function set_pokemon_data_group() {
-	// 1周目のポケモン
-	for (var i = 0; i <= shuu_entries_end[1]; i ++) {
+	// ランク1のポケモン
+	for (var i = 0; i <= rank_entries_end[1]; i ++) {
 		var pokemon = factory_data[i].pokemon;
 		pokemon.group = 1;
 		pokemon.id_in_group = i;
 	}
-	// 2,3周目のポケモン
-	for (var i = shuu_entries_start[2]; i <= shuu_entries_end[2]; i ++) {
+	// ランク2,3のポケモン
+	for (var i = rank_entries_start[2]; i <= rank_entries_end[2]; i ++) {
 		var pokemon = factory_data[i].pokemon;
 		pokemon.group = 2;
-		pokemon.id_in_group = i - shuu_entries_start[2];
+		pokemon.id_in_group = i - rank_entries_start[2];
 	}
-	// 4～7周目のポケモン
-	for (var i = shuu_entries_start[4]; i <= shuu_entries_end[4]; i ++) {
+	// ランク4～7のポケモン
+	for (var i = rank_entries_start[4]; i <= rank_entries_end[4]; i ++) {
 		var pokemon = factory_data[i].pokemon;
 		pokemon.group = 3;
-		pokemon.id_in_group = i - shuu_entries_start[4];
+		pokemon.id_in_group = i - rank_entries_start[4];
 	}
 	// 準伝説
-	var start = shuu_entries_end[7] + 1;
+	var start = rank_entries_end[7] + 1;
 	var end = start + 14;
 	for (var i = start; i < end; i ++) {
 		var pokemon = factory_data[i].pokemon;
@@ -156,14 +207,13 @@ function on_submit_entries() {
 		build_parse_text_error_message(r.errors);
 		return;
 	}
-	var fixed_shuu = fix_shuu(shuu, is_open_level);
 	start_search(shuu, is_open_level, r.entries, r.parent_ids, r.is_bonus_list);
 }
 
 function start_search(shuu, is_open_level, entries, parent_ids, is_bonus_list) {
-	var fixed_shuu = fix_shuu(shuu, is_open_level);
+	var rank = fix_rank(shuu, is_open_level);
 	var num_bonus = FindSeedProcedure.gen_bonus_entries(entries, is_bonus_list).length;
-	var procedure = new FindSeedProcedure(fixed_shuu, entries, parent_ids, is_bonus_list);
+	var procedure = new FindSeedProcedure(rank, entries, parent_ids, is_bonus_list);
 	loop();
 	function loop() {
 		var seed = procedure.run(100);
@@ -183,7 +233,7 @@ function start_search(shuu, is_open_level, entries, parent_ids, is_bonus_list) {
 				}
 				return;
 			}
-			build_result_div(shuu, is_open_level, seed, 0, num_bonus, false, null);
+			build_result_div(shuu, is_open_level, true, seed, 0, num_bonus, false, null);
 		}
 	}
 }
@@ -235,7 +285,7 @@ function on_submit_seed() {
 		consumption += trainers.consumption;
 		trainers_start_offset = -trainers.consumption;
 	}
-	build_result_div(shuu, is_open_level, seed, consumption, num_bonus, true, trainers_start_offset);
+	build_result_div(shuu, is_open_level, true, seed, consumption, num_bonus, true, trainers_start_offset);
 }
 
 function cancel_search() {
@@ -298,10 +348,6 @@ function build_parse_text_error_message(errors) {
 	$("#result").html(buf);
 }
 
-function is_exist_bonus_shuu(shuu, is_open_level) {
-	return shuu !== 1 && fix_shuu(shuu, is_open_level) !== 3;
-}
-
 update_bonus_hint.last_data = {};
 
 function update_bonus_hint() {
@@ -313,13 +359,14 @@ function update_bonus_hint() {
 		update_last_data(shuu, is_open_level, null, null, null);
 		return;
 	}
-	var fixed_shuu = fix_shuu(shuu, is_open_level);
+	var rank = fix_rank(shuu, is_open_level);
 	var textarea = document.forms.entries_form.entries;
 	var text = textarea.value;
 	if (last_data.shuu === shuu && last_data.is_open_level === is_open_level && last_data.text === text) {
 		return;
 	}
 	var r = parse_text(shuu, is_open_level, text);
+	// parse_textの戻り値のentries, pokemons, is_bonus_listは重複しているものを除かないのでここで構築しなおす
 	var entries = [];
 	var pokemons = [];
 	var is_bonus_list = [];
@@ -349,20 +396,20 @@ function update_bonus_hint() {
 		if (pokemon.group === 4) { // 準伝説
 			for (var j = 1; j <= 4; j ++) {
 				es.push(gen_candidate(pokemon_to_entry(8, pokemon, j),
-				                      fixed_shuu === 7 ? true : null,
+				                      rank === 7 ? true : null,
 				                      String(j), j));
 			}
-		} else if (fixed_shuu >= 7) {
+		} else if (rank >= 7) {
 			es.push(gen_candidate(pokemon_to_entry(6, pokemon),
-			                      fixed_shuu === 7 ? true : null, "3", 3));
+			                      rank === 7 ? true : null, "3", 3));
 			es.push(gen_candidate(pokemon_to_entry(7, pokemon),
 			                      null, "4", 4));
 		} else {
-			var e = pokemon_to_entry(fixed_shuu, pokemon);
+			var e = pokemon_to_entry(rank, pokemon);
 			if (e) {
 				es.push(gen_candidate(e, false, "通常", null));
 			}
-			var e = pokemon_to_entry(fixed_shuu + 1, pokemon);
+			var e = pokemon_to_entry(rank + 1, pokemon);
 			if (e) {
 				es.push(gen_candidate(e, true, "ボーナス", null));
 			}
@@ -445,7 +492,7 @@ function update_bonus_hint() {
 		var label = es[i].label;
 		var selected = e === selected_entry;
 		var status1 = get_status(shuu, is_open_level, e).join("-");
-		var status2 = get_status(shuu + 1, is_open_level, e).join("-");
+		var status2 = get_status(limit_rank(shuu + 1), is_open_level, e).join("-");
 		var status;
 		if (is_bonus === false) {
 			status = status1;
@@ -485,8 +532,8 @@ function update_bonus_hint() {
 			var m = /^\s*\S+((?:\s+(?:\d+|\?))?)/.exec(lines[i]);
 			if (!m) continue;
 			lines[i] = m[0];
-			var entry_shuu = is_bonus ? fixed_shuu + 1 : fixed_shuu;
-			if (candidate.no !== null && entry_shuu >= 8) {
+			var entry_rank = is_bonus ? limit_rank(rank + 1) : rank;
+			if (candidate.no !== null && entry_rank === 8) {
 				if (m[1] === "") lines[i] += " ?";
 				lines[i] += " " + candidate.no;
 			}
@@ -528,11 +575,11 @@ function get_checked_radio_index(radios) {
 }
 
 
-function build_result_div(shuu, is_open_level, seed, consumption,
+function build_result_div(shuu, is_open_level, is_hgss, seed, consumption,
                           num_bonus, input_by_seed, trainers_start_offset) {
 	var div = document.getElementById("result");
-	var fixed_shuu = fix_shuu(shuu, is_open_level);
-	var r = get_6_entries_info(shuu, is_open_level, seed, consumption, num_bonus);
+	var rank = fix_rank(shuu, is_open_level);
+	var r = get_6_entries_info(rank, seed, consumption, num_bonus);
 	var entries = r.entries;
 	var seed_head = seed;
 	var consumption_head = consumption;
@@ -543,13 +590,14 @@ function build_result_div(shuu, is_open_level, seed, consumption,
 	var trainer_ids = trainers.trainer_ids;
 	context = {shuu: shuu,
 	           is_open_level: is_open_level,
+	           is_hgss: is_hgss,
 	           infos: [r],
 	           trainers: trainers_candidate,
 	           selected_trainers_index: trainers_index};
 	
 	var buf = [];
 	buf.push("<p>6匹決定時のseed: "+format_hex(seed_head, 8));
-	var seeds = get_entries_back_seeds(fixed_shuu, r.raw_entries, seed_head, num_bonus);
+	var seeds = get_entries_back_seeds(rank, r.raw_entries, seed_head, num_bonus);
 	if (!input_by_seed && seeds.length > 0) {
 		buf.push(" (or "+map(seeds, function(i){return format_hex(i, 8)}).join(", ")+")");
 	}
@@ -629,6 +677,7 @@ function change_enemy_entries0(start, entries_in_hand, seed, consumption) {
 	var prev_enemy_entries = start > 0 ? context.infos[start].entries : null;
 	var shuu = context.shuu;
 	var is_open_level = context.is_open_level;
+	var is_hgss = context.is_hgss;
 	var trainer_ids = get_selected_trainer_ids();
 	var i = start;
 	while (i <= 6) {
@@ -642,8 +691,9 @@ function change_enemy_entries0(start, entries_in_hand, seed, consumption) {
 		i ++;
 		var visited_entries = i === 1 ? context.infos[0].entries : entries_in_hand.concat(prev_enemy_entries);
 		var trainer_id = trainer_ids[i-1];
-		var enemy_shuu = trainer_id_to_shuu(trainer_id, is_open_level);
-		var r = get_3_entries_info(shuu, is_open_level, i, enemy_shuu, seed, consumption, visited_entries, entries_in_hand);
+		var rank = trainer_id_to_rank(trainer_id, is_open_level, is_hgss);
+		var fixed_rank = fix_rank_enemy(rank, is_open_level);
+		var r = get_3_entries_info(fixed_rank, seed, consumption, visited_entries, entries_in_hand);
 		context.infos[i] = r;
 		
 		$("#range-"+i).text(rand_range_to_string(r));
@@ -651,7 +701,7 @@ function change_enemy_entries0(start, entries_in_hand, seed, consumption) {
 		var div = document.getElementById("entries-"+i);
 		$(div).html(build_table(r.infos, i, is_open_level));
 		$("> table > tbody > tr", div).mouseenter(on_mouseenter_tr).mouseleave(on_mouseleave_tr);
-		var c = get_enemy_consuption(shuu, i, trainer_id);
+		var c = get_enemy_consuption(shuu, i, rank);
 		seed = step_seed(r.seed, c);
 		consumption = r.next_consumption + c;
 		prev_enemy_entries = r.entries;
@@ -678,7 +728,7 @@ function change_exchange_description(i) {
 }
 
 function rand_range_to_string(r) {
-	return r.rand_range.first+"-"+r.rand_range.last
+	return r.rand_range.first+"-"+r.rand_range.last;
 }
 
 function get_nejiki_percentage(seed) {
@@ -761,7 +811,7 @@ function update_seed_on_trainers() {
 }
 
 // 相手の3匹決定後の乱数消費量を取得
-function get_enemy_consuption(shuu, nth, trainer_id) {
+function get_enemy_consuption(shuu, nth, enemy_rank) {
 	var c = 0;
 	if (nth === 1) {
 		switch(shuu) {
@@ -777,14 +827,10 @@ function get_enemy_consuption(shuu, nth, trainer_id) {
 	if (shuu >= 5) {
 		return c + 24;
 	}
-	var enemy_shuu = trainer_id === silver_nejiki_id ? 4 : trainer_id_to_shuu(trainer_id, null);
-	switch(enemy_shuu) {
-	case 1: c +=  6; break;
-	case 2:
-	case 3:
-	case 4:
-	case 5: c += 12; break;
-	default: UNREACHABLE();
+	if (enemy_rank === 1) {
+		c += 6;
+	} else {
+		c += 12;
 	}
 	return c;
 }
@@ -793,13 +839,13 @@ function trainer_id_to_name(i) {
 	return /の([^の]+)$/.exec(trainer_names[i])[1];
 }
 
-function get_entries_back_seeds(shuu, entries, seed_base, num_bonus) {
-	var first_shuu = num_bonus === 6 ? shuu + 1 : shuu;
+function get_entries_back_seeds(rank, entries, seed_base, num_bonus) {
+	var first_rank = num_bonus === 6 ? limit_rank(rank + 1) : rank;
 	var result = [];
 	var seed = seed_base;
 	while (true) {
 		seed = prev_seed(seed);
-		var e = seed_to_entry(shuu, 0, first_shuu, seed);
+		var e = seed_to_entry(first_rank, seed);
 		if (!ary_include(entries, e)) break;
 		if (is_match(seed)) {
 			result.push(seed);
@@ -810,7 +856,7 @@ function get_entries_back_seeds(shuu, entries, seed_base, num_bonus) {
 		var es = [];
 		var i = 0;
 		while (seed !== seed_base) {
-			var e = seed_to_entry(shuu, 0, first_shuu, seed);
+			var e = seed_to_entry(first_rank, seed);
 			seed = next_seed(seed);
 			if (entries_collision0(e, es)) continue;
 			if (e !== entries[i]) return false;
@@ -824,7 +870,7 @@ function get_entries_back_seeds(shuu, entries, seed_base, num_bonus) {
 function is_influenced_by_trainers_shuu(shuu, is_open_level) {
 	// 6戦目までの相手の手持ちがトレーナーの種類に影響される周か
 	// 9周目からは前のランクも今のランクも手持ちが変わらない
-	return shuu !== 1 && fix_shuu(shuu, is_open_level) < 9;
+	return shuu !== 1 && fix_rank(shuu, is_open_level) < 9;
 }
 
 function read_int_string(s, default_value) {
@@ -844,7 +890,7 @@ function parse_text(shuu, is_open_level, text) {
 	var pokemons = [];
 	var parent_ids = [];
 	var is_bonus_list = [];
-	var fixed_shuu = fix_shuu(shuu, is_open_level);
+	var rank = fix_rank(shuu, is_open_level);
 	var errors = [];
 	var count = 0;
 	var invalid_line = false;
@@ -872,29 +918,33 @@ function parse_text(shuu, is_open_level, text) {
 			errors.push((i+1)+"行目: \""+name+"\"は存在しません");
 			continue;
 		}
-		if (!exist_pokemon_in_shuu(fixed_shuu, pokemon)) {
+		if (!exist_pokemon_in_rank(rank, pokemon)) {
 			errors.push((i+1)+"行目: "+pokemon.name+"は"+shuu+"周目に存在しません");
 			continue;
 		}
-		if (m[3] === "") {
+		if (rank < 7) {
+			no = null; // 7周目(オープン4周目)までは「何番目」は関係ない
+		} else if (m[3] === "") {
 			if (pokemon.group === 4) {
-				no = 1;
+				no = 1; // 準伝説なら1番目がデフォルトの候補
+			} else if (pokemon.group === 3) {
+				no = 3; // 3番目(ランク6)がデフォルトの候補 (1,2番目は出ず、3,4番目しか出ないため）
 			} else {
-				no = 3;
+				UNREACHABLE();
 			}
 		}
 		var entry;
 		if (is_bonus) {
-			entry = pokemon_to_entry(fixed_shuu + 1, pokemon, no);
+			entry = pokemon_to_entry(limit_rank(rank + 1), pokemon, no);
 			if (!entry) {
 				errors.push((i+1)+"行目: "+pokemon.name+"は"+shuu+"周目のボーナスに存在しません");
 				continue;
 			}
 		} else {
-			entry = pokemon_to_entry(fixed_shuu, pokemon, no);
+			entry = pokemon_to_entry(rank, pokemon, no);
 			if (!entry) {
 				is_bonus = true;
-				entry = pokemon_to_entry(fixed_shuu + 1, pokemon, no);
+				entry = pokemon_to_entry(limit_rank(rank + 1), pokemon, no);
 			}
 		}
 		if (ary_include(pokemons, pokemon)) {
@@ -920,53 +970,58 @@ function parse_text(shuu, is_open_level, text) {
 	        errors: errors};
 }
 
-function pokemon_to_entry(shuu, pokemon, no) {
+var LEGEND_START_ID = rank_entries_end[7] + 1;
+var LEGEND_NUM = 14; // 準伝説1セットの数 (ランク7のポケモンの後ろに4セットある)
+
+function pokemon_to_entry(rank, pokemon, no) {
 	var group = pokemon.group;
 	var id_in_group = pokemon.id_in_group;
 	var e;
-	if (!match_shuu_and_group(shuu, group)) return null;
-	if (shuu >= 8) {
+	if (!match_rank_and_group(rank, group)) return null;
+	if (rank === 8) {
 		if (group === 4) { // 準伝説
-			e = factory_data[shuu_entries_end[7] + 1 + (no - 1) * 14 + id_in_group];
+			e = factory_data[LEGEND_START_ID + (no - 1) * LEGEND_NUM + id_in_group];
 		} else {
-			e = factory_data[shuu_entries_start[3 + no] + id_in_group];
+			e = factory_data[rank_entries_start[3 + no] + id_in_group];
 		}
-	} else {
-		e = factory_data[shuu_entries_start[shuu] + id_in_group];
+	} else { // ランク7以下は引数noは無視
+		e = factory_data[rank_entries_start[rank] + id_in_group];
 	}
 	return e.pokemon === pokemon ? e : null;
 }
 
 function entry_to_no(entry) {
 	if (entry.pokemon.group === 4) { // 準伝説
-		var i = entry.id - (shuu_entries_end[7] + 1);
-		return Math.floor(i / 14) + 1;
+		var i = entry.id - LEGEND_START_ID;
+		return Math.floor(i / LEGEND_NUM) + 1;
+	} else if (entry.pokemon.group === 3) {
+		return entry_id_to_rank(entry.id) - 3;
 	} else {
-		return entry_id_to_shuu(entry.id) - 3;
+		UNREACHABLE();
 	}
 }
 
 function get_legend_entry(pokemon, no) {
 	var id_in_group = pokemon.id_in_group;
-	return factory_data[shuu_entries_end[7] + 1 + no * 14 + id_in_group];
+	return factory_data[LEGEND_START_ID + no * LEGEND_NUM + id_in_group];
 }
 
-function match_shuu_and_group(shuu, group) {
-	if (group === 1) return shuu === 1;
-	if (group === 2) return shuu === 2 || shuu === 3;
-	if (group === 3) return shuu >= 4;
-	if (group === 4) return shuu >= 8;
+function match_rank_and_group(rank, group) {
+	if (group === 1) return rank === 1;
+	if (group === 2) return rank === 2 || rank === 3;
+	if (group === 3) return rank >= 4;
+	if (group === 4) return rank >= 8;
 	UNREACHABLE();
 }
 
 // ポケモンが指定した周の最初の6匹に存在しえるか (ボーナスポケモンも含めて)
-function exist_pokemon_in_shuu(shuu, pokemon) {
+function exist_pokemon_in_rank(shuu, pokemon) {
 	var group = pokemon.group;
 	if (group === null) return false;
-	return match_shuu_and_group(shuu, group) || match_shuu_and_group(shuu + 1, group);
+	return match_rank_and_group(shuu, group) || match_rank_and_group(shuu + 1, group);
 }
 
-function entry_id_to_shuu(id) {
+function entry_id_to_rank(id) {
 	if (id < 150) return 1;
 	if (id < 250) return 2;
 	if (id < 350) return 3;
@@ -1099,7 +1154,7 @@ function build_table(info, nth, is_open_level) {
 		var e = info[i];
 		var pid = e.pid;
 		var entry = e.entry;
-		var shuu = unfix_shuu(entry_id_to_shuu(entry.id), is_open_level);
+		var shuu = unfix_rank(entry_id_to_rank(entry.id), is_open_level);
 		buf.push("<tr id=\"entry-"+nth+"-"+i+"\">"+
 		         "<td>"+shuu+
 		         "<td>"+(entry.id+1)+
@@ -1118,13 +1173,13 @@ function build_table(info, nth, is_open_level) {
 function paste_to_textarea() {
 	var shuu = context.shuu;
 	var is_open_level = context.is_open_level;
-	var fixed_shuu = fix_shuu(shuu, is_open_level);
+	var rank = fix_rank(shuu, is_open_level);
 	var infos = context.infos[0].infos;
 	var buf = "";
 	for (var i = 0; i < 6; i ++) {
 		if (i > 0) buf += "\n";
 		buf += infos[i].entry.name + " " + format_dec(infos[i].parent_id, 5);
-		var entry_shuu = infos[i].is_bonus ? fixed_shuu + 1 : fixed_shuu;
+		var entry_shuu = infos[i].is_bonus ? limit_rank(rank + 1) : rank;
 		if (entry_shuu >= 8) {
 			buf += " " + entry_to_no(infos[i].entry);
 		}
@@ -1173,14 +1228,7 @@ function show_tooltip() {
 function get_tooltip_content(nth) {
 	var info = context.infos[nth];
 	var is_open_level = context.is_open_level;
-	var shuu;
-	if (nth > 0) {
-		var trainer_id = get_selected_trainer_ids()[nth-1];
-		shuu = trainer_id_to_shuu(trainer_id, is_open_level);
-	} else {
-		shuu = context.shuu;
-	}
-	var fixed_shuu = fix_shuu(shuu, is_open_level);
+	var rank = info.rank;
 	var seed = info.seed_start;
 	var consumption = info.rand_range.first;
 	var n = info.entries.length;
@@ -1191,9 +1239,9 @@ function get_tooltip_content(nth) {
 	var r = [];
 	while (i < n) {
 		var is_bonus = n - i <= num_bonus;
-		var entry_shuu = is_bonus ? fixed_shuu + 1 : fixed_shuu;
-		var count = get_entries_count(fixed_shuu, nth, entry_shuu);
-		var start = get_entries_start(fixed_shuu, nth, entry_shuu);
+		var entry_rank = is_bonus ? limit_rank(rank + 1) : rank;
+		var count = rank_entries_count[entry_rank];
+		var start = rank_entries_start[entry_rank];
 		var id = count + start - 1 - (seed >>> 16) % count;
 		var entry = factory_data[id];
 		var collided_entry = find_collided_entry(entry, entries, visited_entries);
@@ -1293,36 +1341,49 @@ function build_entry_detail(tr) {
 	var j = Number(m[2]);
 	var entry = context.infos[i].entries[j];
 	var is_open_level = context.is_open_level;
-	var shuu = get_enemy_entry_shuu(i, j);
-	var individual = get_individual_by_shuu(shuu);
+	var rank = get_enemy_entry_rank(i, j);
+	var individual = get_individual_by_rank(rank);
 	var buf = "<small>";
 	buf += "性格: "+natures[entry.nature]+" 努力値: "+entry.effort+" 個体値: "+individual+"<br>";
 	buf += "技: "+entry.move+"<br>";
-	buf += "ステータス: "+get_status(shuu, is_open_level, entry).join("-");
+	buf += "ステータス: "+get_status(rank, is_open_level, entry).join("-");
 	buf += "</small>"
 	return buf;
 }
 
-function get_enemy_entry_shuu(nth, i) {
+function get_enemy_entry_rank(nth, i) {
+	// nth戦目のi匹目のランクを取得 (fix_rankされていない値)
+	// 最初の6匹の場合 nth=0
 	if (nth > 0) {
 		var trainer_id = get_selected_trainer_ids()[nth-1];
-		if (trainer_id === silver_nejiki_id) {
-			return 4;
-		} else {
-			return trainer_id_to_shuu(trainer_id, context.is_open_level);
-		}
+		return trainer_id_to_rank(trainer_id, context.is_open_level, context.is_hgss);
 	} else {
 		if (context.infos[0].infos[i].is_bonus) {
-			return context.shuu + 1;
+			return limit_rank(context.shuu + 1);
 		} else {
 			return context.shuu;
 		}
 	}
 }
 
-function get_individual_by_shuu(shuu) {
-	if (shuu >= 8) return 31;
-	return (shuu - 1) * 4;
+function get_individual_by_rank(rank) {
+	if (rank <= 7) {
+		return (rank - 1) * 4;
+	}
+	switch(rank) {
+	case 8:
+	case RANK_8_ENEMY:
+		return 31;
+	case RANK_OPEN_SILVER_NEJIKI_PT:
+	case RANK_OPEN_SILVER_NEJIKI_HGSS:
+		return 12;
+	case RANK_LV50_GOLD_NEJIKI_PT:
+	case RANK_LV50_GOLD_NEJIKI_HGSS:
+	case RANK_OPEN_GOLD_NEJIKI:
+		return 31;
+	default:
+		UNREACHABLE();
+	}
 }
 
 var nature_table = new Array(25);
@@ -1360,11 +1421,12 @@ function effort_text_to_array(text) {
 	return efforts;
 }
 
-function get_status(shuu, is_open_level, entry) {
+function get_status(rank, is_open_level, entry) {
 	// ex. get_status(1, false, find_factory_entry(1, "フシギダネ"))
 	// => [105, 48, 54, 111, 101, 50]
+	// 注) rankはfix_rankされていない値
 	var lv = is_open_level ? 100 : 50;
-	var individual = get_individual_by_shuu(shuu);
+	var individual = get_individual_by_rank(rank);
 	var stats = entry.pokemon.stats;
 	var efforts = effort_text_to_array(entry.effort);
 	var hp = calc_status_hp(lv, stats[0], individual, efforts[0]);
@@ -1447,7 +1509,7 @@ function seed_to_trainer_id(shuu, nth, seed) {
 	UNREACHABLE();
 }
 
-function trainer_id_to_shuu(id, is_open_level) {
+function trainer_id_to_rank(id, is_open_level, is_hgss) {
 	if (id < 0) UNREACHABLE();
 	if (id <= 99) return 1;
 	if (id <= 119) return 2;
@@ -1458,7 +1520,7 @@ function trainer_id_to_shuu(id, is_open_level) {
 	if (id <= 219) return 7; // XXX
 	if (id === silver_nejiki_id) {
 		if (is_open_level) {
-			return 1;
+			return is_hgss ? RANK_OPEN_SILVER_NEJIKI_HGSS : RANK_OPEN_SILVER_NEJIKI_PT;
 		} else {
 			return 4;
 		}
@@ -1469,55 +1531,34 @@ function trainer_id_to_shuu(id, is_open_level) {
 	UNREACHABLE();
 }
 
-// shuu: 何周目か
-// nth: 何戦目の相手の手持ちか(最初の6匹の場合は0)
-// entry_shuu: エントリの周
-//    最初の6匹のボーナスポケの場合: shuu + 1
-//    相手が一つ前の周のトレーナーの場合: shuu - 1
-//    相手が7戦目の場合: shuu + 1
-//     (例外: オープンレベル銀ネジキは 0)
-function seed_to_entry(shuu, nth, entry_shuu, seed) {
-	return factory_data[seed_to_entry_id(shuu, nth, entry_shuu, seed)];
+function seed_to_entry(rank, seed) {
+	return factory_data[seed_to_entry_id(rank, seed)];
 }
 
-function seed_to_entry_id(shuu, nth, entry_shuu, seed) {
-	var start = get_entries_start(shuu, nth, entry_shuu);
-	var count = get_entries_count(shuu, nth, entry_shuu);
-	return count + start - 1 - (seed >>> 16) % count;
+function seed_to_entry_id(rank, seed) {
+	var count = rank_entries_count[rank];
+	var end   = rank_entries_end[rank];
+	return end - (seed >>> 16) % count;
 }
 
-function get_entries_start(shuu, nth, entry_shuu) {
-	if (entry_shuu >= 8 && nth === 0) return 622;
-	if (entry_shuu >= 8) return 350;
-	return shuu_entries_start[entry_shuu];
+function get_3_entries_info(rank, seed, consumption, visited_entries, entries_in_hand) {
+	return get_entries_info(rank, seed, consumption, 3, visited_entries, entries_in_hand, 0);
 }
 
-function get_entries_count(shuu, nth, entry_shuu) {
-	if (entry_shuu >= 8 && nth === 0) return 328;
-	if (entry_shuu >= 8) return 600;
-	return shuu_entries_count[entry_shuu];
+function get_6_entries_info(rank, seed, consumption, num_bonus) {
+	return get_entries_info(rank, seed, consumption, 6, [], null, num_bonus);
 }
 
-function get_3_entries_info(shuu, is_open_level, nth, enemy_shuu, seed, consumption, visited_entries, entries_in_hand) {
-	return get_entries_info(shuu, is_open_level, nth, enemy_shuu, seed, consumption, 3, visited_entries, entries_in_hand, 0);
-}
-
-function get_6_entries_info(shuu, is_open_level, seed, consumption, num_bonus) {
-	return get_entries_info(shuu, is_open_level, 0, shuu, seed, consumption, 6, [], null, num_bonus);
-}
-
-function get_entries_info(shuu, is_open_level, nth, enemy_shuu, seed, consumption, num, visited_entries, entries_in_hand, num_bonus) {
+function get_entries_info(rank, seed, consumption, num, visited_entries, entries_in_hand, num_bonus) {
 	var entries = [];
 	var infos = [];
 	var i = 0;
 	var seed_start = seed;
 	var c = consumption;
-	var fixed_shuu = fix_shuu(shuu, is_open_level);
-	var fixed_enemy_shuu = fix_shuu(enemy_shuu, is_open_level);
 	while (i < num) {
 		var is_bonus = num - i <= num_bonus;
-		var entry_shuu = is_bonus ? fixed_enemy_shuu + 1 : fixed_enemy_shuu;
-		var entry = seed_to_entry(fixed_shuu, nth, entry_shuu, seed);
+		var entry_rank = is_bonus ? limit_rank(rank + 1) : rank;
+		var entry = seed_to_entry(entry_rank, seed);
 		seed = next_seed(seed); c ++;
 		if (entries_collision(entry, entries, visited_entries)) continue;
 		entries.push(entry);
@@ -1573,8 +1614,8 @@ function get_entries_info(shuu, is_open_level, nth, enemy_shuu, seed, consumptio
 	        next_consumption: c,
 	        entries_in_hand: entries_in_hand,
 	        visited_entries: visited_entries,
-	        num_bonus: num_bonus,
-	        shuu: shuu};
+	        rank: rank,
+	        num_bonus: num_bonus};
 }
 
 function entries_collision(entry, entries, visited_entries) {
@@ -1601,8 +1642,8 @@ function find_collided_entry0(entry, entries) {
 	return null;
 }
 
-function FindSeedProcedure(shuu, entries, parent_ids, is_bonus_list) {
-	this.shuu = shuu;
+function FindSeedProcedure(rank, entries, parent_ids, is_bonus_list) {
+	this.rank = rank;
 	this.entries = entries;
 	this.parent_ids = parent_ids;
 	this.is_bonus_list = is_bonus_list;
@@ -1610,12 +1651,14 @@ function FindSeedProcedure(shuu, entries, parent_ids, is_bonus_list) {
 	this.bonus_entries = FindSeedProcedure.gen_bonus_entries(entries, is_bonus_list);
 	if (this.bonus_entries.length === 6) {
 		this.bonus_entries = [];
-		this.shuu += 1;
+		this.rank += 1;
 	}
+	this.rank = limit_rank(this.rank);
+	
 	this.num_bonus = this.bonus_entries.length;
 	this.last_candidate_entries = this.num_bonus > 0 ? this.bonus_entries : this.entries;
-	this.last_entry_shuu = this.num_bonus > 0 ? this.shuu + 1 : this.shuu;
-	this.ns = FindSeedProcedure.gen_ns(this.shuu, is_bonus_list, parent_ids);
+	this.last_entry_rank = this.num_bonus > 0 ? limit_rank(this.rank + 1) : this.rank;
+	this.ns = FindSeedProcedure.gen_ns(is_bonus_list, parent_ids);
 	this.i = 0;
 	this.j = 0;
 }
@@ -1636,7 +1679,7 @@ FindSeedProcedure.gen_bonus_entries = function(entries, is_bonus_list) {
 	return result;
 };
 
-FindSeedProcedure.gen_ns = function(shuu, is_bonus_list, parent_ids) {
+FindSeedProcedure.gen_ns = function(is_bonus_list, parent_ids) {
 	var _ns = [0, 4, 5];
 	var ns = [];
 	for (var i = 0; i < 3; i ++) {
@@ -1675,7 +1718,7 @@ FindSeedProcedure.prototype.get_ratio = function() {
 }
 
 FindSeedProcedure.prototype.match_entries = function(seed, first_entry) {
-	var last_entry = seed_to_entry(this.shuu, 0, this.last_entry_shuu, prev_seed(seed));
+	var last_entry = seed_to_entry(this.last_entry_rank, prev_seed(seed));
 	if (!ary_include(this.last_candidate_entries, last_entry)) return null;
 	var n = 6;
 	var seed_head = step_seed(seed, -n);
@@ -1702,14 +1745,15 @@ FindSeedProcedure.prototype.match_entries = function(seed, first_entry) {
 };
 
 FindSeedProcedure.prototype.find_entries = function(seed, n) {
-	var shuu = this.shuu;
+	var rank = this.rank;
+	var bonus_rank = limit_rank(rank + 1);
 	var raw_entries = [];
 	var steps = 0;
 	var i = 0, num = 6 - this.num_bonus;
 	while (i < 6) {
 		var is_bonus = 6 - i <= this.num_bonus;
 		var s = seed;
-		var entry = seed_to_entry(shuu, 0, is_bonus ? shuu + 1 : shuu, seed);
+		var entry = seed_to_entry(is_bonus ? bonus_rank : rank, seed);
 		seed = next_seed(seed);
 		steps ++;
 		if (steps > n) return "next";
@@ -1717,7 +1761,7 @@ FindSeedProcedure.prototype.find_entries = function(seed, n) {
 		// アイテムも一致しないエントリが存在した場合
 		if (!ary_include(this.items, entry.item)) {
 			// ボーナスポケモン決定時でアイテム重複でスキップされたエントリかもしれない
-			var item = seed_to_entry(shuu, 0, shuu + 1, s).item;
+			var item = seed_to_entry(bonus_rank, s).item;
 			if (this.num_bonus > 0 && !is_bonus && ary_include(this.items, item)) {
 				return "next";
 			} else {
@@ -1768,10 +1812,10 @@ function is_shiny_pid(parent_id, secret_id, pid) {
 	return ((parent_id ^ secret_id ^ (pid >>> 16) ^ (pid & 0xffff)) & ~7) === 0;
 }
 
-function find_factory_entry(shuu, name) {
+function find_factory_entry(rank, name) {
 	var re = roma2reg(name);
-	var start = shuu_entries_start[shuu];
-	var end = shuu_entries_end[shuu];
+	var start = rank_entries_start[rank];
+	var end = rank_entries_end[rank];
 	for (var i = start; i <= end; i ++) {
 		if (re.test(factory_data[i].name)) {
 			return factory_data[i];
@@ -1791,19 +1835,35 @@ function find_pokemon_entry(name) {
 	return null;
 }
 
-function fix_shuu(shuu, is_open_level) {
+function fix_rank(rank, is_open_level) {
+	var fixed_rank = rank;
 	if (is_open_level) {
-		return shuu + 3;
+		fixed_rank += 3;
+	}
+	return limit_rank(fixed_rank);
+}
+
+function fix_rank_enemy(rank, is_open_level) {
+	if (is_open_level && rank <= 8) {
+		var fixed_rank = limit_rank(rank + 3);
+		if (fixed_rank === 8) {
+			fixed_rank = RANK_8_ENEMY;
+		}
+		return fixed_rank;
 	} else {
-		return shuu;
+		return rank;
 	}
 }
 
-function unfix_shuu(shuu, is_open_level) {
+function limit_rank(rank) {
+	return rank > 8 ? 8 : rank;
+}
+
+function unfix_rank(rank, is_open_level) {
 	if (is_open_level) {
-		return shuu - 3;
+		return rank - 3;
 	} else {
-		return shuu;
+		return rank;
 	}
 }
 
