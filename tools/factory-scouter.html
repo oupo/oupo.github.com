@@ -666,14 +666,15 @@ function build_result_div(shuu, is_open_level, is_hgss, seed, consumption,
 function change_enemy_entries(start, entries_in_hand) {
 	// start戦後の交換フォームとそれ以降を書き換える
 	// 0を指定すると1戦目の相手の手持ちから書き換え
-	var r = context.infos[start + 1];
-	change_enemy_entries0(start, entries_in_hand, r.seed_start, r.rand_range.first);
+	if (start > 0) context.infos[start].entries_in_hand = entries_in_hand;
+	if (start < 7) {
+		var r = context.infos[start + 1];
+		change_enemy_entries0(start, entries_in_hand, r.seed_start, r.rand_range.first);
+	}
 	update_log_textarea();
 }
 
 function change_enemy_entries0(start, entries_in_hand, seed, consumption) {
-	if (start > 0) context.infos[start].entries_in_hand = entries_in_hand;
-	if (start >= 7) return;
 	var prev_enemy_entries = start > 0 ? context.infos[start].entries : null;
 	var shuu = context.shuu;
 	var is_open_level = context.is_open_level;
