@@ -584,7 +584,8 @@ function build_result_div(shuu, is_open_level, is_hgss, seed, consumption,
 	var seed_head = seed;
 	var consumption_head = consumption;
 	var entries_in_hand = entries.slice(0, 3);
-	var back_seeds = get_entries_back_seeds(rank, r.raw_entries, seed_head, num_bonus);
+	var back_seeds = trainers_start_offset !== null ? [] : 
+	                    get_entries_back_seeds(rank, r.raw_entries, seed_head, num_bonus);
 	var trainers_candidate = get_trainers_candidate(seed_head, shuu, back_seeds);
 	var trainers_index = get_selected_trainers_index(trainers_candidate, trainers_start_offset);
 	var trainers = trainers_candidate[trainers_index];
