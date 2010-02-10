@@ -755,7 +755,11 @@ function get_trainers_candidate(seed_head, shuu, back_seeds) {
 		// 50個前のseedまで決めうちで遡るってのはダサいけどきちんとループの終了条件を確かめるのは面倒なので
 		var r = get_trainers_by_seed(shuu, seed);
 		if (ary_include(back_seeds, i - r.consumption)) {
-			result.push({start: -i, c: r.c, trainer_ids: r.trainer_ids, is_dummy: false});
+			result.push({start: -i,
+			             c: r.c,
+			             trainer_ids: r.trainer_ids,
+			             trainer_ids2: r.trainer_ids2,
+			             is_dummy: false});
 		}
 		i ++;
 		seed = prev_seed(seed);
@@ -1472,7 +1476,10 @@ function pid2gender(pid, pokemon) {
 function get_trainers_by_seed(shuu, seed) {
 	var r = get_trainers_by_seed0(shuu, seed, 7, []);
 	var r2 = get_trainers_by_seed0(shuu, step_seed(seed, r.c), shuu === 2 ? 6 : 7, r.trainer_ids);
-	return {trainer_ids: r.trainer_ids, c: r.c, consumption: r.c + r2.c};
+	return {trainer_ids: r.trainer_ids,
+	        trainer_ids2: r2.trainer_ids,
+	        c: r.c,
+	        consumption: r.c + r2.c};
 }
 
 function get_trainers_by_seed0(shuu, seed, num, visited) {
