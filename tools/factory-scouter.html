@@ -843,6 +843,10 @@ function trainer_id_to_name(i) {
 }
 
 function get_entries_back_seeds(rank, entries, seed_base, num_bonus) {
+	// 乱数列を遡ってみて最初の6匹が同じ結果になるseedを探す
+	// A A B C D E F のように並んでいる場合はもちろん
+	// A B A B C D E F, A X A B C D E F (XはAとアイテムが同じポケモン) のようなパターンも見つける
+	
 	var first_rank = num_bonus === 6 ? limit_rank(rank + 1) : rank;
 	var result = [];
 	var seed = seed_base;
@@ -851,7 +855,7 @@ function get_entries_back_seeds(rank, entries, seed_base, num_bonus) {
 		seed = prev_seed(seed);
 		i ++;
 		var e = seed_to_entry(first_rank, seed);
-		if (!ary_include(entries, e)) break;
+		if (!entries_collision0(e, entries)) break;
 		if (is_match(seed)) {
 			result.push(i);
 		}
