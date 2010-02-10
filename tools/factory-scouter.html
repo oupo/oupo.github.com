@@ -1043,13 +1043,9 @@ function exist_pokemon_in_rank(shuu, pokemon) {
 }
 
 function entry_id_to_rank(id) {
-	if (id < 150) return 1;
-	if (id < 250) return 2;
-	if (id < 350) return 3;
-	if (id < 486) return 4;
-	if (id < 622) return 5;
-	if (id < 758) return 6;
-	if (id < 898) return 7;
+	for (var i = 1; i <= 7; i ++) {
+		if (id <= rank_entries_end[i]) return i;
+	}
 	return 8;
 }
 
