@@ -584,7 +584,8 @@ function build_result_div(shuu, is_open_level, is_hgss, seed, consumption,
 	var seed_head = seed;
 	var consumption_head = consumption;
 	var entries_in_hand = entries.slice(0, 3);
-	var trainers_candidate = get_trainers_candidate(seed_head, shuu);
+	var back_seeds = get_entries_back_seeds(rank, r.raw_entries, seed_head, num_bonus);
+	var trainers_candidate = get_trainers_candidate(seed_head, shuu, back_seeds);
 	var trainers_index = get_selected_trainers_index(trainers_candidate, trainers_start_offset);
 	var trainers = trainers_candidate[trainers_index];
 	var trainer_ids = trainers.trainer_ids;
@@ -597,9 +598,8 @@ function build_result_div(shuu, is_open_level, is_hgss, seed, consumption,
 	
 	var buf = [];
 	buf.push("<p>6匹決定時のseed: "+format_hex(seed_head, 8));
-	var seeds = get_entries_back_seeds(rank, r.raw_entries, seed_head, num_bonus);
-	if (!input_by_seed && seeds.length > 0) {
-		buf.push(" (or "+map(seeds, function(i){return format_hex(i, 8)}).join(", ")+")");
+	if (back_seeds.length > 0) {
+		buf.push(" (or "+map(back_seeds, function(i){return format_hex(step_seed(seed_head, -i), 8)}).join(", ")+")");
 	}
 	buf.push("</p>");
 	buf.push("<p>最初の6匹 ");
@@ -745,14 +745,15 @@ function get_selected_trainer_ids() {
 	return get_selected_trainers().trainer_ids;
 }
 
-function get_trainers_candidate(seed_head, shuu) {
+function get_trainers_candidate(seed_head, shuu, back_seeds) {
 	var i = 13;
 	var seed = step_seed(seed_head, -i);
 	var result = [];
+	back_seeds = back_seeds.concat(0); // Array#concatは破壊的ではないので引数の配列を変更していない
 	while (i < 50) {
 		// 50個前のseedまで決めうちで遡るってのはダサいけどきちんとループの終了条件を確かめるのは面倒なので
 		var r = get_trainers_by_seed(shuu, seed);
-		if (r.consumption == i) {
+		if (ary_include(back_seeds, i - r.consumption)) {
 			result.push({start: -i, c: r.c, trainer_ids: r.trainer_ids, is_dummy: false});
 		}
 		i ++;
@@ -844,12 +845,14 @@ function get_entries_back_seeds(rank, entries, seed_base, num_bonus) {
 	var first_rank = num_bonus === 6 ? limit_rank(rank + 1) : rank;
 	var result = [];
 	var seed = seed_base;
+	var i = 0;
 	while (true) {
 		seed = prev_seed(seed);
+		i ++;
 		var e = seed_to_entry(first_rank, seed);
 		if (!ary_include(entries, e)) break;
 		if (is_match(seed)) {
-			result.push(seed);
+			result.push(i);
 		}
 	}
 	return result;
