@@ -199,6 +199,7 @@ function on_submit_entries() {
 	cancel_search();
 	Lock.cancel();
 	var is_open_level = read_level_radio();
+	var is_hgss = read_hgss_radio();
 	var shuu = read_shuu_input(is_open_level, true);
 	if (shuu === null) return;
 	var f = document.forms.entries_form;
@@ -207,10 +208,10 @@ function on_submit_entries() {
 		build_parse_text_error_message(r.errors);
 		return;
 	}
-	start_search(shuu, is_open_level, r.entries, r.parent_ids, r.is_bonus_list);
+	start_search(shuu, is_open_level, is_hgss, r.entries, r.parent_ids, r.is_bonus_list);
 }
 
-function start_search(shuu, is_open_level, entries, parent_ids, is_bonus_list) {
+function start_search(shuu, is_open_level, is_hgss, entries, parent_ids, is_bonus_list) {
 	var rank = fix_rank(shuu, is_open_level);
 	var num_bonus = FindSeedProcedure.gen_bonus_entries(entries, is_bonus_list).length;
 	var procedure = new FindSeedProcedure(rank, entries, parent_ids, is_bonus_list);
@@ -233,7 +234,7 @@ function start_search(shuu, is_open_level, entries, parent_ids, is_bonus_list) {
 				}
 				return;
 			}
-			build_result_div(shuu, is_open_level, true, seed, 0, num_bonus, false, null);
+			build_result_div(shuu, is_open_level, is_hgss, seed, 0, num_bonus, false, null);
 		}
 	}
 }
@@ -258,6 +259,7 @@ function on_submit_seed() {
 	cancel_search();
 	Lock.cancel();
 	var is_open_level = read_level_radio();
+	var is_hgss = read_hgss_radio();
 	var shuu = read_shuu_input(is_open_level, true);
 	if (shuu === null) return;
 	var f = document.forms.seed_form;
@@ -280,12 +282,12 @@ function on_submit_seed() {
 	seed = step_seed(seed, consumption);
 	var trainers_start_offset = null;
 	if (start_by_trainers) {
-		var trainers = get_trainers_by_seed(shuu, seed);
+		var trainers = get_trainers_by_seed(shuu, seed, is_hgss);
 		seed = step_seed(seed, trainers.consumption);
 		consumption += trainers.consumption;
 		trainers_start_offset = -trainers.consumption;
 	}
-	build_result_div(shuu, is_open_level, true, seed, consumption, num_bonus, true, trainers_start_offset);
+	build_result_div(shuu, is_open_level, is_hgss, seed, consumption, num_bonus, true, trainers_start_offset);
 }
 
 function cancel_search() {
@@ -313,6 +315,12 @@ function read_level_radio() {
 	var radios = document.forms.shuu_form.level;
 	var val = radios[get_checked_radio_index(radios)].value;
 	return val === "100";
+}
+
+function read_hgss_radio() {
+	var radios = document.forms.shuu_form.version;
+	var val = radios[get_checked_radio_index(radios)].value;
+	return val === "hgss";
 }
 
 var progress_width = 100;
@@ -586,7 +594,7 @@ function build_result_div(shuu, is_open_level, is_hgss, seed, consumption,
 	var entries_in_hand = entries.slice(0, 3);
 	var back_seeds = trainers_start_offset !== null ? [] : 
 	                    get_entries_back_seeds(rank, r.raw_entries, seed_head, num_bonus);
-	var trainers_candidate = get_trainers_candidate(seed_head, shuu, back_seeds);
+	var trainers_candidate = get_trainers_candidate(seed_head, shuu, back_seeds, is_hgss);
 	var trainers_index = get_selected_trainers_index(trainers_candidate, trainers_start_offset);
 	var trainers = trainers_candidate[trainers_index];
 	var trainer_ids = trainers.trainer_ids;
@@ -746,14 +754,14 @@ function get_selected_trainer_ids() {
 	return get_selected_trainers().trainer_ids;
 }
 
-function get_trainers_candidate(seed_head, shuu, back_seeds) {
+function get_trainers_candidate(seed_head, shuu, back_seeds, is_hgss) {
 	var i = 13;
 	var seed = step_seed(seed_head, -i);
 	var result = [];
 	back_seeds = back_seeds.concat(0); // Array#concatは破壊的ではないので引数の配列を変更していない
 	while (i < 50) {
 		// 50個前のseedまで決めうちで遡るってのはダサいけどきちんとループの終了条件を確かめるのは面倒なので
-		var r = get_trainers_by_seed(shuu, seed);
+		var r = get_trainers_by_seed(shuu, seed, is_hgss);
 		if (ary_include(back_seeds, i - r.consumption)) {
 			result.push({start: -i,
 			             c: r.c,
@@ -1108,7 +1116,9 @@ function update_trainer_names() {
 
 function update_log_textarea() {
 	var buf = [];
-	buf.push((context.is_open_level ? "オープンレベル" : "Lv50")+" "+context.shuu+"周目");
+	buf.push((context.is_hgss ? "HGSS" : "プラチナ")+" "+
+	         (context.is_open_level ? "オープンレベル" : "Lv50")+" "+
+	         context.shuu+"周目");
 	buf.push(format_hex(context.infos[0].seed_start, 8)+" (ボーナスポケ:"+context.infos[0].num_bonus + ")");
 	var trainers = get_selected_trainers();
 	if (trainers.is_dummy) {
@@ -1473,16 +1483,22 @@ function pid2gender(pid, pokemon) {
 	}
 }
 
-function get_trainers_by_seed(shuu, seed) {
-	var r = get_trainers_by_seed0(shuu, seed, 7, []);
-	var r2 = get_trainers_by_seed0(shuu, step_seed(seed, r.c), shuu === 2 ? 6 : 7, r.trainer_ids);
+function get_trainers_by_seed(shuu, seed, is_hgss) {
+	// トレーナーA
+	var r = get_trainers_by_seed0(shuu, seed, 7, [], true);
+	// トレーナーB
+	//   2周目は6人分しか決定しない
+	//   プラチナでは7人目も6人目までと同じ決定方法
+	var r2 = get_trainers_by_seed0(shuu, step_seed(seed, r.c),
+	                               shuu === 2 ? 6 : 7, r.trainer_ids,
+	                               is_hgss);
 	return {trainer_ids: r.trainer_ids,
 	        trainer_ids2: r2.trainer_ids,
 	        c: r.c,
 	        consumption: r.c + r2.c};
 }
 
-function get_trainers_by_seed0(shuu, seed, num, visited) {
+function get_trainers_by_seed0(shuu, seed, num, visited, is_last_trainer_next_rank) {
 	var result = [];
 	var c = 0;
 	var i = 1;
@@ -1491,7 +1507,7 @@ function get_trainers_by_seed0(shuu, seed, num, visited) {
 			result.push(silver_nejiki_id);
 			break;
 		}
-		var e = seed_to_trainer_id(shuu, i, seed);
+		var e = seed_to_trainer_id(shuu, is_last_trainer_next_rank && i === 7, seed);
 		seed = next_seed(seed);
 		c ++;
 		if (ary_include(result, e) || ary_include(visited, e)) continue;
@@ -1501,9 +1517,9 @@ function get_trainers_by_seed0(shuu, seed, num, visited) {
 	return {trainer_ids: result, c: c};
 }
 
-function seed_to_trainer_id(shuu, nth, seed) {
+function seed_to_trainer_id(shuu, is_last, seed) {
 	var r = seed >>> 16;
-	if (nth === 7) {
+	if (is_last) {
 		switch (shuu) {
 		case 1: return r % 19 + 100;
 		case 2: return r % 19 + 120;
@@ -2268,11 +2284,20 @@ div.tooltip .collided {
 <p>データは<a href="http://pokemon-ds.happy.nu/">ポケモン ダイヤモンド＆パール／プラチナをごにょごにょするページ</a>から転用しています</p>
 <p>対応状況: Lv50 5周目まで / オープンレベル 5周目まで</p>
 <form action="" name="shuu_form" onsubmit="return false;">
-<p>
+<table class="for-layout">
+<tr>
+<td>
+<fieldset>
 <input type="text" id="shuu_input" size="2" value="1"> 周目
 <label><input type="radio" name="level" value="50" checked>Lv50</label>
 <label><input type="radio" name="level" value="100">オープンレベル</label>
-</p>
+</fieldset>
+<td>
+<fieldset>
+<label><input type="radio" name="version" value="platinum">プラチナ</label>
+<label><input type="radio" name="version" value="hgss" checked>HGSS</label>
+</fieldset>
+</tr></table>
 </form>
 <form action="" name="entries_form" onsubmit="return false;">
 <fieldset>
