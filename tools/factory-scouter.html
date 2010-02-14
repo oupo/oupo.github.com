@@ -21,11 +21,12 @@ var rank_entries_end;
 var RANK_8_LV50                  =  8, // ランク8 (Lv50 最初の6匹)
     RANK_8_OPEN                  =  9, // ランク8 (オープン 最初の6匹)
     RANK_8_ENEMY                 = 10, // ランク8 (相手)
-    RANK_OPEN_SILVER_NEJIKI_PT   = 11, // オープン銀ネジキ(pt)
-    RANK_OPEN_SILVER_NEJIKI_HGSS = 12, // オープン銀ネジキ(hgss)
-    RANK_LV50_GOLD_NEJIKI_PT     = 13, // Lv50金ネジキ(pt)
-    RANK_LV50_GOLD_NEJIKI_HGSS   = 14, // Lv50金ネジキ(hgss)
-    RANK_OPEN_GOLD_NEJIKI        = 15; // オープン金ネジキ
+    RANK_OPEN_8                  = 11, // オープンレベル最初の6匹 8周目
+    RANK_OPEN_SILVER_NEJIKI_PT   = 12, // オープン銀ネジキ(pt)
+    RANK_OPEN_SILVER_NEJIKI_HGSS = 13, // オープン銀ネジキ(hgss)
+    RANK_LV50_GOLD_NEJIKI_PT     = 14, // Lv50金ネジキ(pt)
+    RANK_LV50_GOLD_NEJIKI_HGSS   = 15, // Lv50金ネジキ(hgss)
+    RANK_OPEN_GOLD_NEJIKI        = 16; // オープン金ネジキ
 
 (function() {
 	function set(i, j) {
@@ -62,6 +63,7 @@ var RANK_8_LV50                  =  8, // ランク8 (Lv50 最初の6匹)
 	set(RANK_8_LV50, 4);
 	set(RANK_8_OPEN, 6);
 	set(RANK_8_ENEMY, 4);
+	set(RANK_OPEN_8, 4);
 	set(RANK_OPEN_SILVER_NEJIKI_PT, 7);
 	copy(RANK_OPEN_SILVER_NEJIKI_HGSS, 4);
 	copy(RANK_LV50_GOLD_NEJIKI_PT, 4);
@@ -307,7 +309,7 @@ function read_shuu_input(is_open_level, show_error) {
 	var error = null;
 	if (value === null || value < 1) {
 		error = "周に入力されている値が不正です";
-	} else if (value > (is_open_level ? 6 : 7)) {
+	} else if (value > (is_open_level ? 7 : 7)) {
 		error = value+"周目は未対応です";
 	}
 	if (error) {
@@ -415,11 +417,11 @@ function update_bonus_hint() {
 				                      String(j), j));
 			}
 		} else if (rank >= 7) {
-			if (!is_open_level) { // Lv50のランク8ではもともとランク4,ランク5のポケモンも出てくる
-				es.push(gen_candidate(pokemon_to_entry(4, pokemon),
-				                      rank === 7 ? true : null, "1", 1));
-				es.push(gen_candidate(pokemon_to_entry(5, pokemon),
-				                      rank === 7 ? true : null, "2", 2));
+			// Lv50のランク8とオープンレベル7周目のボーナスではもともとランク4,ランク5のポケモンも出てくる
+			if (!is_open_level || shuu === 7) {
+				var is_bonus = (rank === 7 || is_open_level) ? true : null;
+				es.push(gen_candidate(pokemon_to_entry(4, pokemon), is_bonus, "1", 1));
+				es.push(gen_candidate(pokemon_to_entry(5, pokemon), is_bonus, "2", 2));
 			}
 			es.push(gen_candidate(pokemon_to_entry(6, pokemon),
 			                      rank === 7 ? true : null, "3", 3));
@@ -1401,6 +1403,7 @@ function get_individual_by_rank(rank) {
 	case RANK_8_LV50:
 	case RANK_8_OPEN:
 	case RANK_8_ENEMY:
+	case RANK_OPEN_8:
 		return 31;
 	case RANK_OPEN_SILVER_NEJIKI_PT:
 	case RANK_OPEN_SILVER_NEJIKI_HGSS:
@@ -1890,7 +1893,9 @@ function fix_rank(rank, is_open_level) {
 	if (is_open_level) {
 		fixed_rank += 3;
 	}
-	if (fixed_rank >= 8) {
+	if (fixed_rank === 11) { // オープン7周目ボーナス
+		fixed_rank = RANK_OPEN_8;
+	} else if (fixed_rank >= 8) {
 		fixed_rank = is_open_level ? RANK_8_OPEN : RANK_8_LV50;
 	}
 	return fixed_rank;
@@ -2303,7 +2308,7 @@ div.tooltip .collided {
 <body>
 <h1>ちょうさ・ぶんせきマシン （仮）</h1>
 <p>データは<a href="http://pokemon-ds.happy.nu/">ポケモン ダイヤモンド＆パール／プラチナをごにょごにょするページ</a>から転用しています</p>
-<p>対応状況: Lv50 7周目まで / オープンレベル 6周目まで</p>
+<p>対応状況: Lv50 7周目まで / オープンレベル 7周目まで</p>
 <form action="" name="shuu_form" onsubmit="return false;">
 <table class="for-layout">
 <tr>
