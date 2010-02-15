@@ -1825,9 +1825,9 @@ FindSeedProcedure.prototype.find_entries = function(seed, n) {
 		if (entries_collision0(entry, raw_entries)) continue;
 		// アイテムも一致しないエントリが存在した場合
 		if (!ary_include(this.items, entry.item)) {
-			// ボーナスポケモン決定時でアイテム重複でスキップされたエントリかもしれない
-			var item = seed_to_entry(bonus_rank, s).item;
-			if (this.num_bonus > 0 && !is_bonus && ary_include(this.items, item)) {
+			// ボーナスかどうかが逆の決定でアイテム重複でスキップされたエントリかもしれない
+			var item = seed_to_entry(is_bonus ? rank : bonus_rank, s).item;
+			if (this.num_bonus > 0 && ary_include(this.items, item)) {
 				return "next";
 			} else {
 				return "break";
