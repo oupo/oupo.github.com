@@ -962,6 +962,15 @@ function parse_text(shuu, is_open_level, text) {
 				UNREACHABLE();
 			}
 		}
+		if (no !== null && !(1 <= no && no <= 4)) {
+			errors.push((i+1)+"行目: "+no+"番目は存在しません");
+			continue;
+		}
+		// オープンレベル4周目から6周目までは1,2番目の候補は出てこない
+		if (is_open_level && 4 <= shuu && shuu < 7 && pokemon.group === 3 && no <= 2) {
+			errors.push((i+1)+"行目: "+no+"番目は存在しません");
+			continue;
+		}
 		var entry;
 		if (is_bonus) {
 			entry = pokemon_to_entry(bonus_rank, pokemon, no);
@@ -1005,18 +1014,18 @@ var LEGEND_NUM = 14; // 準伝説1セットの数 (ランク7のポケモンの�
 function pokemon_to_entry(rank, pokemon, no) {
 	var group = pokemon.group;
 	var id_in_group = pokemon.id_in_group;
-	var e;
+	if (group === null) return null;
 	if (!match_rank_and_group(rank, group)) return null;
 	if (rank >= 8) {
+		if (!(1 <= no && no <= 4)) return null;
 		if (group === 4) { // 準伝説
-			e = factory_data[LEGEND_START_ID + (no - 1) * LEGEND_NUM + id_in_group];
+			return factory_data[LEGEND_START_ID + (no - 1) * LEGEND_NUM + id_in_group];
 		} else {
-			e = factory_data[rank_entries_start[3 + no] + id_in_group];
+			return factory_data[rank_entries_start[3 + no] + id_in_group];
 		}
 	} else { // ランク7以下は引数noは無視
-		e = factory_data[rank_entries_start[rank] + id_in_group];
+		return factory_data[rank_entries_start[rank] + id_in_group];
 	}
-	return e.pokemon === pokemon ? e : null;
 }
 
 function entry_to_no(entry) {
