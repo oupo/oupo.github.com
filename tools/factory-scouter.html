@@ -379,7 +379,8 @@ function update_bonus_hint() {
 	var bonus_rank = fix_rank(shuu + 1, is_open_level);
 	var textarea = document.forms.entries_form.entries;
 	var text = textarea.value;
-	if (last_data.shuu === shuu && last_data.is_open_level === is_open_level && last_data.text === text) {
+	var shuu_same = last_data.shuu === shuu && last_data.is_open_level === is_open_level;
+	if (shuu_same && last_data.text === text) {
 		return;
 	}
 	var r = parse_text(shuu, is_open_level, text);
@@ -395,7 +396,7 @@ function update_bonus_hint() {
 		is_bonus_list.push(r.is_bonus_list[i]);
 		pokemons.push(entry.pokemon);
 	}
-	var same = last_data.entries && ary_eq(entries, last_data.entries) && ary_eq(is_bonus_list, last_data.is_bonus_list);
+	var same = shuu_same && last_data.entries && ary_eq(entries, last_data.entries) && ary_eq(is_bonus_list, last_data.is_bonus_list);
 	update_last_data(shuu, is_open_level, text, entries, is_bonus_list);
 	if (same) {
 		return;
