@@ -309,8 +309,6 @@ function read_shuu_input(is_open_level, show_error) {
 	var error = null;
 	if (value === null || value < 1) {
 		error = "周に入力されている値が不正です";
-	} else if (value > (is_open_level ? 7 : 7)) {
-		error = value+"周目は未対応です";
 	}
 	if (error) {
 		value = null;
@@ -418,11 +416,10 @@ function update_bonus_hint() {
 				                      String(j), j));
 			}
 		} else if (rank >= 7) {
-			// Lv50のランク8とオープンレベル7周目のボーナスではもともとランク4,ランク5のポケモンも出てくる
-			if (!is_open_level || shuu === 7) {
-				var is_bonus = (rank === 7 || is_open_level) ? true : null;
-				es.push(gen_candidate(pokemon_to_entry(4, pokemon), is_bonus, "1", 1));
-				es.push(gen_candidate(pokemon_to_entry(5, pokemon), is_bonus, "2", 2));
+			// Lv50のランク8とオープンレベル7周目以降ではもともとランク4,ランク5のポケモンも出てくる
+			if (!is_open_level || shuu >= 7) {
+				es.push(gen_candidate(pokemon_to_entry(4, pokemon), true, "1", 1));
+				es.push(gen_candidate(pokemon_to_entry(5, pokemon), true, "2", 2));
 			}
 			es.push(gen_candidate(pokemon_to_entry(6, pokemon),
 			                      rank === 7 ? true : null, "3", 3));
@@ -439,6 +436,9 @@ function update_bonus_hint() {
 			}
 		}
 		for (var j = 0; j < es.length; j ++) {
+			if (shuu >= 8) { // 8周目以降は個体値に差がないので常にis_bonusはfalse扱いとする
+				es[j].is_bonus = false;
+			}
 			if (es[j].is_bonus === null) {
 				if (es[j].entry === selected_entry) {
 					es[j].selected_is_bonus = is_bonus_list[i];
@@ -451,7 +451,9 @@ function update_bonus_hint() {
 		}
 	}
 	var buf = "";
-	buf += "<p>ボーナスポケ: <span id=\"num_bonus\"></span>匹</p>";
+	if (shuu <= 7) {
+		buf += "<p>ボーナスポケ: <span id=\"num_bonus\"></span>匹</p>";
+	}
 	buf += "<table><thead><th><th><th>アイテム<th>技<th>ステータス</thead>";
 	buf += "<tbody>";
 	for (var i = 0; i < entries.length; i ++) {
@@ -515,7 +517,7 @@ function update_bonus_hint() {
 		var selected_is_bonus = es[i].selected_is_bonus;
 		var label = es[i].label;
 		var selected = e === selected_entry;
-		var status1 = get_status(shuu, is_open_level, e).join("-");
+		var status1 = get_status(limit_rank(shuu), is_open_level, e).join("-");
 		var status2 = get_status(limit_rank(shuu + 1), is_open_level, e).join("-");
 		var status;
 		if (is_bonus === false) {
@@ -958,7 +960,11 @@ function parse_text(shuu, is_open_level, text) {
 			if (pokemon.group === 4) {
 				no = 1; // 準伝説なら1番目がデフォルトの候補
 			} else if (pokemon.group === 3) {
-				no = 3; // 3番目(ランク6)がデフォルトの候補 (1,2番目は出ず、3,4番目しか出ないため）
+				if (is_open_level && shuu <= 7) {
+					no = 3; // 3番目(ランク6)がデフォルトの候補 (1,2番目は出ず、3,4番目しか出ないため）
+				} else {
+					no = 1;
+				}
 			} else {
 				UNREACHABLE();
 			}
@@ -1400,7 +1406,7 @@ function get_enemy_entry_rank(nth, i) {
 		if (context.infos[0].infos[i].is_bonus) {
 			return limit_rank(context.shuu + 1);
 		} else {
-			return context.shuu;
+			return limit_rank(context.shuu);
 		}
 	}
 }
@@ -1537,28 +1543,15 @@ function get_trainers_by_seed0(shuu, seed, num, visited, is_last_trainer_next_ra
 
 function seed_to_trainer_id(shuu, is_last, seed) {
 	var r = seed >>> 16;
-	if (is_last) {
-		switch (shuu) {
-		case 1: return r % 19 + 100;
-		case 2: return r % 19 + 120;
-		case 3: return r % 19 + 140;
-		case 4: return r % 19 + 160;
-		case 5: return r % 19 + 180;
-		case 6: return r % 19 + 200;
-		case 7: return r % 19 + 220;
-		}
+	if (shuu >= 8) {
+		return r % 99 + 200;
+	} else if (is_last) {
+		return r % 19 + 100 + shuu * 20;
+	} else if (shuu === 1) {
+		return r % 99;
 	} else {
-		switch (shuu) {
-		case 1: return r % 99 +   0;
-		case 2: return r % 39 +  80;
-		case 3: return r % 39 + 100;
-		case 4: return r % 39 + 120;
-		case 5: return r % 39 + 140;
-		case 6: return r % 39 + 160;
-		case 7: return r % 39 + 180;
-		}
+		return r % 39 + 80 + shuu * 20;
 	}
-	UNREACHABLE();
 }
 
 function trainer_id_to_rank(id, is_open_level, is_hgss) {
@@ -1905,7 +1898,7 @@ function fix_rank(rank, is_open_level) {
 	if (is_open_level) {
 		fixed_rank += 3;
 	}
-	if (fixed_rank === 11) { // オープン7周目ボーナス
+	if (is_open_level && rank >= 8) { // オープン8周目
 		fixed_rank = RANK_OPEN_8;
 	} else if (fixed_rank >= 8) {
 		fixed_rank = is_open_level ? RANK_8_OPEN : RANK_8_LV50;
@@ -1914,7 +1907,7 @@ function fix_rank(rank, is_open_level) {
 }
 
 function fix_rank_enemy(rank, is_open_level) {
-	if (is_open_level && rank <= 8) {
+	if (is_open_level && rank <= 7) {
 		var fixed_rank = rank + 3;
 		if (fixed_rank >= 8) {
 			fixed_rank = RANK_8_ENEMY;
@@ -2320,7 +2313,6 @@ div.tooltip .collided {
 <body>
 <h1>ちょうさ・ぶんせきマシン （仮）</h1>
 <p>データは<a href="http://pokemon-ds.happy.nu/">ポケモン ダイヤモンド＆パール／プラチナをごにょごにょするページ</a>から転用しています</p>
-<p>対応状況: Lv50 7周目まで / オープンレベル 7周目まで</p>
 <form action="" name="shuu_form" onsubmit="return false;">
 <table class="for-layout">
 <tr>
