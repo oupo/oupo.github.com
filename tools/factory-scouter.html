@@ -547,14 +547,16 @@ function update_bonus_hint() {
 		}
 		return num_bonus;
 	}
-	function change_select(n) {	
+	function change_select(n) {
 		var index = get_selected_candidate_index(n);
 		var candidate = candidates[n][index];
 		var is_bonus = candidate.selected_is_bonus;
 		var lines = textarea.value.split("\n");
 		var i;
 		for (i = 0; i < lines.length; i ++) {
-			if (find_pokemon_entry(regularize_word(/\S+/.exec(lines[i])[0])) !== candidate.entry.pokemon) continue;
+			var m = /\S+/.exec(regularize_word(lines[i]));
+			if (!m) continue;
+			if (find_pokemon_entry(m[0]) !== candidate.entry.pokemon) continue;
 			var m = /^\s*\S+((?:\s+(?:\d+|\?))?)/.exec(lines[i]);
 			if (!m) continue;
 			lines[i] = m[0];
