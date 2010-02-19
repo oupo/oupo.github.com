@@ -1546,11 +1546,11 @@ function seed_to_trainer_id(shuu, is_last, seed) {
 	if (shuu >= 8) {
 		return r % 99 + 200;
 	} else if (is_last) {
-		return r % 19 + 100 + shuu * 20;
+		return r % 19 + 100 + (shuu - 2) * 20;
 	} else if (shuu === 1) {
 		return r % 99;
 	} else {
-		return r % 39 + 80 + shuu * 20;
+		return r % 39 + 80 + (shuu - 2) * 20;
 	}
 }
 
