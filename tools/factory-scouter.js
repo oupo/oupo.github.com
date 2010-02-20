@@ -63,7 +63,18 @@ var RANK_8_LV50                  =  8, // ランク8 (Lv50 最初の6匹)
 	set_end();
 })();
 
-$(function() {
+function boot_factory_scouter() {
+	initialize_factory(function() {
+		$(document.forms.entries_form).submit(on_submit_entries);
+		$(document.forms.seed_form).submit(on_submit_seed);
+		$(document.forms.entries_form.entries).keyup(update_bonus_hint).click(update_bonus_hint);
+		$("#shuu_input").keyup(update_bonus_hint);
+		$(document.forms.shuu_form.level).click(update_bonus_hint);
+		update_bonus_hint();
+	});
+}
+
+function initialize_factory(callback) {
 	var factory_data_text;
 	var pokedex_csv_text;
 	var trainer_names_text;
@@ -85,14 +96,9 @@ $(function() {
 		initialize_factory_entries(factory_data_text);
 		set_pokemon_data_group();
 		initialize_trainer_names(trainer_names_text);
-		$(document.forms.entries_form).submit(on_submit_entries);
-		$(document.forms.seed_form).submit(on_submit_seed);
-		$(document.forms.entries_form.entries).keyup(update_bonus_hint).click(update_bonus_hint);
-		$("#shuu_input").keyup(update_bonus_hint);
-		$(document.forms.shuu_form.level).click(update_bonus_hint);
-		update_bonus_hint();
+		callback();
 	}
-});
+}
 
 function initialize_pokemon_data(pokedex_csv_text) {
 	var lines = pokedex_csv_text.split("\n");
