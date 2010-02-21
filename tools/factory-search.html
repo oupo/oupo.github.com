@@ -11,6 +11,7 @@
 $(function() {
 	initialize_factory(function() {
 		$(document.forms.f).submit(on_submit);
+		$("#stop-button").click(on_click_stop_button);
 	});
 });
 
@@ -41,12 +42,28 @@ function on_submit0(f) {
 }
 
 var timer_id = null;
+var resume = null;
+
+function on_click_stop_button() {
+	if (timer_id !== null) {
+		clearTimeout(timer_id);
+		timer_id = null;
+		$("#stop-button").val("再開");
+		return;
+	}
+	if (resume) {
+		resume();
+		$("#stop-button").val("停止");
+	}
+}
 
 function start_search(shuu, is_open_level, num_bonus, req_entries,
                       frame_min, cons_min, cons_max, zure, result_max) {
 	if (timer_id !== null) {
 		clearTimeout(timer_id);
 	}
+	$("#progress").empty();
+	$("#stop-button").val("停止").attr("disabled", false);
 	$("#result").html("<ul></ul>");
 	var result = [];
 	var result_index = 0;
@@ -54,6 +71,7 @@ function start_search(shuu, is_open_level, num_bonus, req_entries,
 	var seed, cons;
 	var first = true;
 	var last_update_time = + new Date;
+	resume = loop;
 	loop();
 	
 	function loop() {
@@ -91,7 +109,7 @@ function start_search(shuu, is_open_level, num_bonus, req_entries,
 						$("#progress").text("進捗: "+format_hex(fseed, 8));
 						update_result();
 					}
-					setTimeout(loop, 0);
+					timer_id = setTimeout(loop, 0);
 					return;
 				}
 			}
@@ -100,7 +118,9 @@ function start_search(shuu, is_open_level, num_bonus, req_entries,
 		}
 		}
 		$("#progress").text("進捗: 完了");
+		$("#stop-button").attr("disabled", true);
 		update_result();
+		timer_id = null;
 	}
 	
 	function update_result() {
@@ -262,6 +282,7 @@ th {
 <tr><td colspan="2">
 <center>
 <input type="submit" value="検索">
+<input type="button" id="stop-button" value="停止" disabled>
 </center>
 <tr><td colspan="2" id="progress">
 <tr><td colspan="2" id="result">
