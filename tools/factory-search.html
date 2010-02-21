@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<meta http-equiv="Content-Script-Type" content="text/javascript">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<title>バトルファクトリー乱数調整ツール</title>
+<script type="text/javascript" src="jquery.js"></script>
+<script type="text/javascript" src="factory-scouter.js"></script>
+<script type="text/javascript">
+$(function() {
+	initialize_factory(function() {
+		$(document.forms.f).submit(on_submit);
+	});
+});
+
+function on_submit() {
+	try {
+		on_submit0(this);
+	} catch(e) {
+		if (!(e instanceof InvalidInputError)) throw e;
+		alert(e.name+"に入力されている内容が不正です");
+	}
+}
+
+function on_submit0(f) {
+	var shuu = read_input(f.shuu, "周", 1);
+	var is_open_level = f.level[get_checked_radio_index(f.level)].value === "100";
+	var num_bonus = read_input(f.num_bonus, "ボーナスポケの数", 0, 6);
+	var entries = [];
+	for (var i = 0; i < 2; i ++) {
+		var id = read_input(f["pokemon"+(i+1)], "ポケモン"+(i+1), 1, factory_data.length);
+		entries[i] = factory_data[id-1];
+	}
+	var frame_min = read_input(f.frame_min, "初期seed下4桁", 0, 0xffff);
+	var cons_min = read_input(f.cons_min, "初期seedからの位置", 0);
+	var cons_max = read_input(f.cons_max, "初期seedからの位置", 0);
+	var zure = read_input(f.zure, "消費ずれ許容数");
+	var result_max = read_input(f.result_max, "出力件数");
+	start_search(shuu, is_open_level, num_bonus, entries, frame_min, cons_min, cons_max, zure, result_max);
+}
+
+var timer_id = null;
+
+function start_search(shuu, is_open_level, num_bonus, req_entries,
+                      frame_min, cons_min, cons_max, zure, result_max) {
+	if (timer_id !== null) {
+		clearTimeout(timer_id);
+	}
+	$("#result").html("<ul></ul>");
+	var result = [];
+	var result_index = 0;
+	var fseed = frame_min;
+	var seed, cons;
+	var first = true;
+	var last_update_time = + new Date;
+	loop();
+	
+	function loop() {
+		var now_incl = !!Date.now;
+		var start_time = now_incl ? Date.now() : + new Date;
+		var check_count = 0;
+		outer_loop: {
+		while (true) {
+			if (first) {
+				first = false;
+				cons = cons_min;
+				seed = step_seed(fseed, cons);
+			}
+			while (cons <= cons_max) {
+				if (check_seed(seed)) {
+					if (result.length > 0 &&
+					    result[result.length - 1].seed === fseed &&
+					    result[result.length - 1].cons_end === cons - 1) {
+						result[result.length - 1].cons_end = cons;
+					} else {
+						result.push({seed: fseed, cons: cons, cons_end: cons});
+						if (result.length >= result_max) break outer_loop;
+					}
+				}
+				cons ++;
+				seed = next_seed(seed);
+				
+				
+				if (++check_count < 50) continue; // 時間のチェックは一定回数に1回しか行わないように
+				check_count = 0;
+				var time = now_incl ? Date.now() : + new Date;
+				if (time - start_time >= 100) {
+					if (time - last_update_time >= 1000) {
+						last_update_time = time;
+						$("#progress").text("進捗: "+format_hex(fseed, 8));
+						update_result();
+					}
+					setTimeout(loop, 0);
+					return;
+				}
+			}
+			first = true;
+			fseed = succ_fseed(fseed) >>> 0;
+		}
+		}
+		$("#progress").text("進捗: 完了");
+		update_result();
+	}
+	
+	function update_result() {
+		var i = result_index, l = result.length;
+		if (i > 0) {
+			// 最後のを書き換えておく (cons_endが増えている可能性があるため)
+			$("#result li:eq("+(i-1)+")").text(format_result(result[i-1]));
+		}
+		var buf = "";
+		for (; i < l; i ++) {
+			buf += "<li>"+format_result(result[i])+"</li>";
+		}
+		result_index = result.length;
+		$("#result ul").append(buf);
+	}
+	
+	function format_result(r) {
+		var s = format_hex(r.seed, 8)+" + "+r.cons;
+		if (r.cons_end > r.cons) {
+			s += ".."+r.cons_end;
+		}
+		return s;
+	}
+	
+	function check_seed(seed) {
+		for (var i = 0; i <= zure; i ++) {
+			var r = check_seed0(seed);
+			if (!r) return false;
+			seed = next_seed(seed);
+		}
+		return true;
+	}
+	
+	function check_seed0(seed) {
+		seed = step_trainers(shuu, seed);
+		var entries = get_entries(shuu, is_open_level, seed, num_bonus);
+		for (var i = 0; i < req_entries.length; i ++) {
+			var e = req_entries[i];
+			if (!ary_include(entries, e)) return false;
+		}
+		return true;
+	}
+}
+
+function step_trainers(shuu, seed) {
+	var num = (shuu === 2 || shuu === 6) ? 13 : 14;
+	var i = 0;
+	var is_nejiki_shuu = shuu === 3 || shuu == 7;
+	var ids = [];
+	while (i < num) {
+		if (is_nejiki_shuu && i === 6) {
+			ids[i++] = -1;
+			continue;
+		}
+		var id = seed_to_trainer_id(shuu, i === 6 || i === 13, seed);
+		seed = next_seed(seed);
+		if (ary_include(ids, id)) continue;
+		ids[i++] = id;
+	}
+	return seed;
+}
+
+function get_entries(shuu, is_open_level, seed, num_bonus) {
+	var rank = fix_rank(shuu, is_open_level);
+	var bonus_rank = fix_rank(shuu + 1, is_open_level);
+	var entries = [];
+	var i = 0;
+	while (i < 6) {
+		var is_bonus = 6 - i <= num_bonus;
+		var entry_rank = is_bonus ? bonus_rank : rank;
+		var entry = seed_to_entry(entry_rank, seed);
+		seed = next_seed(seed);
+		if (entries_collision0(entry, entries)) continue;
+		entries[i++] = entry;
+	}
+	return entries;
+}
+
+function succ_fseed(seed) {
+	// 次に調べる初期seed
+	if (seed >>> 24 !== 0xff) {
+		return seed + 0x01000000;
+	} else if (seed >>> 16 !== 0xff17) {
+		return (seed & 0xffffff) + 0x010000;
+	} else {
+		return (seed & 0xffff) + 1;
+	}
+}
+
+function InvalidInputError(name) {
+	this.name = name;
+}
+
+function read_input(input, name, min, max) {
+	var value = read_int_string(input.value);
+	if (min == undefined) min = -Infinity;
+	if (max == undefined) max =  Infinity;
+	if (value !== null && min <= value && value <= max) {
+		return value;
+	} else {
+		throw new InvalidInputError(name);
+	}
+}
+</script>
+<style type="text/css">
+form {
+	margin: 1em 0;
+}
+
+fieldset {
+	padding: 0.5em;
+}
+
+th {
+	text-align: right;
+	font-weight: normal;
+}
+
+#progress, #result {
+	font-family: monospace;
+}
+</style>
+</head>
+<body>
+<h1>バトルファクトリー乱数調整ツール</h1>
+<p>最初の6匹に狙ったポケモンを出すためのツール</p>
+<ul><li>もう一つのツール: <a href="factory-scouter.html">ちょうさ・ぶんせきマシン</a></ul>
+<form action="" name="f" onsubmit="return false;">
+<table>
+<tr><td>
+<fieldset>
+<input type="text" name="shuu" size="2" value="1"> 周目
+<label><input type="radio" name="level" value="50" checked>Lv50</label>
+<label><input type="radio" name="level" value="100">オープンレベル</label>
+</fieldset>
+<td>
+<fieldset>
+ボーナスポケ: <input type="text" name="num_bonus" size="2" value="0"> 匹
+</fieldset>
+<tr>
+<td colspan="2">
+<fieldset><center>
+ポケモン1: <input type="text" size="10" name="pokemon1" value="147">
+ポケモン2: <input type="text" size="10" name="pokemon2" value="133">
+</center></fieldset>
+<tr>
+<td colspan="2">
+<fieldset>
+<table style="width:100%">
+<tr><th>初期seed下4桁最小値:
+<td><input type="text" size="7" name="frame_min" value="550">
+<tr><th>初期seedからの位置:
+<td><input type="text" size="4" name="cons_min" value="15"> ～
+<input type="text" size="4" name="cons_max" value="30"> 個先
+<tr><th>NPCによる消費ずれ: <td><input type="text" size="2" name="zure" value="2"> 個まで許容
+<tr><th>出力件数: <td><input type="text" size="4" name="result_max" value="20"> 件まで
+</table>
+</fieldset>
+<tr><td colspan="2">
+<center>
+<input type="submit" value="検索">
+</center>
+<tr><td colspan="2" id="progress">
+<tr><td colspan="2" id="result">
+</table>
+</form>
+</body>
+</html>
