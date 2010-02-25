@@ -30,8 +30,10 @@ function on_submit0(f) {
 	var num_bonus = read_input(f.num_bonus, "ボーナスポケの数", 0, 6);
 	var entries = [];
 	for (var i = 0; i < 2; i ++) {
-		var id = read_input(f["pokemon"+(i+1)], "ポケモン"+(i+1), 1, factory_data.length);
-		entries[i] = factory_data[id-1];
+		var input = f["pokemon"+(i+1)];
+		if (/^\s*$/.test(input.value)) continue;
+		var id = read_input(input, "ポケモン"+(i+1), 1, factory_data.length);
+		entries.push(factory_data[id-1]);
 	}
 	var zure = read_input(f.zure, "消費ずれ許容数");
 	var result_max = read_input(f.result_max, "出力件数");
