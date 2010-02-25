@@ -26,19 +26,30 @@ function on_submit() {
 
 function on_submit0(f) {
 	var shuu = read_input(f.shuu, "周", 1);
-	var is_open_level = f.level[get_checked_radio_index(f.level)].value === "100";
+	var is_open_level = get_checked_radio_value(f.level) === "100";
 	var num_bonus = read_input(f.num_bonus, "ボーナスポケの数", 0, 6);
 	var entries = [];
 	for (var i = 0; i < 2; i ++) {
 		var id = read_input(f["pokemon"+(i+1)], "ポケモン"+(i+1), 1, factory_data.length);
 		entries[i] = factory_data[id-1];
 	}
-	var frame_min = read_input(f.frame_min, "初期seed下4桁", 0, 0xffff);
-	var cons_min = read_input(f.cons_min, "初期seedからの位置", 0);
-	var cons_max = read_input(f.cons_max, "初期seedからの位置", 0);
 	var zure = read_input(f.zure, "消費ずれ許容数");
 	var result_max = read_input(f.result_max, "出力件数");
-	start_search(shuu, is_open_level, num_bonus, entries, frame_min, cons_min, cons_max, zure, result_max);
+	var first_seed_mode = get_checked_radio_value(f.mode) === "first_seed_search";
+	var frame_min, cons_min, cons_max, start_fseed;
+	if (first_seed_mode) {
+		frame_min = read_input(f.frame_min, "初期seed下4桁", 0, 0xffff);
+		cons_min = read_input(f.cons_min, "初期seedからの位置", 0);
+		cons_max = read_input(f.cons_max, "初期seedからの位置", 0);
+		start_fseed = null;
+	} else {
+		frame_min = null;
+		cons_min = 0;
+		cons_max = 0xffffffff;
+		start_fseed = read_input(f.now_seed, "現在seed", 0, 0xffffffff);
+	}
+	start_search(shuu, is_open_level, num_bonus, entries,
+	             frame_min, cons_min, cons_max, zure, result_max, start_fseed);
 }
 
 var timer_id = null;
@@ -58,7 +69,7 @@ function on_click_stop_button() {
 }
 
 function start_search(shuu, is_open_level, num_bonus, req_entries,
-                      frame_min, cons_min, cons_max, zure, result_max) {
+                      frame_min, cons_min, cons_max, zure, result_max, start_fseed) {
 	if (timer_id !== null) {
 		clearTimeout(timer_id);
 	}
@@ -67,7 +78,7 @@ function start_search(shuu, is_open_level, num_bonus, req_entries,
 	$("#result").html("<ul></ul>");
 	var result = [];
 	var result_index = 0;
-	var fseed = frame_min;
+	var fseed = start_fseed !== null ? start_fseed : frame_min;
 	var seed, cons;
 	var first = true;
 	var last_update_time = + new Date;
@@ -106,7 +117,7 @@ function start_search(shuu, is_open_level, num_bonus, req_entries,
 				if (time - start_time >= 100) {
 					if (time - last_update_time >= 1000) {
 						last_update_time = time;
-						$("#progress").text("進捗: "+format_hex(fseed, 8));
+						$("#progress").text("進捗: "+format_hex(fseed, 8)+":"+(cons-1));
 						update_result();
 					}
 					timer_id = setTimeout(loop, 0);
@@ -224,6 +235,12 @@ function read_input(input, name, min, max) {
 		throw new InvalidInputError(name);
 	}
 }
+
+function get_checked_radio_value(radios) {
+	var index = get_checked_radio_index(radios);
+	if (index === null) return null;
+	return radios[index].value;
+}
 </script>
 <style type="text/css">
 form {
@@ -233,6 +250,12 @@ form {
 fieldset {
 	padding: 0.5em;
 }
+
+fieldset table th,
+fieldset table td {
+	width: 50%;
+}
+
 
 th {
 	text-align: right;
@@ -260,23 +283,34 @@ th {
 <fieldset>
 ボーナスポケ: <input type="text" name="num_bonus" size="2" value="0"> 匹
 </fieldset>
-<tr>
-<td colspan="2">
+<tr><td colspan="2">
 <fieldset><center>
 ポケモン1: <input type="text" size="10" name="pokemon1" value="147">
 ポケモン2: <input type="text" size="10" name="pokemon2" value="133">
 </center></fieldset>
-<tr>
-<td colspan="2">
+<tr><td colspan="2">
 <fieldset>
+<table style="width:100%">
+<tr><th>NPCによる消費ずれ: <td><input type="text" size="2" name="zure" value="2"> 個まで許容
+<tr><th>出力件数: <td><input type="text" size="4" name="result_max" value="20"> 件まで
+</table>
+<tr><td colspan="2">
+<fieldset>
+<legend><label><input type="radio" name="mode" value="first_seed_search" checked>初期seedの検索</label></legend>
 <table style="width:100%">
 <tr><th>初期seed下4桁最小値:
 <td><input type="text" size="7" name="frame_min" value="550">
 <tr><th>初期seedからの位置:
 <td><input type="text" size="4" name="cons_min" value="15"> ～
 <input type="text" size="4" name="cons_max" value="30"> 個先
-<tr><th>NPCによる消費ずれ: <td><input type="text" size="2" name="zure" value="2"> 個まで許容
-<tr><th>出力件数: <td><input type="text" size="4" name="result_max" value="20"> 件まで
+</table>
+</fieldset>
+<tr><td colspan="2">
+<fieldset>
+<legend><label><input type="radio" name="mode" value="one_seed">現在のseedの先から検索</label></legend>
+<table style="width:100%">
+<tr><th>現在seed:
+<td><input type="text" size="15" name="now_seed" value="0x00000000">
 </table>
 </fieldset>
 <tr><td colspan="2">
