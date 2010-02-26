@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<meta http-equiv="Content-Script-Type" content="text/javascript">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<title>テキトー 初期seed</title>
+<script type="text/javascript">
+var johto_roads = [29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 42, 43, 44, 45, 46];
+var kanto_roads = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 24, 26, 28];
+
+var addEvent =
+ window.addEventListener ? function(e, n, f) { e.addEventListener(n, f, false); }
+                         : function(e, n, f) { e.attachEvent("on" + n, f); };
+
+addEvent(window, "load", function() {
+	update_date();
+	addEvent(document.forms.f, "submit", on_submit);
+	addEvent(document.getElementById("update_date_button"), "click", update_date);
+});
+
+var DEFAULT_DATE_ADJUST = 15; // デフォルト時刻の秒の調整 (0,15,30,45秒になるように調整)
+var OPENING_TIME_MIN = 14; // ソフト起動から続きからを押すまでの時間
+var OPENING_TIME_MAX = 15;
+var FRAME_MIN = 483;
+var FRAME_MAX = 519;
+
+function get_default_date() {
+	var date = new Date;
+	var sec = date.getSeconds();
+	var target_sec = sec;
+	while (target_sec % DEFAULT_DATE_ADJUST !== 0) {
+		target_sec ++;
+	}
+	var d = new Date(date.getTime() + (target_sec - sec) * 1000);
+	var f = function(n) { return (n < 10 ? "0" : "") + String(n); };
+	
+	return d.getFullYear() + "/" + f(d.getMonth() + 1) + "/" + f(d.getDate()) + 
+	       " " + f(d.getHours()) + ":" + f(d.getMinutes()) + ":" + f(d.getSeconds());
+}
+
+function on_submit() {
+	var err = on_submit0();
+	if (err) {
+		alert(err);
+	}
+}
+
+function on_submit0() {
+	var f = document.forms.f;
+	var date = read_date(f.date.value);
+	var roads_on_save = read_roads(f.roads_on_save.value);
+	var roads = read_roads(f.roads.value);
+	if (!date)           return "起動日時が無効な値です"
+	if (!roads_on_save)  return "セーブ前の徘徊位置が無効な値です";
+	if (!roads)          return "ロード後の徘徊位置が無効な値です";
+	if (!match_roads(roads, roads_on_save)) {
+		return "セーブ前とロード後の位置が対応していません";
+	}
+	var seeds = gen_seeds(date);
+	var buf = "";
+	for (var i = 0; i < seeds.length; i ++) {
+		var seed = seeds[i];
+		var r = get_roads_by_seed(seed, roads_on_save);
+		if (ary_eq(roads, r.roads)) {
+			buf += hex(seed) + ": " + get_utugi_list(seed, r.consumption).join(",") + "\n";
+		}
+	}
+	buf += "--------------------------";
+	document.getElementById("output").value = buf;
+}
+
+function gen_seeds(date) {
+	var seeds = [];
+	for (var t = OPENING_TIME_MIN; t <= OPENING_TIME_MAX; t ++) {
+		var d = new Date(date.getTime() + t * 1000);
+		var high = (d.getMonth() + 1) * d.getDate() + d.getMinutes() + d.getSeconds() << 24 | d.getHours() << 16;
+		for (var f = FRAME_MIN; f <= FRAME_MAX; f ++) {
+			var seed = (high | f + (d.getFullYear() - 2000)) >>> 0;
+			seeds.push(seed);
+		}
+	}
+	return seeds;
+}
+
+function get_utugi_list(seed, c) {
+	seed = step_seed(seed, c + 1);
+	var l = [];
+	for (var i = 0; i < 15; i ++) {
+		l.push((seed >>> 16) % 3);
+		seed = next_seed(seed);
+	}
+	return l;
+}
+
+function update_date() {
+	document.forms.f.date.value = get_default_date();
+}
+
+function read_date(s) {
+	var m = /^(\d+)\/(\d+)\/(\d+) (\d+):(\d+):(\d+)$/.exec(s);
+	if (!m) return null;
+	var n = map(m.slice(1), Number);
+	return new Date(n[0], n[1] - 1, n[2], n[3], n[4], n[5]);
+}
+
+function get_roads_by_seed(seed, roads_on_save) {
+	var result = [];
+	var c = 0;
+	for (var i = 0; i < roads_on_save.length; i ++) {
+		var road_on_save = roads_on_save[i];
+		var roads = ary_include(johto_roads, road_on_save) ? johto_roads : kanto_roads;
+		var road;
+		do {
+			seed = next_seed(seed);
+			road = roads[(seed >>> 16) % roads.length];
+			c ++;
+		} while (road == road_on_save);
+		result.push(road);
+	}
+	return {roads: result, consumption: c};
+}
+
+function read_roads(s) {
+	var a = s.match(/\d+/g) || [];
+	var roads = [];
+	for (var i = 0; i < a.length; i ++) {
+		var road = Number(a[i]);
+		if (!road_is_johto(road) && !road_is_kanto(road)) {
+			return null;
+		}
+		roads[i] = road;
+	}
+	return roads;
+}
+
+function match_roads(roads1, roads2) {
+	var a1 = map(roads1, road_is_johto);
+	var a2 = map(roads2, road_is_johto);
+	return ary_eq(a1, a2);
+}
+
+function road_is_johto(road) {
+	return ary_include(johto_roads, road);
+}
+
+function road_is_kanto(road) {
+	return ary_include(kanto_roads, road);
+}
+
+function hex(n) {
+	return "0x" + ("00000000"+n.toString(16)).slice(-8);
+}
+
+function ary_include(ary, e) {
+	return indexof(ary, e) >= 0;
+}
+
+function ary_eq(a, b) {
+	if (a == b) return true;
+	if (a.length != b.length) return false;
+	var l = a.length;
+	for (var i = 0; i < l; i ++) {
+		if (a[i] !== b[i]) return false;
+	}
+	return true;
+}
+
+function indexof(ary, e) {
+	for (var i = 0; i < ary.length; i ++) {
+		if (ary[i] === e) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+function map(array, fn) {
+	var len = array.length;
+	var result = new Array(len);
+	for (var i = 0; i < len; i ++) {
+		result[i] = fn(array[i]);
+	}
+	return result;
+}
+
+function mul(a, b) {
+	var a1 = a >>> 16, a2 = a & 0xffff;
+	var b1 = b >>> 16, b2 = b & 0xffff;
+	return (((a1 * b2 + a2 * b1) << 16) + a2 * b2) >>> 0;
+}
+
+function step_seed(seed, n) {
+	var fn = next_seed;
+	if (n < 0) {
+		fn = prev_seed;
+		n = -n;
+	}
+	for (var i = 0; i < n; i ++) {
+		seed = fn(seed);
+	}
+	return seed >>> 0;
+}
+
+function next_seed(seed) {
+	return mul(seed, 0x41c64e6d) + 0x6073 >>> 0;
+}
+
+function prev_seed(seed) {
+	return mul(seed, 0xeeb9eb65) + 0xa3561a1 >>> 0;
+}
+</script>
+<style type="text/css">
+th {
+	text-align: right;
+}
+</style>
+</head>
+<body>
+<h1>テキトー 初期seed</h1>
+<p>目標の初期seedとかないから何でもいいからテキトーに連打で起動して初期seedを確認したいときのツール
+<form action="" name="f" onsubmit="return false;">
+<table>
+<tbody>
+<tr><th>ソフト起動日時: <td><input type="text" size="27" name="date" value=""><input type="button" id="update_date_button" value="更新"></tr>
+<tr><th>セーブ前の徘徊位置: <td><input type="text" size="13" name="roads_on_save" value="" autocomplete="off"></tr>
+<tr><th>ロード後の徘徊位置: <td><input type="text" size="13" name="roads" value="" autocomplete="off"></tr>
+<tr><td><td><input type="submit" value="開始"></tr>
+<tr><td colspan="2"><textarea cols="50" rows="5" id="output"></textarea></tr>
+</tbody>
+</table>
+</form>
+</body>
+</html>
