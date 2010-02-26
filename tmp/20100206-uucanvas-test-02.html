@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<meta http-equiv="Content-Script-Type" content="text/javascript">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<title>20100206-uucanvas-test-02.html</title>
+<script type="text/xaml" id="xaml"><?xml version="1.0"?>
+<Canvas xmlns="http://schemas.microsoft.com/client/2007"></Canvas></script>
+<script type="text/javascript" src="../tools/uuCanvas.js"></script>
+<script type="text/javascript">
+var addEvent =
+ window.addEventListener ? function(e, n, f) { e.addEventListener(n, f, false); }
+                         : function(e, n, f) { e.attachEvent("on" + n, f); };
+
+addEvent(window, "load", catchErr(function() {
+	uuCanvas.ready(catchErr(main));
+}));
+
+function main() {
+	var canvas = document.body.appendChild(new_canvas(150, 150));
+	var ctx = canvas.getContext("2d");
+	ctx.fillStyle = "#080";
+	ctx.fillRect(0, 0, 150, 150);
+}
+
+function new_canvas(width, height) {
+	var canvas = document.createElement("canvas");
+	canvas.width = width;
+	canvas.height = height;
+	return uuCanvas.init(canvas);
+}
+
+function catchErr(fn) {
+	return function() {
+		try {
+			fn();
+		} catch(e) {
+			alert("JavaScript Error!\n" + e.name + ": "+e.message + "(" + e.fileName + ":" + e.lineNumber+")");
+		}
+	}
+}
+</script>
+<style type="text/css">
+</style>
+</head>
+<body>
+<h1>20100206-uucanvas-test-02.html</h1>
+</body>
+</html>
