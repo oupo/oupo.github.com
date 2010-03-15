@@ -13,6 +13,7 @@ var addEvent =
 var natures = "がんばりや さみしがり ゆうかん いじっぱり やんちゃ ずぶとい すなお のんき わんぱく のうてんき おくびょう せっかち まじめ ようき むじゃき ひかえめ おっとり れいせい てれや うっかりや おだやか おとなしい なまいき しんちょう きまぐれ".split(" ");
 
 addEvent(window, "load", function() {
+	$("output").value = "";
 	addEvent(document.forms.f, "submit", on_submit);
 });
 
@@ -40,18 +41,25 @@ function on_submit() {
 		alert("その個体値と性格の組み合わせは見つかりませんでした");
 		return;
 	}
+	var search_max = read_number(f.search_max.value);
+	if (search_max === null) {
+		alert("検索回数に入力されている値が不正です");
+		return
+	}
 	var c = 0;
+	$("output").value = "";
+	var hitcount = 0;
 	loop();
 	function loop() {
 		var start_time = +new Date;
-		while (true) {
+		while (c < search_max) {
 			for (var i = 0; i < seeds.length; i ++) {
 				var seed = seeds[i];
 				if ((seed >> 16 & 0xff) < 24) {
 					var id = calc_trainer_id_by_seed(seed);
 					if ((id & 0xffff) === public_id) {
-						$("output").value = format_hex(seed, 8) + "("+(-c)+") 裏ID: "+format_dec(id >>> 16, 5);
-						return;
+						$("output").value += format_hex(seed, 8) + "("+(-c)+") 裏ID: "+format_dec(id >>> 16, 5) + "\n";
+						hitcount ++;
 					}
 				}
 				seeds[i] = prev_seed(seed);
@@ -63,6 +71,7 @@ function on_submit() {
 				return;
 			}
 		}
+		$("output").value += (hitcount === 0 ? "見つかりませんでした" : hitcount+"件見つかりました");
 	}
 }
 
@@ -73,10 +82,14 @@ function read_iv_value(text) {
 	return iv;
 }
 
-function read_public_id(text) {
+function read_number(text) {
 	if (!/^\s*\d+\s*$/.test(text)) return null;
-	var n = Number(text);
-	if (!(0 <= n && n < 65536)) return null;
+	return Number(text);
+}
+
+function read_public_id(text) {
+	var n = read_number(text);
+	if (n !== null && !(0 <= n && n < 65536)) return null;
 	return n;
 }
 
@@ -195,6 +208,7 @@ th {
 <tr><th>個体値: <td><input type="text" size="30" name="iv" value="31-31-31-31-31-31"></tr>
 <tr><th>性格: <td><input type="text" size="10" name="nature" value="おくびょう"></tr>
 <tr><th>表ID: <td><input type="text" size="10" name="public_id" value="09344"></tr>
+<tr><th>検索回数: <td><input type="text" size="10" name="search_max" value="1000"> 個前まで</tr>
 <tr><td><td><input type="submit" value="検索"></tr>
 <tr><td colspan="2"><textarea cols="50" rows="2" id="output"></textarea></tr>
 <tr><td colspan="2" id="progress"></tr>
