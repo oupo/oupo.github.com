@@ -69,7 +69,7 @@ function clear_timer() {
 function format_time(msec) {
 	var sec = msec / 1000;
 	var s = sec.toFixed(2);
-	return sec < 10 ? "0" + s : s;
+	return s.length <= 4 ? "0" + s : s;
 }
 
 function read_time_string(s) {
