@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<meta http-equiv="Content-Script-Type" content="text/javascript">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<title>バトルタワー スカウター</title>
+<script type="text/javascript" src="jquery.js"></script>
+<script type="text/javascript">
+var entries_data = null;
+var pokemon_data = null;
+var pokemon_name2id = null;
+var trainer_names = null;
+var trainers_table = null;
+var natures = "がんばりや さみしがり ゆうかん いじっぱり やんちゃ ずぶとい すなお のんき わんぱく のうてんき おくびょう せっかち まじめ ようき むじゃき ひかえめ おっとり れいせい てれや うっかりや おだやか おとなしい なまいき しんちょう きまぐれ".split(" ");
+
+$(function() {
+	var entries_text;
+	var pokedex_csv_text;
+	var trainer_names_text;
+	var trainers_table_text;
+	$.ajax({dataType: "text", url: "factory_data.txt", success: function(data) {
+		entries_text = data;
+		boot();
+	}});
+	$.ajax({dataType: "text", url: "pokedex.csv?20091120", success: function(data) {
+		pokedex_csv_text = data;
+		boot();
+	}});
+	$.ajax({dataType: "text", url: "trainer.txt", success: function(data) {
+		trainer_names_text = data;
+		boot();
+	}});
+	$.ajax({dataType: "text", url: "tower-trainers-table.txt", success: function(data) {
+		trainers_table_text = data;
+		boot();
+	}});
+	
+	function boot() {
+		if (!entries_text || !pokedex_csv_text || !trainer_names_text || !trainers_table_text) return;
+		initialize_pokemon_data(pokedex_csv_text);
+		initialize_entries(entries_text);
+		initialize_trainer_names(trainer_names_text);
+		initialize_trainers_table(trainers_table_text);
+		$(document.forms.f).submit(on_submit);
+	}
+});
+
+function initialize_pokemon_data(pokedex_csv_text) {
+	var lines = pokedex_csv_text.split("\n");
+	if (lines[lines.length - 1] === "") lines.pop();
+	var boundaries = {"♂のみ": -1, "♀のみ": 255, "1:7": 30, "1:3": 63, "1:1": 126, "3:1": 190, "ふめい": null};
+	pokemon_data = new Array(lines.length);
+	pokemon_name2id = {};
+	for (var i = 0; i < lines.length; i ++) {
+		var row = lines[i].split(",");
+		var name = row[0];
+		var stats = map(row.slice(1, 1 + 6), Number);
+		var ability1 = row[7];
+		var ability2 = row[8] || ability1;
+		var gender_boundary = boundaries[row[9]];
+		pokemon_name2id[name] = i;
+		pokemon_data[i] = {
+			id: i,
+			name: name,
+			stats: stats,
+			abilities: [ability1, ability2],
+			gender_boundary: gender_boundary,
+			group: null,
+			id_in_group: null
+		};
+	}
+}
+
+function initialize_entries(text) {
+	var lines = text.split("\n");
+	if (lines[lines.length - 1] === "") lines.pop();
+	entries_data = new Array(lines.length);
+	for (var i = 0; i < lines.length; i ++) {
+		var row = lines[i].split("|");
+		var pokemon = get_pokemon_entry(row[1]);
+		entries_data[i] = {
+			id: i,
+			name:   row[1],
+			pokemon: pokemon,
+			nature: indexof(natures, row[2]),
+			item:   row[3],
+			move:   row[4],
+			effort: omit_effort_text(row[5])
+		};
+	}
+}
+
+function initialize_trainer_names(trainer_names_text) {
+	var lines = trainer_names = trainer_names_text.split("\n");
+	if (lines[lines.length - 1] === "") lines.pop();
+}
+
+function initialize_trainers_table(text) {
+	var lines = text.split("\n");
+	if (lines[lines.length - 1] === "") lines.pop();
+	var table = trainers_table = new Array(lines.length);
+	for (var i = 0; i < lines.length; i ++) {
+		table[i] = map(lines[i].split(","), Number);
+	}
+}
+
+function on_submit() {
+	try {
+		on_submit0(this);
+	} catch(e) {
+		if (!(e instanceof InputError)) throw e;
+		alert(e.message);
+	}
+}
+
+function on_submit0(f) {
+	var higawari_seeds = read_higawari_seed(f.kujiids.value);
+	if (get_checked_radio_value(f.mode) === "a") {
+		// 最後のくじ番号から○日目が今日
+		var days = read_input(f.days, "経過日数");
+		higawari_seeds = map(higawari_seeds, function(i) { return HigawariSeed.step(i, days); });
+	} else {
+		// 上のを基準に○～○日目後から今日のくじ番号(○)に一致するものを探す
+		var days_range_min = read_input(f.days_range_min, "くじ番号を探す範囲");
+		var days_range_max = read_input(f.days_range_max, "くじ番号を探す範囲");
+		var today_kuji = read_input(f.today_kuji, "今日のくじ番号", 0, 65535);
+		higawari_seeds = search_today_kuji(higawari_seeds, days_range_min, days_range_max, today_kuji);
+		if (higawari_seeds.length === 0) {
+			input_error("今日のくじ番号は見つかりませんでした");
+		}
+	}
+	var count = read_input(f.count, "回数");
+	
+	$("#higawari-seed-select").empty();
+	if (higawari_seeds.length > 1) {
+		var buf = '<p>一致する日替わり乱数のseedが'+higawari_seeds.length+'件あります';
+		for (var i = 0; i < higawari_seeds.length; i ++) {
+			buf += '<br><input type="radio" name="higawari-seed-radio" value="'+i+'"'+(i===0?' checked':'')+'> '+format_hex(higawari_seeds[i], 8);
+		}
+		buf += "</p>";
+		$("#higawari-seed-select").append(buf);
+		$("#higawari-seed-select input").click(function() {
+			var n = Number(this.value);
+			show_result(higawari_seeds[n], count);
+		});
+	}
+	show_result(higawari_seeds[0], count);
+}
+
+function read_higawari_seed(s) {
+	if (/^\s*0x[0-9a-f]+\s*$/i.test(s)) { // くじ番号の代わりに日替わり乱数のseedを0x...形式で入力できるようにしておく
+		return [Number(s)];
+	}
+	if (!/^\s*\d+(?:(?:\s*,\s*|\s+)\d+)+\s*$/.test(s)) { // スペースかカンマ区切り
+		input_error("くじ番号に入力されている値が不正です");
+	}
+	var ids = map(s.match(/\d+/g), Number);
+	if (ids.length < 2) {
+		input_error("くじ番号が2つ以上指定されていません");
+	}
+	var result = search_higawari_seed(ids);
+	if (result.length === 0) {
+		input_error("くじ番号に対応するseedが見つかりません");
+	}
+	return result;
+}
+
+function read_input(input, name, min, max) {
+	var value = read_int_string(input.value);
+	if (min == undefined) min = -Infinity;
+	if (max == undefined) max =  Infinity;
+	if (value !== null && min <= value && value <= max) {
+		return value;
+	} else {
+		input_error(name+"に入力されている値が不正です");
+	}
+}
+
+function read_int_string(s, default_value) {
+	if (/^\s*$/.test(s) && default_value !== undefined) {
+		return default_value;
+	}
+	if (!/^\s*(?:-?\d+|0x[0-9a-f]+)\s*$/i.test(s)) {
+		return null;
+	}
+	return Number(s);
+}
+
+function get_checked_radio_value(radios) {
+	var index = get_checked_radio_index(radios);
+	if (index === null) return null;
+	return radios[index].value;
+}
+
+function get_checked_radio_index(radios) {
+	for (var i = 0; i < radios.length; i ++) {
+		if (radios[i].checked) return i;
+	}
+	return null;
+}
+
+function input_error(message) {
+	throw new InputError(message);
+}
+
+function InputError(message) {
+	this.message = message;
+}
+
+function show_result(higawari_seed, count) {
+	var seed = TowerFSeed.step(higawari_seed, count + 1);
+	$("#result").empty();
+	$("#result").append("<p>日替わり乱数のseed: "+format_hex(higawari_seed, 8)+"</p>");
+	//$("#result").append("<p>seed: "+format_hex(seed, 8)+"</p>");
+	show_result0(seed);
+}
+
+function show_result0(seed) {
+	var buf = "";
+	var prng = new TowerPRNG(seed);
+	prng.rand();
+	var trainer_ids = calc_trainers(prng);
+	for (var i = 0; i < 7; i ++) {
+		var trainer_id = trainer_ids[i];
+		var entries = calc_entries(prng, trainer_id);
+		var tid = prng.rand32();
+		var pids = calc_pids(prng, entries);
+		prng.rand();
+		buf += build_result(i, trainer_id, entries, pids);
+	}
+	$("#result").append(buf);
+}
+
+function build_result(i, trainer_id, entries, pids) {
+	var buf = "";
+	buf += "<p>"+(i+1)+"戦目: "+trainer_names[trainer_id]+"</p>";
+	buf += "<table>";
+	//buf += "<tr><th>No<th>名前<th>アイテム<th>特性<th>性別<th>技";
+	for (var i = 0; i < entries.length; i ++) {
+		var entry = entries[i];
+		var pokemon = entry.pokemon
+		var pid = pids[i];
+		buf += "<tr><th rowspan=2>"+entry.id+"<th rowspan=2>"+entry.name+
+		       "<td>"+entry.item+
+		       "<td>"+pokemon.abilities[pid % 2]+"<td>"+pid2gender(pid, pokemon)+
+		       "<td>"+entry.move;
+		buf += "<tr><td colspan=4 class=status>性格:"+natures[pid % 25]+" 努力値:"+entry.effort+"</tr>";
+	}
+	buf += "</table>";
+	return buf;
+}
+
+function calc_trainers(prng) {
+	var ids = [];
+	var i = 0;
+	while (i < 7) {
+		var id = i === 6 ? prng.rand() % 20 + 100 : prng.rand() % 100;
+		if (ary_include(ids, id)) continue;
+		ids.push(id);
+		i ++;
+	}
+	return ids;
+}
+
+function calc_entries(prng, trainer_id) {
+	var candidates = trainers_table[trainer_id];
+	var i = 0;
+	var entries = [];
+	while (i < 3) {
+		var index = prng.rand() % candidates.length;
+		var id = candidates[index];
+		var entry = entries_data[id - 1];
+		if (entries_collision(entry, entries)) continue;
+		entries.push(entry);
+		i ++;
+	}
+	return entries;
+}
+
+function calc_pids(prng, entries) {
+	var pids = [];
+	for (var i = 0; i < entries.length; i ++) {
+		var pid;
+		var nature = entries[i].nature;
+		do {
+			pid = prng.rand32();
+		} while (pid % 25 !== nature);
+		pids.push(pid);
+	}
+	return pids;
+}
+
+function entries_collision(entry, entries) {
+	for (var i = 0; i < entries.length; i ++) {
+		if (entry.pokemon === entries[i].pokemon) return true;
+		if (entry.item === entries[i].item) return true;
+	}
+	return false;
+}
+
+function get_pokemon_entry(name) {
+	return pokemon_data[pokemon_name2id[name]];
+}
+
+function pid2gender(pid, pokemon) {
+	var boundary = pokemon.gender_boundary;
+	if (boundary !== null) {
+		return (pid & 0xff) > boundary ? "♂" : "♀";
+	} else {
+		return "―";
+	}
+}
+
+var status_names = "HP,攻撃,防御,特攻,特防,すば".split(",");
+
+function omit_effort_text(text) {
+	// ex. omit_effort_text("HP/攻撃")
+	//  => "HA"
+	var list = text.split("/");
+	var result = "";
+	for (var i = 0; i < list.length; i ++) {
+		result += "HABCDS".charAt(indexof(status_names, list[i]));
+	}
+	return result;
+}
+
+function ary_include(ary, e) {
+	return indexof(ary, e) >= 0;
+}
+
+function indexof(ary, e) {
+	for (var i = 0; i < ary.length; i ++) {
+		if (ary[i] === e) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+function map(array, fn) {
+	var len = array.length;
+	if (typeof fn === "string") fn = propname_callback(fn);
+	var result = new Array(len);
+	for (var i = 0; i < len; i ++) {
+		result[i] = fn(array[i]);
+	}
+	return result;
+}
+
+function propname_callback(name) {
+	return function(e) {
+		return e[name];
+	};
+}
+
+function format_hex(n, prec) {
+	var s = n.toString(16);
+	return "0x" + (str_repeat("0", prec - s.length) + s);
+}
+
+function format_dec(n, prec, c) {
+	var s = String(n);
+	return (str_repeat(c || "0", prec - s.length) + s);
+}
+
+function str_repeat(s, n) {
+	var r = "";
+	for (var i = 0; i < n; i ++) {
+		r += s;
+	}
+	return r;
+}
+
+function LinerCongruentialMethod(a, b) {
+	this.a = a;
+	this.b = b;
+};
+
+LinerCongruentialMethod.prototype.next = function(seed) {
+	return mul(seed, this.a) + this.b >>> 0;
+};
+
+LinerCongruentialMethod.prototype.step = function(seed, n) {
+	var a = this.a;
+	var b = this.b;
+	n >>>= 0;
+	var result = seed;
+	while (n) {
+		if (n & 1) {
+			result = mul(result, a) + b >>> 0;
+		}
+		b = mul(b, a) + b >>> 0;
+		a = mul(a, a) >>> 0;
+		n >>>= 1;
+	}
+	return result;
+};
+
+var HigawariSeed = new LinerCongruentialMethod(0x6c078965, 1);
+var TowerFSeed = new LinerCongruentialMethod(0x5d588b65, 1);
+
+HigawariSeed.to_kuji_seed = function(seed) {
+	return mul(seed, 0x41c64e6d) + 0x3039 >>> 0;
+};
+HigawariSeed.to_kuji_id = function(seed) {
+	return HigawariSeed.to_kuji_seed(seed) >>> 16;
+};
+HigawariSeed.by_kuji_seed = function(seed) {
+	return mul(seed, 0xeeb9eb65) + 0xfc77a683 >>> 0;
+};
+
+function search_higawari_seed(kujiids) {
+	var result = [];
+	for (var i = 0; i < 65536; i ++) {
+		var kujiseed = (kujiids[0] << 16 | i) >>> 0;
+		var fseed = HigawariSeed.by_kuji_seed(kujiseed);
+		var seed = fseed;
+		var j = 0;
+		for (var j = 0; j < kujiids.length; j ++) {
+			var id = HigawariSeed.to_kuji_id(seed);
+			if (kujiids[j] !== id) {
+				break;
+			}
+			if (j === kujiids.length - 1) {
+				result.push(seed); // 最後のくじ番号の位置のseedを返す
+				break;
+			}
+			seed = HigawariSeed.next(seed);
+		}
+	}
+	return result;
+}
+
+function search_today_kuji(seeds, min, max, today_kuji) {
+	var result = [];
+	for (var i = 0; i < seeds.length; i ++) {
+		var seed = HigawariSeed.step(seeds[i], min);
+		for (var j = min; j <= max; j ++) {
+			if (HigawariSeed.to_kuji_id(seed) === today_kuji) {
+				result.push(seed);
+			}
+			seed = HigawariSeed.next(seed);
+		}
+	}
+	return result;
+}
+
+function TowerPRNG(seed) {
+	this.seed = seed;
+}
+
+TowerPRNG.prototype.rand = function() {
+	this.seed = mul(this.seed, 0x02e90edd) + 1 >>> 0;
+	return this.seed / 0xffff & 0xffff;
+};
+
+TowerPRNG.prototype.rand32 = function() {
+	var row = this.rand();
+	var high = this.rand();
+	return (high << 16 | row) >>> 0;
+};
+
+function mul(a, b) {
+	var a1 = a >>> 16, a2 = a & 0xffff;
+	var b1 = b >>> 16, b2 = b & 0xffff;
+	return (((a1 * b2 + a2 * b1) << 16) + a2 * b2) >>> 0;
+}
+</script>
+<style type="text/css">
+#result table {
+	border-collapse: collapse;
+}
+
+#result th,
+#result td {
+	padding: 0.1em 5px;
+	border: 1px solid #000;
+}
+
+#result th {
+	font-weight: normal;
+}
+
+#result td.status {
+	font-size: 80%;
+}
+
+form th {
+	text-align: right;
+	vertical-align: top;
+}
+</style>
+</head>
+<body>
+<h1>バトルタワー スカウター</h1>
+<ul>
+<li>まだシングル 1周目しか対応していません
+</ul>
+<form action="" name="f" onsubmit="return false;">
+<table>
+<tr><th>連続した2～3つのくじ番号:
+<td><input type="text" size="25" name="kujiids" value=""> (半角スペース or カンマ区切り)<br>
+<label><input type="radio" name="mode" value="a" checked>最後のくじ番号から </label><input type="text" size="2" name="days" value="0"> 日後が今日<br>
+<label><input type="radio" name="mode" value="b">上のを基準に </label><input type="text" size="2" name="days_range_min" value="1"> ～ <input type="text" size="2" name="days_range_max" value="50"> 日後から今日のくじ番号( <input type="text" size="7" name="today_kuji" value=""> )に一致するのを探す
+<tr><th>最後に日付を跨いでから:<td><input type="text" name="count" size="3" value="1"> 回目
+<tr><td><td><input type="submit" name="seed_submit" value="決定">
+</table>
+</form>
+<div id="higawari-seed-select"></div>
+<div id="result"></div>
+</body>
+</html>
+
