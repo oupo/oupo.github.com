@@ -417,7 +417,6 @@ function search_higawari_seed(kujiids) {
 		var kujiseed = (kujiids[0] << 16 | i) >>> 0;
 		var fseed = HigawariSeed.by_kuji_seed(kujiseed);
 		var seed = fseed;
-		var j = 0;
 		for (var j = 0; j < kujiids.length; j ++) {
 			var id = HigawariSeed.to_kuji_id(seed);
 			if (kujiids[j] !== id) {
