@@ -239,7 +239,7 @@ function build_result(i, trainer_id, entries, pids) {
 	//buf += "<tr><th>No<th>名前<th>アイテム<th>特性<th>性別<th>技";
 	for (var i = 0; i < entries.length; i ++) {
 		var entry = entries[i];
-		var pokemon = entry.pokemon
+		var pokemon = entry.pokemon;
 		var pid = pids[i];
 		buf += "<tr><th rowspan=2>"+entry.id+"<th rowspan=2>"+entry.name+
 		       "<td>"+entry.item+
