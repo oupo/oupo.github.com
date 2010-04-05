@@ -136,7 +136,8 @@ function on_submit0(f) {
 	if (higawari_seeds.length > 1) {
 		var buf = '<p>一致する日替わり乱数のseedが'+higawari_seeds.length+'件あります';
 		for (var i = 0; i < higawari_seeds.length; i ++) {
-			buf += '<br><input type="radio" name="higawari-seed-radio" value="'+i+'"'+(i===0?' checked':'')+'> '+format_hex(higawari_seeds[i], 8);
+			buf += '<br><label><input type="radio" name="higawari-seed-radio" value="'+i+'"'+
+			       (i===0?' checked':'')+'> '+format_hex(higawari_seeds[i], 8)+'</label>';
 		}
 		buf += "</p>";
 		$("#higawari-seed-select").append(buf);
