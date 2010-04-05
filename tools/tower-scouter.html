@@ -373,16 +373,16 @@ function str_repeat(s, n) {
 	return r;
 }
 
-function LinerCongruentialMethod(a, b) {
+function LinearCongruentialMethod(a, b) {
 	this.a = a;
 	this.b = b;
 };
 
-LinerCongruentialMethod.prototype.next = function(seed) {
+LinearCongruentialMethod.prototype.next = function(seed) {
 	return mul(seed, this.a) + this.b >>> 0;
 };
 
-LinerCongruentialMethod.prototype.step = function(seed, n) {
+LinearCongruentialMethod.prototype.step = function(seed, n) {
 	var a = this.a;
 	var b = this.b;
 	n >>>= 0;
@@ -398,8 +398,8 @@ LinerCongruentialMethod.prototype.step = function(seed, n) {
 	return result;
 };
 
-var HigawariSeed = new LinerCongruentialMethod(0x6c078965, 1);
-var TowerFSeed = new LinerCongruentialMethod(0x5d588b65, 1);
+var HigawariSeed = new LinearCongruentialMethod(0x6c078965, 1);
+var TowerFSeed = new LinearCongruentialMethod(0x5d588b65, 1);
 
 HigawariSeed.to_kuji_seed = function(seed) {
 	return mul(seed, 0x41c64e6d) + 0x3039 >>> 0;
