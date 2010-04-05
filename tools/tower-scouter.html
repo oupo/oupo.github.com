@@ -226,7 +226,7 @@ function show_result0(seed) {
 		var trainer_id = trainer_ids[i];
 		var entries = calc_entries(prng, trainer_id);
 		var tid = prng.rand32();
-		var pids = calc_pids(prng, entries);
+		var pids = calc_pids(prng, entries, tid);
 		prng.rand();
 		buf += build_result(i, trainer_id, entries, pids);
 	}
@@ -279,14 +279,16 @@ function calc_entries(prng, trainer_id) {
 	return entries;
 }
 
-function calc_pids(prng, entries) {
+function calc_pids(prng, entries, tid) {
 	var pids = [];
 	for (var i = 0; i < entries.length; i ++) {
 		var pid;
 		var nature = entries[i].nature;
 		do {
 			pid = prng.rand32();
-		} while (pid % 25 !== nature);
+		// 性格が異なるか色違いだと再生成
+		} while (pid % 25 !== nature ||
+		         ((tid >>> 16) ^ (tid & 0xffff) ^ (pid >>> 16) ^ (pid & 0xffff)) < 8);
 		pids.push(pid);
 	}
 	return pids;
