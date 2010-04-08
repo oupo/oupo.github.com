@@ -42,6 +42,7 @@ $(function() {
 		initialize_entries(entries_text);
 		initialize_trainer_names(trainer_names_text);
 		initialize_trainers_table(trainers_table_text);
+		add_tycoon();
 		$(document.forms.f).submit(on_submit);
 	}
 });
@@ -105,6 +106,18 @@ function initialize_trainers_table(text) {
 	}
 }
 
+var silver_tycoon_id, gold_tycoon_id;
+
+function add_tycoon() {
+	silver_tycoon_id = trainer_names.length;
+	trainer_names.push("タワータイクーンのクロツグ");
+	trainers_table.push([469,476,481]); // ドサイドン,ミロカロス,カイリュー
+	
+	gold_tycoon_id = trainer_names.length;
+	trainer_names.push("タワータイクーンのクロツグ");
+	trainers_table.push([948,949,950]); // ヒードラン,クレセリア,レジギガス
+}
+
 function on_submit() {
 	try {
 		on_submit0(this);
@@ -116,6 +129,8 @@ function on_submit() {
 
 function on_submit0(f) {
 	var higawari_seeds = read_higawari_seed(f.kujiids.value);
+	
+	var shuu = read_input(f.shuu, "周", 1);
 	if (get_checked_radio_value(f.mode) === "a") {
 		// 最後のくじ番号から○日目が今日
 		var days = read_input(f.days, "経過日数");
@@ -143,10 +158,10 @@ function on_submit0(f) {
 		$("#higawari-seed-select").append(buf);
 		$("#higawari-seed-select input").click(function() {
 			var n = Number(this.value);
-			show_result(higawari_seeds[n], count);
+			show_result(higawari_seeds[n], count, shuu);
 		});
 	}
-	show_result(higawari_seeds[0], count);
+	show_result(higawari_seeds[0], count, shuu);
 }
 
 function read_higawari_seed(s) {
@@ -209,19 +224,19 @@ function InputError(message) {
 	this.message = message;
 }
 
-function show_result(higawari_seed, count) {
+function show_result(higawari_seed, count, shuu) {
 	var seed = TowerFSeed.step(higawari_seed, count + 1);
 	$("#result").empty();
 	$("#result").append("<p>日替わり乱数のseed: "+format_hex(higawari_seed, 8)+"</p>");
 	//$("#result").append("<p>seed: "+format_hex(seed, 8)+"</p>");
-	show_result0(seed);
+	show_result0(seed, shuu);
 }
 
-function show_result0(seed) {
+function show_result0(seed, shuu) {
 	var buf = "";
 	var prng = new TowerPRNG(seed);
-	prng.rand();
-	var trainer_ids = calc_trainers(prng);
+	consume_on_first(prng, shuu);
+	var trainer_ids = calc_trainers(prng, shuu);
 	for (var i = 0; i < 7; i ++) {
 		var trainer_id = trainer_ids[i];
 		var entries = calc_entries(prng, trainer_id);
@@ -231,6 +246,10 @@ function show_result0(seed) {
 		buf += build_result(i, trainer_id, entries, pids);
 	}
 	$("#result").append(buf);
+}
+
+function consume_on_first(prng, shuu) {
+	prng.step((shuu - 1) * 24 + 1);
 }
 
 function build_result(i, trainer_id, entries, pids) {
@@ -252,16 +271,38 @@ function build_result(i, trainer_id, entries, pids) {
 	return buf;
 }
 
-function calc_trainers(prng) {
+function calc_trainers(prng, shuu) {
 	var ids = [];
 	var i = 0;
 	while (i < 7) {
-		var id = i === 6 ? prng.rand() % 20 + 100 : prng.rand() % 100;
+		var id = calc_trainer_id(prng, shuu, i);
 		if (ary_include(ids, id)) continue;
 		ids.push(id);
 		i ++;
 	}
 	return ids;
+}
+
+var trainer_range_table1 = [0, 99, 80, 119, 100, 139, 120, 159, 140, 179, 160, 199, 180, 219, 200, 299];
+var trainer_range_table2 = [100, 119, 120, 139, 140, 159, 160, 179, 180, 199, 200, 219, 220, 239, 200, 299];
+
+function calc_trainer_id(prng, shuu, i) {
+	if (shuu === 3 && i === 6) {
+		return silver_tycoon_id;
+	}
+	if (shuu === 7 && i === 6) {
+		return gold_tycoon_id;
+	}
+	var table = i === 6 ? trainer_range_table2 : trainer_range_table1;
+	var begin, end;
+	if (shuu >= 8) {
+		begin = 200;
+		end = 299;
+	} else {
+		begin = table[(shuu - 1) * 2];
+		end = table[(shuu - 1) * 2 + 1];
+	}
+	return prng.rand() % (end - begin + 1) + begin;
 }
 
 function calc_entries(prng, trainer_id) {
@@ -452,6 +493,8 @@ function TowerPRNG(seed) {
 	this.seed = seed;
 }
 
+TowerPRNG.Seed = new LinearCongruentialMethod(0x02e90edd, 1);
+
 TowerPRNG.prototype.rand = function() {
 	this.seed = mul(this.seed, 0x02e90edd) + 1 >>> 0;
 	return this.seed / 0xffff & 0xffff;
@@ -461,6 +504,10 @@ TowerPRNG.prototype.rand32 = function() {
 	var row = this.rand();
 	var high = this.rand();
 	return (high << 16 | row) >>> 0;
+};
+
+TowerPRNG.prototype.step = function(n) {
+	this.seed = TowerPRNG.Seed.step(this.seed, n);
 };
 
 function mul(a, b) {
@@ -491,22 +538,24 @@ function mul(a, b) {
 form th {
 	text-align: right;
 	vertical-align: top;
+	font-weight: normal;
 }
 </style>
 </head>
 <body>
 <h1>バトルタワー スカウター</h1>
 <ul>
-<li>まだシングル 1周目しか対応していません
+<li>まだシングルしか対応していません
 <li>データ元: <a href="http://pokemon-ds.happy.nu/">ポケモン ダイヤモンド＆パール／プラチナをごにょごにょするページ</a>
 </ul>
 <form action="" name="f" onsubmit="return false;">
 <table>
+<tr><td><td><input type="text" size="3" name="shuu" value="1"> 周目
 <tr><th>連続した2～3つのくじ番号:
-<td><input type="text" size="25" name="kujiids" value=""> (半角スペース or カンマ区切り)<br>
+<td><input type="text" size="25" name="kujiids" value=""> <small>(半角スペース or カンマ区切り)</small><br>
 <label><input type="radio" name="mode" value="a" checked>最後のくじ番号から </label><input type="text" size="2" name="days" value="0"> 日後が今日<br>
 <label><input type="radio" name="mode" value="b">上のを基準に </label><input type="text" size="2" name="days_range_min" value="1"> ～ <input type="text" size="2" name="days_range_max" value="50"> 日後から今日のくじ番号( <input type="text" size="7" name="today_kuji" value=""> )に一致するのを探す
-<tr><th>最後に日付を跨いでから:<td><input type="text" name="count" size="3" value="1"> 回目
+<tr><th>最後に日付を跨いでから:<td><input type="text" name="count" size="3" value="1"> 回 <small>(1周目に挑戦する直前に+1される)</small>
 <tr><td><td><input type="submit" name="seed_submit" value="決定">
 </table>
 </form>
