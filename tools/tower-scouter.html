@@ -259,7 +259,7 @@ function build_result(i, trainer_id, entries, pids) {
 		var entry = entries[i];
 		var pokemon = entry.pokemon;
 		var pid = pids[i];
-		buf += "<tr><th rowspan=2>"+entry.id+"<th rowspan=2>"+entry.name+
+		buf += "<tr><th rowspan=2>"+(entry.id+1)+"<th rowspan=2>"+entry.name+
 		       "<td>"+entry.item+
 		       "<td>"+pokemon.abilities[pid % 2]+"<td>"+pid2gender(pid, pokemon)+
 		       "<td>"+entry.move;
