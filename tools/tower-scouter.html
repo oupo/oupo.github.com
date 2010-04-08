@@ -131,11 +131,7 @@ function on_submit0(f) {
 	var higawari_seeds = read_higawari_seed(f.kujiids.value);
 	
 	var shuu = read_input(f.shuu, "周", 1);
-	if (get_checked_radio_value(f.mode) === "a") {
-		// 最後のくじ番号から○日目が今日
-		var days = read_input(f.days, "経過日数");
-		higawari_seeds = map(higawari_seeds, function(i) { return HigawariSeed.step(i, days); });
-	} else {
+	if (f.search_check.checked) {
 		// 上のを基準に○～○日目後から今日のくじ番号(○)に一致するものを探す
 		var days_range_min = read_input(f.days_range_min, "くじ番号を探す範囲");
 		var days_range_max = read_input(f.days_range_max, "くじ番号を探す範囲");
@@ -145,6 +141,8 @@ function on_submit0(f) {
 			input_error("今日のくじ番号は見つかりませんでした");
 		}
 	}
+	var days = read_input(f.days, "経過日数");
+	higawari_seeds = map(higawari_seeds, function(i) { return HigawariSeed.step(i, days); });
 	var count = read_input(f.count, "回数");
 	
 	$("#higawari-seed-select").empty();
@@ -553,8 +551,8 @@ form th {
 <tr><td><td><input type="text" size="3" name="shuu" value="1"> 周目
 <tr><th>連続した2～3つのくじ番号:
 <td><input type="text" size="25" name="kujiids" value=""> <small>(半角スペース or カンマ区切り)</small><br>
-<label><input type="radio" name="mode" value="a" checked>最後のくじ番号から </label><input type="text" size="2" name="days" value="0"> 日後が今日<br>
-<label><input type="radio" name="mode" value="b">上のを基準に </label><input type="text" size="2" name="days_range_min" value="1"> ～ <input type="text" size="2" name="days_range_max" value="50"> 日後から今日のくじ番号( <input type="text" size="7" name="today_kuji" value=""> )に一致するのを探す
+<label><input type="checkbox" name="search_check">上のを基準に </label><input type="text" size="2" name="days_range_min" value="1"> ～ <input type="text" size="2" name="days_range_max" value="50"> 日後から今日のくじ番号( <input type="text" size="7" name="today_kuji" value=""> )に一致するのを探す<br>
++ <input type="text" size="2" name="days" value="0"> 日経過
 <tr><th>カウント:<td><input type="text" name="count" size="3" value="1"> 回 <small>(1周目に挑戦する直前に+1; 日付を跨ぐと0にリセット)</small>
 <tr><td><td><input type="submit" name="seed_submit" value="決定">
 </table>
