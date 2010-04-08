@@ -555,7 +555,7 @@ form th {
 <td><input type="text" size="25" name="kujiids" value=""> <small>(半角スペース or カンマ区切り)</small><br>
 <label><input type="radio" name="mode" value="a" checked>最後のくじ番号から </label><input type="text" size="2" name="days" value="0"> 日後が今日<br>
 <label><input type="radio" name="mode" value="b">上のを基準に </label><input type="text" size="2" name="days_range_min" value="1"> ～ <input type="text" size="2" name="days_range_max" value="50"> 日後から今日のくじ番号( <input type="text" size="7" name="today_kuji" value=""> )に一致するのを探す
-<tr><th>最後に日付を跨いでから:<td><input type="text" name="count" size="3" value="1"> 回 <small>(1周目に挑戦する直前に+1される)</small>
+<tr><th>カウント:<td><input type="text" name="count" size="3" value="1"> 回 <small>(1周目に挑戦する直前に+1; 日付を跨ぐと0にリセット)</small>
 <tr><td><td><input type="submit" name="seed_submit" value="決定">
 </table>
 </form>
