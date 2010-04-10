@@ -131,6 +131,7 @@ function on_submit0(f) {
 	var higawari_seeds = read_higawari_seed(f.kujiids.value);
 	
 	var shuu = read_input(f.shuu, "周", 1);
+	var is_single = get_checked_radio_value(f.rule) !== "double";
 	if (f.search_check.checked) {
 		// 上のを基準に○～○日目後から今日のくじ番号(○)に一致するものを探す
 		var days_range_min = read_input(f.days_range_min, "くじ番号を探す範囲");
@@ -156,10 +157,10 @@ function on_submit0(f) {
 		$("#higawari-seed-select").append(buf);
 		$("#higawari-seed-select input").click(function() {
 			var n = Number(this.value);
-			show_result(higawari_seeds[n], count, shuu);
+			show_result(higawari_seeds[n], count, shuu, is_single);
 		});
 	}
-	show_result(higawari_seeds[0], count, shuu);
+	show_result(higawari_seeds[0], count, shuu, is_single);
 }
 
 function read_higawari_seed(s) {
@@ -222,22 +223,22 @@ function InputError(message) {
 	this.message = message;
 }
 
-function show_result(higawari_seed, count, shuu) {
+function show_result(higawari_seed, count, shuu, is_single) {
 	var seed = TowerFSeed.step(higawari_seed, count + 1);
 	$("#result").empty();
 	$("#result").append("<p>日替わり乱数のseed: "+format_hex(higawari_seed, 8)+"</p>");
 	//$("#result").append("<p>seed: "+format_hex(seed, 8)+"</p>");
-	show_result0(seed, shuu);
+	show_result0(seed, shuu, is_single);
 }
 
-function show_result0(seed, shuu) {
+function show_result0(seed, shuu, is_single) {
 	var buf = "";
 	var prng = new TowerPRNG(seed);
 	consume_on_first(prng, shuu);
-	var trainer_ids = calc_trainers(prng, shuu);
+	var trainer_ids = calc_trainers(prng, shuu, is_single);
 	for (var i = 0; i < 7; i ++) {
 		var trainer_id = trainer_ids[i];
-		var entries = calc_entries(prng, trainer_id);
+		var entries = calc_entries(prng, trainer_id, is_single ? 3 : 4);
 		var tid = prng.rand32();
 		var pids = calc_pids(prng, entries, tid);
 		prng.rand();
@@ -269,11 +270,11 @@ function build_result(i, trainer_id, entries, pids) {
 	return buf;
 }
 
-function calc_trainers(prng, shuu) {
+function calc_trainers(prng, shuu, is_single) {
 	var ids = [];
 	var i = 0;
 	while (i < 7) {
-		var id = calc_trainer_id(prng, shuu, i);
+		var id = calc_trainer_id(prng, shuu, i, is_single);
 		if (ary_include(ids, id)) continue;
 		ids.push(id);
 		i ++;
@@ -284,12 +285,10 @@ function calc_trainers(prng, shuu) {
 var trainer_range_table1 = [0, 99, 80, 119, 100, 139, 120, 159, 140, 179, 160, 199, 180, 219, 200, 299];
 var trainer_range_table2 = [100, 119, 120, 139, 140, 159, 160, 179, 180, 199, 200, 219, 220, 239, 200, 299];
 
-function calc_trainer_id(prng, shuu, i) {
-	if (shuu === 3 && i === 6) {
-		return silver_tycoon_id;
-	}
-	if (shuu === 7 && i === 6) {
-		return gold_tycoon_id;
+function calc_trainer_id(prng, shuu, i, is_single) {
+	if (is_single && i === 6) {
+		if (shuu === 3) return silver_tycoon_id;
+		if (shuu === 7) return gold_tycoon_id;
 	}
 	var table = i === 6 ? trainer_range_table2 : trainer_range_table1;
 	var begin, end;
@@ -303,11 +302,11 @@ function calc_trainer_id(prng, shuu, i) {
 	return prng.rand() % (end - begin + 1) + begin;
 }
 
-function calc_entries(prng, trainer_id) {
+function calc_entries(prng, trainer_id, num) {
 	var candidates = trainers_table[trainer_id];
 	var i = 0;
 	var entries = [];
-	while (i < 3) {
+	while (i < num) {
 		var index = prng.rand() % candidates.length;
 		var id = candidates[index];
 		var entry = entries_data[id - 1];
@@ -547,7 +546,10 @@ form th {
 </ul>
 <form action="" name="f" onsubmit="return false;">
 <table>
-<tr><td><td><input type="text" size="3" name="shuu" value="1"> 周目
+<tr><td><td>
+<input type="text" size="3" name="shuu" value="1"> 周目
+<label><input type="radio" name="rule" value="single" checked>シングル</label>
+<label><input type="radio" name="rule" value="double">ダブル</label>
 <tr><th>連続した2～3つのくじ番号:
 <td><input type="text" size="25" name="kujiids" value=""> <small>(半角スペース or カンマ区切り)</small><br>
 <label><input type="checkbox" name="search_check">上のを基準に </label><input type="text" size="2" name="days_range_min" value="1"> ～ <input type="text" size="2" name="days_range_max" value="50"> 日後から今日のくじ番号( <input type="text" size="7" name="today_kuji" value=""> )に一致するのを探す<br>
