@@ -81,9 +81,12 @@ function on_submit() {
 	}
 }
 
-function on_select_change() {
+function on_select_change(event) {
 	var input = document.forms.f.nature;
 	var select = document.forms.f.nature_select;
+	if (event.type == "keypress" && event.keyCode == 9) { // KeyEvent.DOM_VK_TAB
+		return;
+	}
 	input.value = select[select.selectedIndex].value;
 }
 
