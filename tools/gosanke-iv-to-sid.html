@@ -11,9 +11,12 @@ var addEvent =
                          : function(e, n, f) { e.attachEvent("on" + n, f); };
 
 var natures = "がんばりや さみしがり ゆうかん いじっぱり やんちゃ ずぶとい すなお のんき わんぱく のうてんき おくびょう せっかち まじめ ようき むじゃき ひかえめ おっとり れいせい てれや うっかりや おだやか おとなしい なまいき しんちょう きまぐれ".split(" ");
+var natures_en = "Hardy Lonely Brave Adamant Naughty Bold Docile Relaxed Impish Lax Timid Hasty Serious Jolly Naive Modest Mild Quiet Bashful Rash Calm Gentle Sassy Careful Quirky".split(" ");
 
 addEvent(window, "load", function() {
 	$("output").value = "";
+	addEvent(document.forms.f.nature_select, "change", on_select_change);
+	addEvent(document.forms.f.nature_select, "keypress", on_select_change);
 	addEvent(document.forms.f, "submit", on_submit);
 });
 
@@ -28,8 +31,11 @@ function on_submit() {
 	}
 	var nature = indexof(natures, f.nature.value);
 	if (nature < 0) {
-		alert("性格に入力されている値が不正です");
-		return;
+		nature = indexof(natures_en, f.nature.value);
+		if (nature < 0) {
+			alert("性格に入力されている値が不正です");
+			return;
+		}
 	}
 	var public_id = read_public_id(f.public_id.value);
 	if (public_id === null) {
@@ -58,7 +64,7 @@ function on_submit() {
 				if ((seed >> 16 & 0xff) < 24) {
 					var id = calc_trainer_id_by_seed(seed);
 					if ((id & 0xffff) === public_id) {
-						$("output").value += format_hex(seed, 8) + "("+(-c)+") 裏ID: "+format_dec(id >>> 16, 5) + "\n";
+						$("output").value += format_hex(seed, 8) + "("+(-c)+") SID: "+format_dec(id >>> 16, 5) + "\n";
 						hitcount ++;
 					}
 				}
@@ -71,13 +77,20 @@ function on_submit() {
 				return;
 			}
 		}
-		$("output").value += (hitcount === 0 ? "見つかりませんでした" : hitcount+"件見つかりました");
+		$("output").value += (hitcount === 0 ? "見つかりませんでした (not found)" : hitcount+"件見つかりました");
 	}
 }
 
+function on_select_change() {
+	var input = document.forms.f.nature;
+	var select = document.forms.f.nature_select;
+	input.value = select[select.selectedIndex].value;
+}
+
 function read_iv_value(text) {
-	if (!/^\s*(?:\d+-){5}\d+\s*$/.test(text)) return null;
-	var iv = map(text.split("-"), Number);
+	// 区切りは "-", "/", " ", "," を認める
+	if (!/^\s*(?:\d+[-/ ,]){5}\d+\s*$/.test(text)) return null;
+	var iv = map(text.match(/\d+/g), Number);
 	if (!ary_every(iv, function(i) { return i < 32 })) return null;
 	return iv;
 }
@@ -202,13 +215,19 @@ th {
 </head>
 <body>
 <h1>御三家個体値→裏ID</h1>
+<p>Starter Pokémon's IVs to SID
+<noscript><p><strong>このツールを利用するにはJavaScriptを有効にする必要があります<br>
+To use this tool, enable JavaScript.</strong>
+</noscript>
 <form action="" name="f" onsubmit="return false;">
 <table>
 <tbody>
-<tr><th>個体値: <td><input type="text" size="30" name="iv" value="31-31-31-31-31-31"></tr>
-<tr><th>性格: <td><input type="text" size="10" name="nature" value="おくびょう"></tr>
-<tr><th>表ID: <td><input type="text" size="10" name="public_id" value="09344"></tr>
-<tr><th>検索回数: <td><input type="text" size="10" name="search_max" value="1000"> 個前まで</tr>
+<tr><th>個体値(IVs): <td><input type="text" size="30" name="iv" value=""> <small>(HP-Atk-Def-SpA-SpD-Spe)</small><br><small>ex) "31-31-31-31-31-31"</small></tr>
+<tr><th>性格(nature): <td><input type="text" size="16" name="nature" value=""> (select: 
+<select name="nature_select"><option><option>Adamant<option>Bashful<option>Bold<option>Brave<option>Calm<option>Careful<option>Docile<option>Gentle<option>Hardy<option>Hasty<option>Impish<option>Jolly<option>Lax<option>Lonely<option>Mild<option>Modest<option>Naive<option>Naughty<option>Quiet<option>QuirkyRash<option>Relaxed<option>Sassy<option>Serious<option>Timid</select>)<br><small>(日本人の方はひらがなで「がんばりや」のように入力すればOKです)</small>
+</tr>
+<tr><th>表ID(trainer id): <td><input type="text" size="10" name="public_id" value=""></tr>
+<tr><th>検索回数(search max): <td><input type="text" size="10" name="search_max" value="1000"> 個前まで</tr>
 <tr><td><td><input type="submit" value="検索"></tr>
 <tr><td colspan="2"><textarea cols="50" rows="2" id="output"></textarea></tr>
 <tr><td colspan="2" id="progress"></tr>
