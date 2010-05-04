@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<meta http-equiv="Content-Script-Type" content="text/javascript">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<title>ものひろい補助ツール</title>
+<script type="text/javascript" src="jquery.js"></script>
+<script type="text/javascript">
+var waza_list = null;
+
+$(function() {
+	$.ajax({dataType: "text", url: "waza_list.txt", success: function(data) {
+		initialize_waza_list(data);
+		$(document.forms.f).submit(on_submit);
+	}});
+});
+
+function on_submit() {
+	try {
+		on_submit0(this);
+	} catch(e) {
+		if (!(e instanceof InputError)) throw e;
+		alert(e.message);
+	}
+}
+
+function on_submit0(f) {
+	var seed = read_input(f.iseed, "狙いの初期seed");
+	var range = read_input(f.range, "出力する前後フレーム数");
+	var waza = read_waza(f.waza.value);
+	build_list(seed, range, waza);
+}
+
+function build_list(base_seed, range, target_waza) {
+	var prng = new PRNG(0);
+	var buf = "";
+	buf += '<ul style="font-size:80%">';
+	buf += "<li>ものひろいは指を振るで普通の攻撃技（連続攻撃技などを除く）がでて先制して1撃で倒した場合の結果を示しています。補助技などが出て2ターン目で倒した場合などは消費数が異なるので違う結果になります";
+	buf += "<li>「1匹目のものひろい」は先頭にいるものひろいポケモンではなく先頭から数えて最初のものひろいポケモンを意味しています";
+	buf += "</ul>";
+	buf += "<table><tr><th rowspan=2>初期seed<th rowspan=2>技<th colspan=6>ものひろい";
+	buf += "<tr><th>1匹目<th>2匹目<th>3匹目<th>4匹目<th>5匹目<th>6匹目";
+	for (var i = -range; i <= range; i ++) {
+		var iseed = base_seed + i >>> 0;
+		prng.seed = iseed;
+		prng.step(11);
+		var waza = calc_metrnome_waza(prng);
+		if (target_waza === null || waza === target_waza) {
+			buf += "<tr><td>"+format_hex(iseed, 8)+"<td>"+waza.name;
+			prng.step(4 + waza.num_effect());
+			buf += pickups_to_cells(calc_pickups(prng));
+		}
+	}
+	buf += "</table>";
+	$("#result").html(buf);
+}
+
+function pickups_to_cells(pickups) {
+	return map(pickups, function(i) { return "<td>" + (i === null ? "-" : i) }).join("");
+}
+
+function calc_pickups(prng) {
+	var r = [];
+	for (var i = 0; i < 6; i ++) {
+		if (prng.rand() % 10 === 0) {
+			r[i] = prng.rand() % 100;
+		} else {
+			r[i] = null;
+		}
+	}
+	return r;
+}
+
+var DESELECTION_WAZAS = [0x44, 0x66, 0x76, 0x77, 0xA5, 0xA6, 0xA8, 0xB6, 0xC2, 0xC5, 0xCB, 0xD6, 0xF3, 0x108, 0x10A, 0x10E, 0x10F, 0x112, 0x121, 0x157, 0x16C, 0x17E, 0x17F, 0x19F, 0x1C0];
+
+function calc_metrnome_waza(prng) {
+	do {
+		var waza = prng.rand() % 0x1d3 + 1;
+	} while (ary_include(DESELECTION_WAZAS, waza));
+	return waza_list[waza];
+}
+
+function read_waza(text) {
+	if (/^\s*$/.test(text)) return null;
+	var name = /^\s*(.+)\s*$/.exec(text)[1];
+	for (var i = 1; i < waza_list.length; i ++) {
+		if (name === waza_list[i].name) {
+			return waza_list[i];
+		}
+	}
+	input_error("わざ名が不正です");
+}
+
+function Waza(id, effect_code, effect_odds, hit_odds, name) {
+	this.id = id;
+	this.effect_code = effect_code;
+	this.effect_odds = effect_odds;
+	this.hit_odds = hit_odds;
+	this.name = name;
+}
+
+Waza.prototype.num_effect = function() {
+	// 追加効果の個数
+	if (this.effect_odds == 0) return 0;
+	if (422 <= this.id && this.id <= 424) { // 三色キバ
+		return 2;
+	}
+	return 1;
+};
+
+function initialize_waza_list(text) {
+	var lines = split(text, "\n");
+	waza_list = new Array(lines.length + 1);
+	for (var i = 0; i < lines.length; i ++) {
+		var line = lines[i];
+		var m = /^([0-9a-f]+)\t(\d+)\t(\d+)\t(.+)$/i.exec(line);
+		waza_list[i+1] = new Waza(i+1, parseInt(m[1], 16), Number(m[2]), Number(m[3]), m[4]);
+	}
+}
+
+function read_input(input, name, min, max) {
+	var value = read_int_string(input.value);
+	if (min == undefined) min = -Infinity;
+	if (max == undefined) max =  Infinity;
+	if (value !== null && min <= value && value <= max) {
+		return value;
+	} else {
+		input_error(name+"に入力されている値が不正です");
+	}
+}
+
+function read_int_string(s, default_value) {
+	if (/^\s*$/.test(s) && default_value !== undefined) {
+		return default_value;
+	}
+	if (!/^\s*(?:-?\d+|0x[0-9a-f]+)\s*$/i.test(s)) {
+		return null;
+	}
+	return Number(s);
+}
+
+function input_error(message) {
+	throw new InputError(message);
+}
+
+function InputError(message) {
+	this.message = message;
+}
+
+function split(s, delim) {
+	var a = s.split(delim);
+	if (a[a.length - 1] === "") a.pop();
+	return a;
+}
+
+function ary_include(ary, e) {
+	return indexof(ary, e) >= 0;
+}
+
+function indexof(ary, e) {
+	for (var i = 0; i < ary.length; i ++) {
+		if (ary[i] === e) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+function map(array, fn) {
+	var len = array.length;
+	if (typeof fn === "string") fn = propname_callback(fn);
+	var result = new Array(len);
+	for (var i = 0; i < len; i ++) {
+		result[i] = fn(array[i]);
+	}
+	return result;
+}
+
+function propname_callback(name) {
+	return function(e) {
+		return e[name];
+	};
+}
+
+function format_hex(n, prec) {
+	var s = n.toString(16);
+	return "0x" + (str_repeat("0", prec - s.length) + s);
+}
+
+function format_dec(n, prec, c) {
+	var s = String(n);
+	return (str_repeat(c || "0", prec - s.length) + s);
+}
+
+function str_repeat(s, n) {
+	var r = "";
+	for (var i = 0; i < n; i ++) {
+		r += s;
+	}
+	return r;
+}
+
+function PRNG(seed) {
+	this.seed = seed;
+}
+
+PRNG.prototype.rand = function() {
+	this.seed = next_seed(this.seed);
+	return this.seed >>> 16;
+}
+
+PRNG.prototype.step = function(n) {
+	this.seed = step_seed(this.seed, n);
+}
+
+step_seed.cache = (function() {
+	var N = 256;
+	var a = new Array(N);
+	var c1 = {a: 0x41c64e6d, b: 0x6073};
+	var c = {a: 1, b: 0};
+	for (var i = 0; i < N; i ++) {
+		a[i] = c;
+		c = {a: mul(c.a, c1.a), b: (mul(c.b, c1.a) + c1.b) >>> 0};
+	}
+	return a;
+})();
+
+function step_seed(seed, n) {
+	var a = 0x41c64e6d;
+	var b = 0x6073;
+	n >>>= 0;
+	if (n < step_seed.cache.length) {
+		var c = step_seed.cache[n];
+		return mul(seed, c.a) + c.b >>> 0;
+	}
+	var result = seed;
+	while (n) {
+		if (n & 1) {
+			result = mul(result, a) + b >>> 0;
+		}
+		b = mul(b, a) + b >>> 0;
+		a = mul(a, a) >>> 0;
+		n >>>= 1;
+	}
+	return result;
+}
+
+function next_seed(seed) {
+	return mul(seed, 0x41c64e6d) + 0x6073 >>> 0;
+}
+
+function prev_seed(seed) {
+	return mul(seed, 0xeeb9eb65) + 0xa3561a1 >>> 0;
+}
+
+function mul(a, b) {
+	var a1 = a >>> 16, a2 = a & 0xffff;
+	var b1 = b >>> 16, b2 = b & 0xffff;
+	return (((a1 * b2 + a2 * b1) << 16) + a2 * b2) >>> 0;
+}
+</script>
+<style type="text/css">
+table {
+	border-collapse: collapse;
+	font-size: 80%;
+}
+table th,
+table td {
+	padding: 0.1em 5px;
+	border: 1px solid black;
+}
+
+form th {
+	text-align: right;
+}
+
+form table {
+	font-size: 100%;
+}
+
+form table th,
+form table td {
+	border: none;
+}
+</style>
+</head>
+<body>
+<h1>ものひろい補助ツール</h1>
+<p>野生との戦闘でゆびをふるで出た技で初期seedを確認しつつものひろいの乱数調整する用のツール
+<h2>リスト作成</h2>
+<form action="" name="f" onsubmit="return false;">
+<table>
+<tbody>
+<tr><th>狙いの初期seed: <td><input type="text" size="20" name="iseed" value=""></tr>
+<tr><th>出力する前後フレーム数: <td><input type="text" size="10" name="range" value="300"></tr>
+<tr><th>技のフィルター: <td><input type="text" size="30" name="waza" value=""></tr>
+<tr><td><td><input type="submit" value="作成"></tr>
+</tbody>
+</table>
+</form>
+<div id="result"></div>
+<h2>アイテムの表</h2>
+<table id="item-table">
+<tr><th><th>Lv1-10<th>Lv11-20<th>Lv21-30<th>Lv31-40<th>Lv41-50<th>Lv51-60<th>Lv61-70<th>Lv71-80<th>Lv81-90<th>Lv91-100
+<tr><th>0-29<td>きずぐすり<td>どくけし<td>いいキズぐすり<td>スーパーボール<td>むしよけスプレー<td>あなぬけのヒモ<td>なんでもなおし<td>すごいキズぐすり<td>ハイパーボール<td>げんきのかけら
+<tr><th>30-39<td>どくけし<td>いいキズぐすり<td>スーパーボール<td>むしよけスプレー<td>あなぬけのヒモ<td>なんでもなおし<td>すごいキズぐすり<td>ハイパーボール<td>げんきのかけら<td>ふしぎなアメ
+<tr><th>40-49<td>いいキズぐすり<td>スーパーボール<td>むしよけスプレー<td>あなぬけのヒモ<td>なんでもなおし<td>すごいキズぐすり<td>ハイパーボール<td>げんきのかけら<td>ふしぎなアメ<td>たいようのいし
+<tr><th>50-59<td>スーパーボール<td>むしよけスプレー<td>あなぬけのヒモ<td>なんでもなおし<td>すごいキズぐすり<td>ハイパーボール<td>げんきのかけら<td>ふしぎなアメ<td>たいようのいし<td>つきのいし
+<tr><th>60-69<td>むしよけスプレー<td>あなぬけのヒモ<td>なんでもなおし<td>すごいキズぐすり<td>ハイパーボール<td>げんきのかけら<td>ふしぎなアメ<td>たいようのいし<td>つきのいし<td>ハートのウロコ
+<tr><th>70-79<td>あなぬけのヒモ<td>なんでもなおし<td>すごいキズぐすり<td>ハイパーボール<td>げんきのかけら<td>ふしぎなアメ<td>たいようのいし<td>つきのいし<td>ハートのウロコ<td>かいふくのくすり
+<tr><th>80-89<td>なんでもなおし<td>すごいキズぐすり<td>ハイパーボール<td>げんきのかけら<td>ふしぎなアメ<td>たいようのいし<td>つきのいし<td>ハートのウロコ<td>かいふくのくすり<td>げんきのかたまり
+<tr><th>90-93<td>すごいキズぐすり<td>ハイパーボール<td>げんきのかけら<td>ふしぎなアメ<td>たいようのいし<td>つきのいし<td>ハートのウロコ<td>かいふくのくすり<td>げんきのかたまり<td>ポイントアップ
+<tr><th>94-97<td>ハイパーボール<td>げんきのかけら<td>ふしぎなアメ<td>たいようのいし<td>つきのいし<td>ハートのウロコ<td>かいふくのくすり<td>げんきのかたまり<td>ポイントアップ<td>ピーピーマックス
+<tr><th>98<td>きんのたま<td>おうじゃのしるし<td>かいふくのくすり<td>ピーピーエイド<td>くろいてっきゅう<td>わざマシン５６<td>ピーピーエイダー<td>わざマシン８６<td>たべのこし<td>わざマシン２６
+<tr><th>99<td>すごいキズぐすり<td>きんのたま<td>おうじゃのしるし<td>かいふくのくすり<td>ピーピーエイド<td>くろいてっきゅう<td>わざマシン５６<td>ピーピーエイダー<td>わざマシン８６<td>たべのこし
+</table>
+</body>
+</html>
