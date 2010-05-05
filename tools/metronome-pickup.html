@@ -115,7 +115,7 @@ var boot_search_form;
 		var frame_min = read_input(f.frame_min, "初期seed下4桁最小値");
 		var result_max = read_input(f.result_max, "出力件数");
 		var zure_mode = f.check_zure.checked;
-		var zure_max = zure_mode ? read_input(f.zure_max, "ずれ最大個数") : 0;
+		var zure_max = zure_mode ? read_input(f.zure_max, "ずれ最大個数") : null;
 		var check_same = f.check_same.checked;
 		
 		if (timer_id !== null) clearTimeout(timer_id);
@@ -216,6 +216,7 @@ function judge_seeds(prng, seed, is_target, zure_max, force_same) {
 	var ret0 = judge_seed(prng, seed, is_target);
 	if (!ret0) return null;
 	var result = [seed];
+	if (zure_max === null) return result;
 	for (var i = 1; i <= zure_max; i ++) {
 		var ret = judge_seed(prng, seed + i, is_target);
 		if (ret && (!force_same ||
