@@ -95,8 +95,8 @@ function step_battle_waza_advancement(prng, waza) {
 	prng.step(4 + waza.num_effect());
 }
 
-function build_row(seed, waza, pickups) {
-	return '<tr><td class="seed">'+format_hex(seed, 8)+"<td>"+waza.name+pickups_to_cells(pickups);
+function build_row(seed, waza, pickups, is_target) {
+	return '<tr><td class="seed">'+format_hex(seed, 8)+"<td>"+waza.name+pickups_to_cells(pickups, is_target);
 }
 
 var boot_search_form;
@@ -174,7 +174,7 @@ var boot_search_form;
 				step_battle_first_advancement(prng);
 				var waza = calc_metrnome_waza(prng);
 				step_battle_waza_advancement(prng, waza);
-				buf += build_row(seed, waza, calc_pickups(prng));
+				buf += build_row(seed, waza, calc_pickups(prng), is_target);
 			}
 			table.append(buf);
 			result_index = result.length;
@@ -267,8 +267,11 @@ var StopButton = {
 	}
 };
 
-function pickups_to_cells(pickups) {
-	return map(pickups, function(i) { return "<td>" + (i === null ? "-" : i) }).join("");
+function pickups_to_cells(pickups, is_target) {
+	return map(pickups, function(i) {
+		var attr = (i !== null && is_target && is_target[i]) ? ' class="hit"' : "";
+		return "<td"+attr+">" + (i === null ? "-" : i);
+	}).join("");
 }
 
 function calc_pickups(prng) {
@@ -514,6 +517,10 @@ form table {
 form th,
 form td {
 	border: none;
+}
+
+td.hit {
+	background-color: #fcc;
 }
 </style>
 </head>
