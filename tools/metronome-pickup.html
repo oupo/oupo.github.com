@@ -8,29 +8,62 @@
 <script type="text/javascript" src="jquery.js"></script>
 <script type="text/javascript">
 var waza_list = null;
+var ok_waza = null;
+
+var metrnome_ranges = [{start:  0, end: 29},
+                       {start: 30, end: 39},
+                       {start: 40, end: 49},
+                       {start: 50, end: 59},
+                       {start: 60, end: 69},
+                       {start: 70, end: 79},
+                       {start: 80, end: 89},
+                       {start: 90, end: 93},
+                       {start: 94, end: 97},
+                       {start: 98, end: 98},
+                       {start: 99, end: 99}];
+
+var metrnome_val2index = (function() {
+	var a = new Array(100);
+	for (var i = 0; i < metrnome_ranges.length; i ++) {
+		var start = metrnome_ranges[i].start;
+		var end = metrnome_ranges[i].end;
+		for (var j = start; j <= end; j ++) {
+			a[j] = i;
+		}
+	}
+	return a;
+})();
 
 $(function() {
 	$.ajax({dataType: "text", url: "waza_list.txt", success: function(data) {
 		initialize_waza_list(data);
-		$(document.forms.f).submit(on_submit);
+		initialize_ok_waza();
+		$(document.forms.list_form).submit(submit_callback(on_submit_list));
+		boot_search_form();
+		StopButton.disable();
 	}});
 });
 
-function on_submit() {
-	try {
-		on_submit0(this);
-	} catch(e) {
-		if (!(e instanceof InputError)) throw e;
-		alert(e.message);
+function submit_callback(fn) {
+	return function() {
+		try {
+			fn(this);
+		} catch(e) {
+			if (!(e instanceof InputError)) throw e;
+			alert(e.message);
+		}
 	}
 }
 
-function on_submit0(f) {
+function on_submit_list(f) {
 	var seed = read_input(f.iseed, "狙いの初期seed");
 	var range = read_input(f.range, "出力する前後フレーム数");
 	var waza = read_waza(f.waza.value);
 	build_list(seed, range, waza);
 }
+
+var table_head = "<tr><th rowspan=2>初期seed<th rowspan=2>技<th colspan=6>ものひろい" +
+                 "<tr><th>1匹目<th>2匹目<th>3匹目<th>4匹目<th>5匹目<th>6匹目"
 
 function build_list(base_seed, range, target_waza) {
 	var prng = new PRNG(0);
@@ -39,22 +72,200 @@ function build_list(base_seed, range, target_waza) {
 	buf += "<li>ものひろいは指を振るで普通の攻撃技（連続攻撃技などを除く）がでて先制して1撃で倒した場合の結果を示しています。補助技などが出て2ターン目で倒した場合などは消費数が異なるので違う結果になります";
 	buf += "<li>「1匹目のものひろい」は先頭にいるものひろいポケモンではなく先頭から数えて最初のものひろいポケモンを意味しています";
 	buf += "</ul>";
-	buf += "<table><tr><th rowspan=2>初期seed<th rowspan=2>技<th colspan=6>ものひろい";
-	buf += "<tr><th>1匹目<th>2匹目<th>3匹目<th>4匹目<th>5匹目<th>6匹目";
+	buf += "<table>" + table_head;
 	for (var i = -range; i <= range; i ++) {
 		var iseed = base_seed + i >>> 0;
 		prng.seed = iseed;
-		prng.step(11);
+		step_battle_first_advancement(prng);
 		var waza = calc_metrnome_waza(prng);
 		if (target_waza === null || waza === target_waza) {
-			buf += "<tr><td>"+format_hex(iseed, 8)+"<td>"+waza.name;
-			prng.step(4 + waza.num_effect());
-			buf += pickups_to_cells(calc_pickups(prng));
+			step_battle_waza_advancement(prng, waza);
+			buf += build_row(iseed, waza, calc_pickups(prng));
 		}
 	}
 	buf += "</table>";
-	$("#result").html(buf);
+	$("#list-result").html(buf);
 }
+
+function step_battle_first_advancement(prng) {
+	prng.step(11);
+}
+
+function step_battle_waza_advancement(prng, waza) {
+	prng.step(4 + waza.num_effect());
+}
+
+function build_row(seed, waza, pickups) {
+	return '<tr><td class="seed">'+format_hex(seed, 8)+"<td>"+waza.name+pickups_to_cells(pickups);
+}
+
+var boot_search_form;
+
+(function() {
+	boot_search_form = function() {
+		$(document.forms.search_form).submit(submit_callback(on_submit_search));
+		$("#stop-button").click(on_click_stop_button);
+	};
+	
+	var resume = null;
+	var timer_id = null;
+	
+	function on_submit_search(f) {
+		var is_target = build_is_target(function(i){return f["target-check-"+i].checked});
+		var frame_min = read_input(f.frame_min, "初期seed下4桁最小値");
+		var result_max = read_input(f.result_max, "出力件数");
+		var zure_mode = f.check_zure.checked;
+		var zure_max = zure_mode ? read_input(f.zure_max, "ずれ最大個数") : 0;
+		var check_same = f.check_same.checked;
+		
+		if (timer_id !== null) clearTimeout(timer_id);
+		var progress = $("<p>");
+		var table = $("<table>");
+		var result_area = $("#search-result").empty().append(progress).append(table);
+		var seed = frame_min;
+		var last_update_time = + new Date;
+		var result = [];
+		var result_index = 0;
+		var result_count = 0;
+		resume = loop;
+		var prng = new PRNG(0);
+		loop();
+		
+		function loop() {
+			var now_incl = !!Date.now;
+			var start_time = now_incl ? Date.now() : + new Date;
+			StopButton.enable();
+			var check_count = 0;
+			while (true) {
+				var seeds = judge_seeds(prng, seed, is_target, zure_max, check_same);
+				if (seeds) {
+					Array.prototype.push.apply(result, seeds);
+					if (++result_count >= result_max) break;
+				}
+				if (++check_count >= 50) {// 時間のチェックは一定回数に1回しか行わないように
+					check_count = 0;
+					var time = now_incl ? Date.now() : + new Date;
+					if (time - start_time >= 100) {
+						if (time - last_update_time >= 1000) {
+							last_update_time = time;
+							progress.text("進捗: "+format_hex(seed, 8));
+							update_result();
+						}
+						timer_id = setTimeout(loop, 0);
+						return;
+					}
+				}
+				seed = succ_fseed(seed) >>> 0;
+			}
+			progress.text("進捗: 完了");
+			update_result();
+			StopButton.disable();
+			timer_id = null;
+			resume = null;
+		}
+	
+		function update_result() {
+			var i = result_index, l = result.length;
+			var buf = "";
+			if (i === 0 && l > 0) buf += table_head;
+			for (; i < l; i ++) {
+				var seed = result[i];
+				prng.seed = seed;
+				step_battle_first_advancement(prng);
+				var waza = calc_metrnome_waza(prng);
+				step_battle_waza_advancement(prng, waza);
+				buf += build_row(seed, waza, calc_pickups(prng));
+			}
+			table.append(buf);
+			result_index = result.length;
+		}
+	}
+	
+	function on_click_stop_button() {
+		if (timer_id !== null) {
+			clearTimeout(timer_id);
+			timer_id = null;
+			StopButton.change_to_resume();
+			return;
+		}
+		if (resume) {
+			resume();
+			StopButton.enable();
+		}
+	}
+})();
+
+function build_is_target(fn) {
+	var a = new Array(100);
+	for (var i = 0; i < 100; i ++) {
+		a[i] = false;
+	}
+	for (var i = 0; i < metrnome_ranges.length; i ++) {
+		if (fn(i)) {
+			var start = metrnome_ranges[i].start;
+			var end = metrnome_ranges[i].end;
+			for (var j = start; j <= end; j ++) {
+				a[j] = true;
+			}
+		}
+	}
+	return a;
+}
+
+function judge_seeds(prng, seed, is_target, zure_max, force_same) {
+	var ret0 = judge_seed(prng, seed, is_target);
+	if (!ret0) return null;
+	var result = [seed];
+	for (var i = 1; i <= zure_max; i ++) {
+		var ret = judge_seed(prng, seed + i, is_target);
+		if (ret && (!force_same ||
+		    (ret.index === ret0.index &&
+		     metrnome_val2index[ret.val] === metrnome_val2index[ret0.val]))) {
+			result.push(seed + i);
+		}
+	}
+	return result.length === 1 ? null : result;
+}
+
+function judge_seed(prng, seed, is_target) {
+	prng.seed = seed;
+	step_battle_first_advancement(prng);
+	var waza = calc_metrnome_waza(prng);
+	if (!ok_waza[waza.id]) return false;
+	prng.step(2);
+	if (prng.rand() % 100 + 1 > waza.hit_odds) return false;
+	prng.step(1 + waza.num_effect());
+	for (var i = 0; i < 6; i ++) {
+		if (prng.rand() % 10 === 0) {
+			var r = prng.rand() % 100;
+			if (is_target[r]) return {index: i, val: r};
+		}
+	}
+	return null;
+}
+
+function succ_fseed(seed) {
+	// 次に調べる初期seed
+	if (seed >>> 24 !== 0xff) {
+		return seed + 0x01000000;
+	} else if (seed >>> 16 !== 0xff17) {
+		return (seed & 0xffffff) + 0x010000;
+	} else {
+		return (seed & 0xffff) + 1;
+	}
+}
+
+var StopButton = {
+	disable: function() {
+		$("#stop-button").val("停止").attr("disabled", true);
+	},
+	enable: function() {
+		$("#stop-button").val("停止").attr("disabled", false);
+	},
+	change_to_resume: function() {
+		$("#stop-button").val("再開").attr("disabled", false);
+	}
+};
 
 function pickups_to_cells(pickups) {
 	return map(pickups, function(i) { return "<td>" + (i === null ? "-" : i) }).join("");
@@ -118,6 +329,24 @@ function initialize_waza_list(text) {
 		waza_list[i+1] = new Waza(i+1, parseInt(m[1], 16), Number(m[2]), Number(m[3]), m[4]);
 	}
 }
+
+function initialize_ok_waza() {
+	// 指を振るで出てOKな通常攻撃技かどうかのテーブルを作る
+	var effect_codes = [
+	 0x000, 0x002, 0x003, 0x004, 0x005, 0x006, 0x011, 0x01f, 0x02b, 0x02d,
+	 0x030, 0x042, 0x044, 0x045, 0x046, 0x047, 0x048, 0x049, 0x04b, 0x04c,
+	 0x050, 0x051, 0x063, 0x067, 0x075, 0x077, 0x079, 0x07b, 0x07d, 0x080,
+	 0x081, 0x087, 0x08a, 0x08b, 0x08c, 0x092, 0x093, 0x095, 0x096, 0x098,
+	 0x09e, 0x0a9, 0x0ab, 0x0ad, 0x0b6, 0x0ba, 0x0bc, 0x0be, 0x0c4, 0x0c5,
+	 0x0c6, 0x0c8, 0x0ca, 0x0cc, 0x0d1, 0x0d9, 0x0da, 0x0db, 0x0dd, 0x0de,
+	 0x0e0, 0x0e5, 0x0e6, 0x0e7, 0x0e8, 0x0eb, 0x0ed, 0x0f5, 0x0fd, 0x101,
+	 0x104, 0x106, 0x109, 0x10c, 0x10d, 0x10f, 0x111, 0x112, 0x113, 0x114];
+	var a = new Array(waza_list.length);
+	for (var i = 1; i < waza_list.length; i ++) {
+		a[i] = ary_include(effect_codes, waza_list[i].effect_code);
+	}
+	ok_waza = a;
+};
 
 function read_input(input, name, min, max) {
 	var value = read_int_string(input.value);
@@ -265,10 +494,13 @@ table {
 	border-collapse: collapse;
 	font-size: 80%;
 }
-table th,
-table td {
+th, td {
 	padding: 0.1em 5px;
 	border: 1px solid black;
+}
+
+td.seed {
+	font-family: monospace;
 }
 
 form th {
@@ -279,8 +511,8 @@ form table {
 	font-size: 100%;
 }
 
-form table th,
-form table td {
+form th,
+form td {
 	border: none;
 }
 </style>
@@ -289,17 +521,44 @@ form table td {
 <h1>ものひろい補助ツール</h1>
 <p>野生との戦闘でゆびをふるで出た技で初期seedを確認しつつものひろいの乱数調整する用のツール
 <h2>リスト作成</h2>
-<form action="" name="f" onsubmit="return false;">
+<form action="" name="list_form" onsubmit="return false;">
 <table>
 <tbody>
-<tr><th>狙いの初期seed: <td><input type="text" size="20" name="iseed" value=""></tr>
-<tr><th>出力する前後フレーム数: <td><input type="text" size="10" name="range" value="300"></tr>
-<tr><th>技のフィルター: <td><input type="text" size="30" name="waza" value=""></tr>
-<tr><td><td><input type="submit" value="作成"></tr>
+<tr><th>狙いの初期seed: <td><input type="text" size="20" name="iseed" value="">
+<tr><th>出力する前後フレーム数: <td><input type="text" size="10" name="range" value="300">
+<tr><th>技のフィルター: <td><input type="text" size="30" name="waza" value="">
+<tr><td><td><input type="submit" value="作成">
 </tbody>
 </table>
 </form>
-<div id="result"></div>
+<div id="list-result"></div>
+<h2>初期seed検索</h2>
+<form action="" name="search_form" onsubmit="return false;">
+<table>
+<tbody>
+<tr><th>対象: <td>
+<label><input type="checkbox" name="target-check-0">0-29</label>
+<label><input type="checkbox" name="target-check-1">30-39</label>
+<label><input type="checkbox" name="target-check-2">40-49</label>
+<label><input type="checkbox" name="target-check-3">50-59</label>
+<label><input type="checkbox" name="target-check-4">60-69</label><br>
+<label><input type="checkbox" name="target-check-5">70-79</label>
+<label><input type="checkbox" name="target-check-6">80-89</label>
+<label><input type="checkbox" name="target-check-7">90-93</label>
+<label><input type="checkbox" name="target-check-8">94-97</label>
+<label><input type="checkbox" name="target-check-9" checked>98</label>
+<label><input type="checkbox" name="target-check-10" checked>99</label>
+<tr><th>初期seed下4桁最小値: <td><input type="text" size="10" name="frame_min" value="1100">
+<tr><th>出力件数 <td><input type="text" size="6" name="result_max" value="10">
+<tr><td><td><label><input type="checkbox" name="check_zure" checked>
+フレームが1～<input type="text" size="2" name="zure_max" value="3">個（のいずかに）ずれてもいいseedを探す</label><br>
+　└<label><input type="checkbox" name="check_same" checked>同じインデックスで同じアイテムでないとダメ</label>
+<tr><td><td><input type="submit" value="検索">
+<input type="button" id="stop-button" value="停止" disabled>
+</tbody>
+</table>
+</form>
+<div id="search-result"></div>
 <h2>アイテムの表</h2>
 <table id="item-table">
 <tr><th><th>Lv1-10<th>Lv11-20<th>Lv21-30<th>Lv31-40<th>Lv41-50<th>Lv51-60<th>Lv61-70<th>Lv71-80<th>Lv81-90<th>Lv91-100
