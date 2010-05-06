@@ -10,23 +10,23 @@
 var waza_list = null;
 var ok_waza = null;
 
-var metrnome_ranges = [{start:  0, end: 29},
-                       {start: 30, end: 39},
-                       {start: 40, end: 49},
-                       {start: 50, end: 59},
-                       {start: 60, end: 69},
-                       {start: 70, end: 79},
-                       {start: 80, end: 89},
-                       {start: 90, end: 93},
-                       {start: 94, end: 97},
-                       {start: 98, end: 98},
-                       {start: 99, end: 99}];
+var pickup_ranges = [{start:  0, end: 29},
+                     {start: 30, end: 39},
+                     {start: 40, end: 49},
+                     {start: 50, end: 59},
+                     {start: 60, end: 69},
+                     {start: 70, end: 79},
+                     {start: 80, end: 89},
+                     {start: 90, end: 93},
+                     {start: 94, end: 97},
+                     {start: 98, end: 98},
+                     {start: 99, end: 99}];
 
-var metrnome_val2index = (function() {
+var pickup_val2index = (function() {
 	var a = new Array(100);
-	for (var i = 0; i < metrnome_ranges.length; i ++) {
-		var start = metrnome_ranges[i].start;
-		var end = metrnome_ranges[i].end;
+	for (var i = 0; i < pickup_ranges.length; i ++) {
+		var start = pickup_ranges[i].start;
+		var end = pickup_ranges[i].end;
 		for (var j = start; j <= end; j ++) {
 			a[j] = i;
 		}
@@ -200,10 +200,10 @@ function build_is_target(fn) {
 	for (var i = 0; i < 100; i ++) {
 		a[i] = false;
 	}
-	for (var i = 0; i < metrnome_ranges.length; i ++) {
+	for (var i = 0; i < pickup_ranges.length; i ++) {
 		if (fn(i)) {
-			var start = metrnome_ranges[i].start;
-			var end = metrnome_ranges[i].end;
+			var start = pickup_ranges[i].start;
+			var end = pickup_ranges[i].end;
 			for (var j = start; j <= end; j ++) {
 				a[j] = true;
 			}
@@ -221,7 +221,7 @@ function judge_seeds(prng, seed, is_target, zure_max, force_same) {
 		var ret = judge_seed(prng, seed + i, is_target);
 		if (ret && (!force_same ||
 		    (ret.index === ret0.index &&
-		     metrnome_val2index[ret.val] === metrnome_val2index[ret0.val]))) {
+		     pickup_val2index[ret.val] === pickup_val2index[ret0.val]))) {
 			result.push(seed + i);
 		}
 	}
