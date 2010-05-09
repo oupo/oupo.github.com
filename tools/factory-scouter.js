@@ -1703,7 +1703,8 @@ function FindSeedProcedure(shuu, is_open_level, entries, parent_ids, is_bonus_li
 	this.entries = entries;
 	this.parent_ids = parent_ids;
 	this.is_bonus_list = is_bonus_list;
-	this.items = FindSeedProcedure.gen_items(entries);
+	this.items = map(entries, "item");
+	this.pokemons = map(entries, "pokemon");
 	this.bonus_entries = FindSeedProcedure.gen_bonus_entries(entries, is_bonus_list);
 	if (this.bonus_entries.length === 6) {
 		this.bonus_entries = [];
@@ -1719,14 +1720,6 @@ function FindSeedProcedure(shuu, is_open_level, entries, parent_ids, is_bonus_li
 	this.i = 0;
 	this.j = 0;
 }
-
-FindSeedProcedure.gen_items = function(entries) {
-	var result = [];
-	for (var i = 0; i < entries.length; i ++) {
-		result.push(entries[i].item);
-	}
-	return result;
-};
 
 FindSeedProcedure.gen_bonus_entries = function(entries, is_bonus_list) {
 	var result = [];
@@ -1820,6 +1813,10 @@ FindSeedProcedure.prototype.find_entries = function(seed, n) {
 			// ボーナスかどうかが逆の決定でアイテム重複でスキップされたエントリかもしれない
 			var item = seed_to_entry(is_bonus ? rank : bonus_rank, s).item;
 			if (this.num_bonus > 0 && ary_include(this.items, item)) {
+				return "next";
+			}
+			// 同じ種族でスキップされたエントリかもしれない
+			if (ary_include(this.pokemons, entry.pokemon)) {
 				return "next";
 			} else {
 				return "break";
