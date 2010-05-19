@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<meta http-equiv="Content-Script-Type" content="text/javascript">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<title>ラジオを使った初期seed確認ツール</title>
+<script type="text/javascript">
+var addEvent =
+ window.addEventListener ? function(e, n, f) { e.addEventListener(n, f, false); }
+                         : function(e, n, f) { e.attachEvent("on" + n, f); };
+
+var MESSAGES = ["セージ『ＤＪセージの", "ポケモンミュージック チャンネル！"];
+
+addEvent(window, "load", function() {
+	addEvent(document.forms.f, "submit", submit_callback(on_submit));
+});
+
+function submit_callback(fn) {
+	return function(ev) {
+		var e = ev.target || ev.srcElement;
+		try {
+			fn(e);
+		} catch(e) {
+			if (!(e instanceof InputError)) throw e;
+			alert(e.message);
+		}
+	}
+}
+
+function on_submit(f) {
+	var seed = read_input(f.iseed, "狙いの初期seed");
+	var range = read_input(f.range, "出力する前後フレーム数");
+	var filter = gen_filter_regexp(f.filter.value);
+	var show_2times_p = f.check_2times.checked;
+	build_list(seed, range, filter, show_2times_p);
+}
+
+function build_list(base_seed, range, filter, show_2times_p) {
+	var mt = new MersenneTwister;
+	var n = 0;
+	var buf = "";
+	for (var i = -range; i <= range; i ++) {
+		var seed = base_seed + i >>> 0;
+		mt.setSeed(seed);
+		var msg = calc_messages(mt);
+		if (filter.test(msg)) {
+			buf += format_hex(seed, 8)+": "+msg;
+			if (show_2times_p) {
+				buf += " | " + calc_messages(mt);
+			}
+			buf += "<br>";
+			n ++;
+		}
+	}
+	buf += n + "件";
+	document.getElementById("result").innerHTML = buf;
+}
+
+function calc_messages(mt) {
+	var msg = "";
+	for (var i = 0; i < MESSAGES.length; i ++) {
+		if (i > 0) msg += " ";
+		msg += calc_message(mt, MESSAGES[i]);
+	}
+	return msg;
+}
+
+function calc_message(mt, orig_message) {
+	var msg = "";
+	for (var i = 0; i < orig_message.length - 1; i ++) {
+		var c = orig_message.charAt(i);
+		if (c !== " " && (mt.nextInt() >>> 8) % 101 < 70) {
+			msg += "…";
+		} else {
+			msg += c;
+		}
+	}
+	msg += orig_message.charAt(orig_message.length - 1);
+	return msg;
+}
+
+function read_input(input, name, min, max) {
+	var value = read_int_string(input.value);
+	if (min == undefined) min = -Infinity;
+	if (max == undefined) max =  Infinity;
+	if (value !== null && min <= value && value <= max) {
+		return value;
+	} else {
+		input_error(name+"に入力されている値が不正です");
+	}
+}
+
+function read_int_string(s, default_value) {
+	if (/^\s*$/.test(s) && default_value !== undefined) {
+		return default_value;
+	}
+	if (!/^\s*(?:-?\d+|0x[0-9a-f]+)\s*$/i.test(s)) {
+		return null;
+	}
+	return Number(s);
+}
+
+function input_error(message) {
+	throw new InputError(message);
+}
+
+function InputError(message) {
+	this.message = message;
+}
+
+function gen_filter_regexp(text) {
+	var r = "^";
+	for (var i = 0; i < text.length; i ++) {
+		var c = text.charAt(i);
+		if (c === " ") continue;
+		r += "[… ]*";
+		if ("ぁ" <= c && c <= "ゔ") {
+			r += "[" + chr("ァ", diff(c, "ぁ")) + c + "]";
+		} else if ("ァ" <= c && c <= "ヴ") {
+			r += "[" + c + chr("ぁ", diff(c, "ァ")) + "]";
+		} else if ("Ａ" <= c && c <= "Ｚ") {
+			r += "[" + c + chr("ａ", diff(c, "Ａ")) + "]";
+		} else if ("ａ" <= c && c <= "ｚ") {
+			r += "[" + chr("Ａ", diff(c, "ａ")) + c + "]";
+		} else if ("a" <= c && c <= "z") {
+			r += "[" + chr("Ａ", diff(c, "a")) +
+			           chr("ａ", diff(c, "a")) + "]";
+		} else if ("A" <= c && c <= "Z") {
+			r += "[" + chr("Ａ", diff(c, "A")) +
+			           chr("ａ", diff(c, "A")) + "]";
+		} else if (c === "「") {
+			r += "『";
+		} else if (c === "」") {
+			r += "』";
+		} else {
+			r += c;
+		}
+	}
+	return new RegExp(r);
+	
+	function chr(base, i) {
+		return String.fromCharCode(base.charCodeAt(0) + i);
+	}
+	
+	function diff(c1, c2) {
+		return c1.charCodeAt(0) - c2.charCodeAt(0);
+	}
+}
+
+function format_hex(n, prec) {
+	var s = n.toString(16);
+	return "0x" + (str_repeat("0", prec - s.length) + s);
+}
+
+function format_dec(n, prec, c) {
+	var s = String(n);
+	return (str_repeat(c || "0", prec - s.length) + s);
+}
+
+function str_repeat(s, n) {
+	var r = "";
+	for (var i = 0; i < n; i ++) {
+		r += s;
+	}
+	return r;
+}
+
+/*
+modified by oupo
+
+Mersenne Twister in JavaScript based on "mt19937ar.c"
+
+ * JavaScript version by Magicant: Copyright (C) 2005 Magicant
+
+
+ * Original C version by Makoto Matsumoto and Takuji Nishimura
+   http://www.math.sci.hiroshima-u.ac.jp/~m-mat/MT/mt.html
+
+Copyright (C) 1997 - 2002, Makoto Matsumoto and Takuji Nishimura,
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions
+are met:
+
+  1. Redistributions of source code must retain the above copyright
+     notice, this list of conditions and the following disclaimer.
+
+  2. Redistributions in binary form must reproduce the above copyright
+     notice, this list of conditions and the following disclaimer in the
+     documentation and/or other materials provided with the distribution.
+
+  3. The names of its contributors may not be used to endorse or promote 
+     products derived from this software without specific prior written 
+     permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+*/
+function MersenneTwister() {
+	this._mt = new Array(624);
+	this._index = 0;
+}
+
+MersenneTwister.prototype.setSeed = function(seed) {
+	var mt = this._mt;
+	mt[0] = seed >>> 0;
+	for (var i = 1; i < mt.length; i++) {
+		var x = mt[i-1] ^ (mt[i-1] >>> 30);
+		mt[i] = mul(1812433253, x) + i;
+	}
+	this._index = mt.length;
+}
+
+MersenneTwister.prototype.nextInt = function() {
+	var mt = this._mt, value;
+	
+	if (this._index >= mt.length) {
+		var k = 0, N = mt.length, M = 397;
+		do {
+			value = (mt[k] & 0x80000000) | (mt[k+1] & 0x7fffffff);
+			mt[k] = mt[k+M] ^ (value >>> 1) ^ ((value & 1) ? 0x9908b0df : 0);
+		} while (++k < N-M);
+		do {
+			value = (mt[k] & 0x80000000) | (mt[k+1] & 0x7fffffff);
+			mt[k] = mt[k+M-N] ^ (value >>> 1) ^ ((value & 1) ? 0x9908b0df : 0);
+		} while (++k < N-1);
+		value = (mt[N-1] & 0x80000000) | (mt[0] & 0x7fffffff);
+		mt[N-1] = mt[M-1] ^ (value >>> 1) ^ ((value & 1) ? 0x9908b0df : 0);
+		this._index = 0;
+	}
+	
+	value = mt[this._index++];
+	value ^=  value >>> 11;
+	value ^= (value <<   7) & 0x9d2c5680;
+	value ^= (value <<  15) & 0xefc60000;
+	value ^=  value >>> 18;
+	return value >>> 0;
+};
+
+function mul(a, b) {
+	var a1 = a >>> 16, a2 = a & 0xffff;
+	var b1 = b >>> 16, b2 = b & 0xffff;
+	return (((a1 * b2 + a2 * b1) << 16) + a2 * b2) >>> 0;
+}
+</script>
+<style type="text/css">
+#result {
+	/* IEで欧文フォントが使用されて三点リーダが...にならないように "MS Gothic" を指定 */
+	font-family: "MS Gothic", monospace;
+	line-height: 1.3;
+}
+
+th {
+	text-align: right;
+	vertical-align: top;
+}
+</style>
+</head>
+<body>
+<h1>ラジオを使った初期seed確認ツール</h1>
+<form action="" name="f" onsubmit="return false;">
+<table>
+<tbody>
+<tr><th>狙いの初期seed: <td><input type="text" size="20" name="iseed" value="">
+<tr><th>出力する前後フレーム数: <td><input type="text" size="10" name="range" value="30">
+<tr><th>フィルター: <td><input type="text" size="50" name="filter" value=""><br>
+<small>たとえば "………『D…せ……の" の場合 "「ｄせの"のように入力してください。<br>
+『は「でOK、英数字は全角半角小文字大文字を問いません</small>
+<tr><th>オプション: <td><label><input type="checkbox" name="check_2times">2回目の内容も表示</label>
+<tr><td><td><input type="submit" value="表示">
+</tbody>
+</table>
+</form>
+<div id="result"></div>
+<h2>注意</h2>
+<ul>
+<li>ゲームを起動してから一回もメルセンヌツイスタ（孵化乱数）が進んでいないことが前提
+<li>ポケモンミュージックでは通常乱数は進まない。ほかの番組は通常乱数が進む可能性がある
+<li>セーブ時に何の番組も選択されていない状態にしておく
+<li>2回目の内容は1回目で最初の2行分だけ表示させた場合の内容を表している
+</ul>
+</body>
+</html>
