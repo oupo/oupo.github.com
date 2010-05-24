@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<meta http-equiv="Content-Script-Type" content="text/javascript">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<title>オーキドはかせのポケモンこうざで乱数消費補助ツール</title>
+<script type="text/javascript" src="jquery.js"></script>
+<script type="text/javascript">
+var POKEMON_NAMES;
+var ENCOUNT_TABLE;
+var ALL_POKEMON_IDS;
+var NUM_POKEMON = 493;
+
+$(function() {
+	var pokedex_csv_text;
+	var encount_table_text;
+	$.ajax({dataType: "text", url: "pokedex.csv", success: function(data) {
+		pokedex_csv_text = data;
+		boot();
+	}});
+	$.ajax({dataType: "text", url: "oak-radio-table.txt", success: function(data) {
+		encount_table_text = data;
+		boot();
+	}});
+	function boot() {
+		if (!pokedex_csv_text || !encount_table_text) return;
+		initialize_pokemon_names(pokedex_csv_text);
+		initialize_encount_table(encount_table_text);
+		initialize_all_pokemon_ids();
+		bootup_events();
+	}
+});
+
+function bootup_events() {
+	var form = document.forms.f;
+	var textarea = form.ignore_pokemons;
+	$(form).submit(submit_callback(on_submit));
+	$("#add-all-button").click(function() {
+		var buf = "";
+		for (var i = 0; i < ALL_POKEMON_IDS.length; i ++) {
+			if (i > 0) buf += "\n";
+			buf += POKEMON_NAMES[ALL_POKEMON_IDS[i]];
+		}
+		textarea.value = buf;
+	});
+	$("#invert-button").click(function() {
+		change_textarea(true, false);
+	});
+	$("#short-button").click(function() {
+		change_textarea(false, true);
+	});
+	$("#long-button").click(function() {
+		change_textarea(false, false);
+	});
+	$("#textbox-size-input").keyup(function() {
+		var n = parseInt(this.value, 10);
+		if (!isNaN(n)) {
+			textarea.rows = n;
+		}
+	}).val(textarea.rows);
+	
+	function change_textarea(invert_p, output_id_p) {
+		var r = parse_pokemon_list(textarea.value);
+		var table = r[0];
+		var buf = "";
+		for (var i = 0; i < ALL_POKEMON_IDS.length; i ++) {
+			var id = ALL_POKEMON_IDS[i];
+			if (invert_p ? !table[id] : table[id]) {
+				if (buf !== "") buf += output_id_p ? ", " : "\n";
+				buf += output_id_p ? id : POKEMON_NAMES[id];
+			}
+		}
+		textarea.value = buf;
+	}
+}
+
+function initialize_pokemon_names(text) {
+	var lines = split(text, "\n");
+	POKEMON_NAMES = new Array(lines.length + 1);
+	for (var i = 0; i < lines.length; i ++) {
+		POKEMON_NAMES[i+1] = /^[^,]+/.exec(lines[i])[0];
+	}
+}
+
+function initialize_encount_table(text) {
+	var lines = split(text, "\n");
+	var index = [];
+	for (var i = 0; i < lines.length; i ++) {
+		if (/^\[/.test(lines[i])) {
+			index.push(i);
+		}
+	}
+	index.push(lines.length);
+	
+	ENCOUNT_TABLE = {};
+	for (var i = 0; i < index.length - 1; i ++) {
+		var tag = /^\[([^\]]+)\]/.exec(lines[index[i]])[1];
+		var start = index[i] + 1;
+		var end = index[i+1];
+		var len = end - start;
+		var table = new Array(len);
+		for (var j = 0; j < len; j ++) {
+			var line = lines[start + j];
+			var row = split(line, ",");
+			var map_name = row[0];
+			var pokemon_nos = map(row.slice(1), Number);
+			table[j] = {map_name: map_name, pokemon_nos: pokemon_nos};
+		}
+		ENCOUNT_TABLE[tag] = table;
+	}
+}
+
+function initialize_all_pokemon_ids() {
+	var exist_table = new Array(NUM_POKEMON + 1);
+	for (var p in ENCOUNT_TABLE) {
+		var table = ENCOUNT_TABLE[p];
+		for (var i = 0; i < table.length; i ++) {
+			var pokemon_nos = table[i].pokemon_nos;
+			for (var j = 0; j < pokemon_nos.length; j ++) {
+				var pokemon_no = pokemon_nos[j];
+				exist_table[pokemon_no] = true;
+			}
+		}
+	}
+	ALL_POKEMON_IDS = [];
+	for (var i = 1; i < NUM_POKEMON; i ++) {
+		if (exist_table[i]) {
+			ALL_POKEMON_IDS.push(i);
+		}
+	}
+}
+
+function submit_callback(fn) {
+	return function() {
+		try {
+			fn(this);
+		} catch(e) {
+			if (!(e instanceof InputError)) throw e;
+			alert(e.message);
+		}
+	}
+}
+
+function on_submit(f) {
+	var seed = read_input(f.seed, "seed");
+	var advancement = read_input(f.advancement, "消費");
+	var result_max = read_input(f.result_max, "出力件数");
+	var soft = read_radio_value(f.soft, "ソフト");
+	var region = read_radio_value(f.region, "地方");
+	var exclude_47_48 = f.exclude_47_48.checked;
+	var map_table = ENCOUNT_TABLE[soft+"-"+region];
+	if (region === "johto" && exclude_47_48) {
+		map_table = map_table.slice(); // copy
+		map_table.splice(37, 2);
+	}
+	
+	var parse_result = parse_pokemon_list(f.ignore_pokemons.value);
+	var ignore_table = parse_result[0];
+	var errors = parse_result[1];
+	if (errors.length > 0) {
+		var msg = "ポケモンリストが解釈できません\n";
+		for (var i = 0; i < errors.length; i ++) {
+			msg += "> " + errors[i] + "\n";
+		}
+		input_error(msg);
+	}
+	
+	build_result(seed, advancement, result_max, map_table, ignore_table);
+}
+
+var BUTTON_LABEL = {SHOW: "ラジオの内容を表示", HIDE: "ラジオの内容を隠す"};
+var Context = {display_radio_p: false};
+
+function build_result(seed, advancement, result_max, map_table, ignore_table) {
+	var buf = "";
+	var prng = new PRNG(seed);
+	prng.step(advancement);
+	
+	buf += "<table><tr><th>回<th>消費<th>合計消費";
+	for (var i = 0; i < result_max; i ++) {
+		var prev_count = prng.count;
+		calc_radio(prng, map_table, ignore_table);
+		var count = prng.count;
+		buf += "<tr><td>"+(i+1)+"<td>"+(count - prev_count)+"<td>"+count+"";
+	}
+	buf += "</table>";
+	buf += '<p><input id="output-radio" type="button" value="'+BUTTON_LABEL[Context.display_radio_p ? "HIDE" : "SHOW"]+'">';
+	buf += '<div id="output-area-radio"></div>';
+	$("#result").html(buf);
+	$("#output-radio").click(func_bind_args(output_radio, [seed, advancement, result_max, map_table, ignore_table]));
+	if (Context.display_radio_p) {
+		output_radio(seed, advancement, result_max, map_table, ignore_table);
+	}
+}
+
+function output_radio(seed, advancement, result_max, map_table, ignore_table) {
+	var output_area = $("#output-area-radio");
+	var button = $("#output-radio");
+	if (output_area[0].childNodes.length > 0) {
+		Context.display_radio_p = false;
+		button.val(BUTTON_LABEL.SHOW);
+		output_area.empty();
+		return;
+	}
+	Context.display_radio_p = true;
+	button.val(BUTTON_LABEL.HIDE);
+	var buf = "";
+	var prng = new PRNG(seed);
+	prng.step(advancement);
+	
+	for (var i = 0; i < result_max; i ++) {
+		var result = calc_radio(prng, map_table, ignore_table);
+		buf += (i+1) + ": " + map(result, function(r) {
+			return POKEMON_NAMES[r.pokemon_no] + " (" + r.map_name + ")";
+		}).join(" | ") + "<br>";
+	}
+	output_area.html(buf);
+}
+
+function calc_radio(prng, map_table, ignore_table) {
+	var i = 0;
+	var maps = [];
+	var result = [];
+	while (i < 5) {
+		var index = prng.rand() % map_table.length;
+		var map_name = map_table[index].map_name;
+		var pokemon_nos = map_table[index].pokemon_nos;
+		if (ary_include(maps, map_name)) {
+			continue;
+		}
+		maps.push(map_name);
+		var normal_table = pokemon_nos;
+		var filtered_table = filter_table(normal_table, ignore_table);
+		var table;
+		if (filtered_table.length === 0) {
+			table = normal_table;
+		} else if (filtered_table.length === 1) {
+			if (prng.rand() % 1000 >= 500) {
+				table = filtered_table;
+			} else {
+				table = normal_table;
+			}
+		} else {
+			table = filtered_table;
+		}
+		var pokemon_no = table[prng.rand() % table.length];
+		result.push({map_name: map_name, pokemon_no: pokemon_no});
+		i ++;
+	}
+	prng.step(3);
+	return result;
+}
+
+function filter_table(table, ignore_table) {
+	var result = [];
+	for (var i = 0; i < table.length; i ++) {
+		var no = table[i];
+		if (!ignore_table[no]) {
+			result.push(no);
+		}
+	}
+	return result;
+}
+
+function parse_pokemon_list(buf) {
+	var lines = split(buf, /,\s*|\s+/);
+	var result = new Array(NUM_POKEMON + 1);
+	var errors = [];
+	for (var i = 0; i < lines.length; i ++) {
+		var line = lines[i];
+		if (line === "") continue;
+		var no = /^[0-9]+/.test(line) ? Number(line) : indexof(POKEMON_NAMES, line);
+		if (no >= 1) {
+			result[no] = true;
+		} else {
+			errors.push(line);
+		}
+	}
+	return [result, errors];
+}
+
+function read_radio_value(radios, name) {
+	var index = get_checked_radio_index(radios);
+	if (index === null) input_error(name+"が選択されていません");
+	return radios[index].value;
+}
+
+function get_checked_radio_index(radios) {
+	for (var i = 0; i < radios.length; i ++) {
+		if (radios[i].checked) return i;
+	}
+	return null;
+}
+
+function read_input(input, name, min, max) {
+	var value = read_int_string(input.value);
+	if (min == undefined) min = -Infinity;
+	if (max == undefined) max =  Infinity;
+	if (value !== null && min <= value && value <= max) {
+		return value;
+	} else {
+		input_error(name+"に入力されている値が不正です");
+	}
+}
+
+function read_int_string(s, default_value) {
+	if (/^\s*$/.test(s) && default_value !== undefined) {
+		return default_value;
+	}
+	if (!/^\s*(?:-?\d+|0x[0-9a-f]+)\s*$/i.test(s)) {
+		return null;
+	}
+	return Number(s);
+}
+
+function input_error(message) {
+	throw new InputError(message);
+}
+
+function InputError(message) {
+	this.message = message;
+}
+
+function split(s, delim) {
+	var a = s.split(delim);
+	if (a[a.length - 1] === "") a.pop();
+	return a;
+}
+
+function ary_include(ary, e) {
+	return indexof(ary, e) >= 0;
+}
+
+function indexof(ary, e) {
+	for (var i = 0; i < ary.length; i ++) {
+		if (ary[i] === e) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+function map(array, fn) {
+	var len = array.length;
+	var result = new Array(len);
+	for (var i = 0; i < len; i ++) {
+		result[i] = fn(array[i]);
+	}
+	return result;
+}
+
+function func_bind_args(fn, args) {
+	return function() {
+		return fn.apply(this, args);
+	};
+}
+
+function PRNG(seed) {
+	this.seed = seed;
+	this.count = 0;
+}
+
+PRNG.prototype.rand = function() {
+	this.seed = next_seed(this.seed);
+	this.count ++;
+	return this.seed >>> 16;
+}
+
+PRNG.prototype.step = function(n) {
+	this.seed = step_seed(this.seed, n);
+	this.count += n;
+}
+
+step_seed.cache = (function() {
+	var N = 256;
+	var a = new Array(N);
+	var c1 = {a: 0x41c64e6d, b: 0x6073};
+	var c = {a: 1, b: 0};
+	for (var i = 0; i < N; i ++) {
+		a[i] = c;
+		c = {a: mul(c.a, c1.a), b: (mul(c.b, c1.a) + c1.b) >>> 0};
+	}
+	return a;
+})();
+
+function step_seed(seed, n) {
+	var a = 0x41c64e6d;
+	var b = 0x6073;
+	n >>>= 0;
+	if (n < step_seed.cache.length) {
+		var c = step_seed.cache[n];
+		return mul(seed, c.a) + c.b >>> 0;
+	}
+	var result = seed;
+	while (n) {
+		if (n & 1) {
+			result = mul(result, a) + b >>> 0;
+		}
+		b = mul(b, a) + b >>> 0;
+		a = mul(a, a) >>> 0;
+		n >>>= 1;
+	}
+	return result;
+}
+
+function next_seed(seed) {
+	return mul(seed, 0x41c64e6d) + 0x6073 >>> 0;
+}
+
+function prev_seed(seed) {
+	return mul(seed, 0xeeb9eb65) + 0xa3561a1 >>> 0;
+}
+
+function mul(a, b) {
+	var a1 = a >>> 16, a2 = a & 0xffff;
+	var b1 = b >>> 16, b2 = b & 0xffff;
+	return (((a1 * b2 + a2 * b1) << 16) + a2 * b2) >>> 0;
+}
+</script>
+<style type="text/css">
+table {
+	border-collapse: collapse;
+}
+
+th, td {
+	padding: 0.1em 5px;
+	border: 1px solid black;
+}
+
+form th {
+	text-align: right;
+	vertical-align: top;
+}
+
+form th,
+form td {
+	border: none;
+}
+
+#result {
+	margin: 10px;
+}
+
+#ignore_pokemons_aid {
+	vertical-align: top;
+	font-size: 80%;
+}
+</style>
+</head>
+<body>
+<h1>オーキドはかせのポケモンこうざで乱数消費補助ツール</h1>
+<form action="" name="f" onsubmit="return false;">
+<table>
+<tbody>
+<tr><th>現在seed+消費: <td><input type="text" size="20" name="seed" value=""> + <input type="text" size="6" name="advancement" value="0">
+<tr><th>出力件数: <td><input type="text" size="6" name="result_max" value="50">件
+<tr><th>ソフト: <td><label><input type="radio" name="soft" value="hg" checked>HG</label> <label><input type="radio" name="soft" value="ss">SS</label>
+<tr><th>地方: <td><label><input type="radio" name="region" value="johto" checked>ジョウト</label> <label><input type="radio" name="region" value="kanto">カントー</label><br>
+　<label><input type="checkbox" name="exclude_47_48"><small>47,48番道路を含めない</small></label>
+<tr><th>捕まえたことのあるポケモン: <td>
+<table><tr>
+<td><textarea cols="20" rows="7" id="ignore_pokemons"></textarea>
+<td id="ignore_pokemons_aid">
+<p><input type="button" id="add-all-button" value="全部追加">
+<p><input type="button" id="invert-button" value="反転">
+<p><input type="button" id="short-button" value="short"> <input type="button" id="long-button" value="long">
+<p>テキストボックスの大きさ: <input type="text" size="6" id="textbox-size-input" value="">
+</table>
+<tr><td><td><input type="submit" value="表示">
+</tbody>
+</table>
+</form>
+<div id="result"></div>
+</body>
+</html>
