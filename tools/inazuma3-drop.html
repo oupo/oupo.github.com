@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<meta http-equiv="Content-Script-Type" content="text/javascript">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<title>イナズマ3 アイテムドロップ乱数調整ツール</title>
+<script type="text/javascript">
+var addEvent =
+ window.addEventListener ? function(e, n, f) { e.addEventListener(n, f, false); }
+                         : function(e, n, f) { e.attachEvent("on" + n, f); };
+
+addEvent(window, "load", function() {
+	init_seed_verify_form();
+	init_drop_search_form();
+	init_goal_list_form();
+});
+
+var SETTING_METHOD = {
+	"binder": {before_advancement: 1,
+	           first_advancement: 1,
+	           note: ["靴とんとん", "頭をかく"]},
+	"goal":   {before_advancement: 0,
+	           first_advancement: 0,
+	           note: ["(→)", "(←)"]}
+};
+
+function init_seed_verify_form() {
+	var form = document.forms.seed_verify;
+	addEvent(form, "submit", submit_callback(on_submit_seed_verify));
+	for (var i = 0; i < form.method.length; i ++) {
+		addEvent(form.method[i], "click", function(ev) { on_change_method(get_event_target(ev)) });
+	}
+	
+	addEvent(form.delete_button, "click", function() {
+		document.getElementById("verify-result").innerHTML = "";
+	});
+	
+	var index = get_checked_radio_index(form.method);
+	if (index !== null) {
+		on_change_method(form.method[index]);
+	}
+	
+	function on_change_method(input) {
+			if (!SETTING_METHOD.hasOwnProperty(input.value)) return;
+			var buf = "";
+			var note = SETTING_METHOD[input.value].note;
+			for (var i = 0; i < note.length; i ++) {
+				buf += i + ": "+note[i]+"<br>";
+			}
+			document.getElementById("verify-note").innerHTML = buf;
+		}
+}
+
+
+function on_submit_seed_verify(f) {
+	var method = get_checked_radio_value(f.method);
+	var method_setting = SETTING_METHOD[method];
+	if (!SETTING_METHOD.hasOwnProperty(method)) {
+		input_error("確認方法が不正です");
+	}
+	
+	var fseed_base = read_input(f.fseed_base, "初期seedの範囲");
+	var fseed_gosa = read_input(f.fseed_gosa, "初期seedの範囲");
+	var advancement_min = read_input(f.advancement_min, "消費の範囲");
+	var advancement_max = read_input(f.advancement_max, "消費の範囲");
+	var filter = read_filter(f.filter.value);
+	
+	var fseed_min = fseed_base - fseed_gosa;
+	var fseed_max = fseed_base + fseed_gosa;
+	
+	var prng = new PRNG(0, 0);
+	var buf = "";
+	buf += "<table>";
+	buf += "<tr><th>初期seed<th>消費<th>合計消費";
+	var result = [];
+	
+	for (var fseed = fseed_min; fseed <= fseed_max; fseed ++) {
+		prng.set_seed(0, u32(fseed));
+		
+		var advancement = advancement_min;
+		prng.step(advancement);
+		for (; advancement <= advancement_max; advancement ++) {
+			var r = judge_seed_verify(method_setting, prng.seed, filter);
+			if (r !== null) {
+				buf += "<tr><td>"+format_hex(fseed, 8)+"<td>"+advancement+"<td>"+(advancement+r)+"<br>";
+				result.push({fseed: fseed, advancement: advancement, advancement_after: advancement+r});
+			}
+			prng.step(1);
+		}
+	}
+	buf += "</table>";
+	if (method === "goal" && result.length === 1) {
+		buf += '<input id="auto-submit-button" type="button" value="この結果を下二つのフォームに入力">';
+	}
+	document.getElementById("verify-result").innerHTML = buf;
+	
+	var button = document.getElementById("auto-submit-button");
+	addEvent(button, "click", func_bind_args(auto_submit, [result[0]]));
+}
+
+function auto_submit(result) {
+		var drop_search_form = document.forms.drop_search;
+		var goal_list_form = document.forms.goal_list;
+		
+		drop_search_form.fseed.value = format_hex(result.fseed, 8);
+		var advancements;
+		try {
+			advancements = on_submit_drop_search(drop_search_form);
+		} catch(e) {
+			console.log(e);
+			if (!(e instanceof InputError)) throw e;
+		}
+		
+		var current_advancement = result.advancement_after;
+		var target_advancement = null;
+		if (advancements) {
+			for (var i = 0; i < advancements.length; i ++) {
+				if (current_advancement <= advancements[i]) {
+					target_advancement = advancements[i];
+					break;
+				}
+			}
+		}
+		
+		goal_list_form.fseed.value = format_hex(result.fseed, 8);
+		goal_list_form.head_advancement.value = result.advancement;
+		goal_list_form.current_advancement.value = current_advancement;
+		if (target_advancement !== null) {
+			goal_list_form.target_advancement.value = target_advancement;
+			on_submit_goal_list(goal_list_form);
+		}
+		
+	}
+
+function judge_seed_verify(setting, seed, filter) {
+	var prng = new PRNG(seed.high, seed.row);
+	prng.step(setting.first_advancement);
+	for (var i = 0; i < filter.length; i ++) {
+		prng.step(setting.before_advancement);
+		if (prng.rand(2) !== filter[i]) {
+			return null;
+		}
+	}
+	return prng.advancement;
+}
+
+function init_drop_search_form() {
+	var form = document.forms.drop_search;
+	addEvent(form, "submit", submit_callback(on_submit_drop_search));
+	addEvent(form.delete_button, "click", function() {
+		document.getElementById("drop-search-result").innerHTML = "";
+	});
+}
+
+function on_submit_drop_search(f) {
+	var fseed = u32(read_input(f.fseed, "初期seed"));
+	var advancement_min = read_input(f.advancement_min, "消費の範囲");
+	var advancement_max = read_input(f.advancement_max, "消費の範囲");
+	var drop_odds = [];
+	for (var i = 0; i < 3; i ++) {
+		var odd = read_input(f["odd"+i], "確率");
+		drop_odds[i] = f["check"+i].checked ? odd : 100;
+	}
+	var before_advancement = f.check_count_before_advancement.checked ? 3 : 0;
+	
+	var buf = "<table><tr><th>消費";
+	var result = [];
+	
+	var prng = new PRNG(0, fseed);
+	var advancement = advancement_min;
+	prng.step(advancement);
+	for (; advancement <= advancement_max; advancement ++) {
+		if (judge_seed_drop_search(prng.seed, drop_odds, before_advancement)) {
+			buf += "<tr><td>" + advancement;
+			result.push(advancement);
+		}
+		prng.step(1);
+	}
+	document.getElementById("drop-search-result").innerHTML = buf;
+	return result;
+}
+
+function judge_seed_drop_search(seed, odds, before_advancement) {
+	var prng = new PRNG(seed.high, seed.row);
+	prng.step(before_advancement);
+	for (var i = 0; i < 3; i ++) {
+		if (!(prng.rand(100) < odds[i])) {
+			return false;
+		}
+	}
+	return true;
+}
+
+function init_goal_list_form() {
+	var form = document.forms.goal_list;
+	addEvent(form, "submit", submit_callback(on_submit_goal_list));
+	addEvent(form.delete_button, "click", function() {
+		document.getElementById("goal-list-result").innerHTML = "";
+	});
+}
+
+function on_submit_goal_list(f) {
+	var fseed = u32(read_input(f.fseed, "初期seed"));
+	var head_advancement = read_input(f.head_advancement, "先頭消費");
+	var current_advancement = read_input(f.current_advancement, "現在消費");
+	var target_advancement = read_input(f.target_advancement, "目標消費");
+	
+	var buf = "";
+	buf += '<table class="for-layout"><tr><td>';
+	buf += '<table id="table-goal-list"><thead><tr><th>消費<th>値</thead><tbody>';
+	
+	var prng = new PRNG(0, fseed);
+	var last_advancement = target_advancement + 3;
+	var advancement = head_advancement;
+	prng.step(advancement);
+	for (; advancement <= last_advancement; advancement ++) {
+		var className = "note";
+		if (advancement === target_advancement - 1) {
+			className += " note_hr";
+		}
+		var tr_className = advancement < current_advancement || advancement >= target_advancement ? "unimportant" : "";
+		buf += '<tr class="'+tr_className+'"><td>'+advancement+"<td>"+prng.rand(2)+'<td class="'+className+'">';
+	}
+	buf += "</table>";
+	buf += '<td style="line-height: 1.6"><input id="goal_list_next_button" type="button" value="次へ"><br>';
+	buf += '現在消費: <span id="goal_list_current_advancement"></span><br>残り消費: <span id="goal_list_remaining"></span>';
+	buf += "</tbody></table>";
+	document.getElementById("goal-list-result").innerHTML = buf;
+	update_advancement();
+	
+	addEvent(document.getElementById("goal_list_next_button"), "click", function() {
+		if (current_advancement < target_advancement) {
+			current_advancement ++;
+			update_advancement();
+		}
+	});
+	
+	function update_advancement() {
+		var td = get_td_by_advancement(current_advancement - 2);
+		if (td) {
+			td.innerHTML = "";
+			removeClass(td, "note_hr");
+		}
+		var td = get_td_by_advancement(current_advancement - 1);
+		if (td) {
+			td.innerHTML = "↑ここまで消費した";
+			addClass(td, "note_hr");
+			addClass(td.parentNode, "unimportant");
+		}
+		document.getElementById("goal_list_current_advancement").innerHTML = current_advancement;
+		document.getElementById("goal_list_remaining").innerHTML = target_advancement - current_advancement;
+	}
+	
+	function get_td_by_advancement(n) {
+		var tbody = document.getElementById("table-goal-list").getElementsByTagName("tbody")[0];
+		if (head_advancement <= n && n <= last_advancement) {
+			return tbody.childNodes[n - head_advancement].lastChild;
+		} else {
+			return null;
+		}
+	}
+}
+
+function submit_callback(fn) {
+	return function(ev) {
+		try {
+			fn(get_event_target(ev));
+		} catch(e) {
+			if (!(e instanceof InputError)) throw e;
+			alert(e.message);
+		}
+	}
+}
+
+function read_filter(str) {
+	var result = [];
+	for (var i = 0; i < str.length; i ++) {
+		if (/\d/.test(str.charAt(i))) {
+			result.push(Number(str.charAt(i)));
+		}
+	}
+	return result;
+}
+
+function read_input(input, name, min, max) {
+	var value = read_int_string(input.value);
+	if (min == undefined) min = -Infinity;
+	if (max == undefined) max =  Infinity;
+	if (value !== null && min <= value && value <= max) {
+		return value;
+	} else {
+		input_error(name+"に入力されている値が不正です");
+	}
+}
+
+function read_int_string(s, default_value) {
+	if (/^\s*$/.test(s) && default_value !== undefined) {
+		return default_value;
+	}
+	if (!/^\s*(?:-?\d+|0x[0-9a-f]+)\s*$/i.test(s)) {
+		return null;
+	}
+	return Number(s);
+}
+
+function input_error(message) {
+	throw new InputError(message);
+}
+
+function InputError(message) {
+	this.message = message;
+}
+
+
+
+function get_checked_radio_value(radios) {
+	var index = get_checked_radio_index(radios);
+	if (index === null) return null;
+	return radios[index].value;
+}
+
+function get_checked_radio_index(radios) {
+	for (var i = 0; i < radios.length; i ++) {
+		if (radios[i].checked) return i;
+	}
+	return null;
+}
+
+function get_event_target(event) {
+	return event.target || event.srcElement;
+}
+
+function hasClass(e, className) {
+	var s = e.className;
+	if (s === className) return true;
+	if (!/\s/.test(s)) return false;
+	var classes = s.split(/\s+/);
+	for (var i = 0, l = classes.length; i < l; i ++) {
+		if (classes[i] === className) {
+			return true;
+		}
+	}
+	return false;
+}
+
+function addClass(e, className) {
+	if (e.className === "") {
+		e.className = className;
+		return;
+	}
+	if (!hasClass(e, className)) {
+		e.className += " " + className;
+	}
+}
+
+function removeClass(e, className) {
+	var s = e.className;
+	if (s === className) {
+		e.className = "";
+		return;
+	}
+	if (!/\s/.test(s)) return;
+	var classes = s.split(/\s+/);
+	var index = -1;
+	for (var i = 0, l = classes.length; i < l; i ++) {
+		if (classes[i] === className) {
+			index = i;
+			break;
+		}
+	}
+	if (index >= 0) {
+		classes.splice(index, 1);
+		e.className = classes.join(" ");
+	}
+}
+
+function format_hex(n, prec) {
+	var s = n.toString(16);
+	return "0x" + (str_repeat("0", prec - s.length) + s);
+}
+
+function str_repeat(s, n) {
+	var r = "";
+	for (var i = 0; i < n; i ++) {
+		r += s;
+	}
+	return r;
+}
+
+function func_bind_args(fn, args) {
+	return function() {
+		return fn.apply(this, args);
+	};
+}
+
+function PRNG(high, row) {
+	this.seed = new MutableUint64(high, row);
+	this.advancement = 0;
+}
+
+PRNG.A_HIGH = 0x5d588b65, PRNG.A_ROW = 0x6c078965;
+PRNG.B_HIGH = 0x00000000, PRNG.B_ROW = 0x00269ec3;
+
+PRNG.prototype.set_seed = function(high, row) {
+	this.seed.high = high;
+	this.seed.row = row;
+	this.advancement = 0;
+}
+
+PRNG.prototype.rand = function(max) {
+	this.seed.mul(PRNG.A_HIGH, PRNG.A_ROW);
+	this.seed.add(PRNG.B_HIGH, PRNG.B_ROW);
+	this.advancement ++;
+	
+	var tmp = new MutableUint64(0, 0);
+	tmp.set(0, this.seed.high);
+	tmp.mul(0, max);
+	return tmp.high;
+};
+
+PRNG.prototype.step = function(num) {
+	var a = new MutableUint64(PRNG.A_HIGH, PRNG.A_ROW);
+	var b = new MutableUint64(PRNG.B_HIGH, PRNG.B_ROW);
+	var n = num;
+	while (true) {
+		if (n & 1) {
+			this.seed.mul(a.high, a.row);
+			this.seed.add(b.high, b.row);
+		}
+		n >>>= 1;
+		if (n === 0) break;
+		
+		var b_high = b.high, b_row = b.row;
+		b.mul(a.high, a.row);
+		b.add(b_high, b_row);
+		
+		a.mul(a.high, a.row);
+	}
+	this.advancement += num;
+};
+
+
+function MutableUint64(high, row) {
+	this.high = high;
+	this.row = row;
+}
+
+MutableUint64.prototype.set = function(high, row) {
+	this.high = high;
+	this.row = row;
+}
+
+MutableUint64.prototype.add = function(o_high, o_row) {
+	var row = this.row + o_row;
+	var carry = row > 0xffffffff;
+	this.row = u32(row);
+	this.high = u32(this.high + o_high + (carry ? 1 : 0));
+	return this;
+};
+
+MutableUint64.prototype.add_shift = function(other, shift) {
+	var row, high;
+	if (shift < 32) {
+		row = u32(other << shift);
+		high = shift == 0 ? 0 : other >>> (32 - shift);
+	} else {
+		row = 0;
+		high = u32(other << (shift - 32));
+	}
+	this.add(high, row);
+};
+
+MutableUint64.prototype.mul = function(o_high, o_row) {
+	var a = this.high >>> 16, b = this.high & 0xffff, c = this.row >>> 16, d = this.row & 0xffff;
+	var e =    o_high >>> 16, f =    o_high & 0xffff, g =    o_row >>> 16, h =    o_row & 0xffff;
+	
+	this.high = this.row = 0;
+	
+	this.add_shift(h * d,  0);
+	this.add_shift(h * c, 16);
+	this.add_shift(h * b, 32);
+	this.add_shift(h * a, 48);
+	
+	this.add_shift(g * d, 16);
+	this.add_shift(g * c, 32);
+	this.add_shift(g * b, 48);
+	
+	this.add_shift(f * d, 32);
+	this.add_shift(f * c, 48);
+	
+	this.add_shift(e * d, 48);
+	return this;
+};
+
+function u32(x) {
+	return x >>> 0;
+}
+</script>
+<style type="text/css">
+form {
+}
+
+table {
+	border-collapse: collapse;
+	font-size: 80%;
+	margin: 1em 0;
+}
+th, td {
+	padding: 0.1em 5px;
+	border: 1px solid black;
+}
+
+tr.unimportant {
+	background-color: #ccc;
+}
+
+td.note {
+	border: 1px solid transparent;
+}
+
+td.note_hr {
+	border-bottom-color:black;
+}
+
+td.seed {
+	font-family: monospace;
+}
+
+form table {
+	font-size: 100%;
+	margin: 0;
+}
+
+form th {
+	text-align: right;
+}
+
+form th,
+form td {
+	border: none;
+}
+
+table.for-layout {
+	font-size: 100%;
+	margin: 0;
+	padding: 0;
+}
+
+table.for-layout > * > tr > th,
+table.for-layout > * > tr > td {
+	border: none;
+	margin: 0;
+	vertical-align: top;
+}
+</style>
+</head>
+<body>
+<h1>イナズマ3 アイテムドロップ乱数調整ツール</h1>
+<h2>seed確認</h2>
+<table class="for-layout">
+<tr><td>
+<form action="" name="seed_verify" onsubmit="return false;">
+<table>
+<tr><th>確認方法:
+<td>
+<label><input type="radio" name="method" value="binder" checked>選手バインダー</label>
+<label><input type="radio" name="method" value="goal">ゴールのモーション</label>
+<tr><th>初期seedの範囲:<td><input type="text" size="20" name="fseed_base" value="0x00000100">±<input type="text" size="6" name="fseed_gosa" value="20">
+<tr><th>消費の範囲:<td><input type="text" size="6" name="advancement_min" value="10"> ～ <input type="text" size="6" name="advancement_max" value="30">
+<tr><th>フィルター:<td><input type="text" size="50" name="filter" value="">
+<tr><td><td><input type="submit" value="決定"> <input type="button" name="delete_button" value="結果を消す">
+</table>
+</form>
+<td id="verify-note">
+</table>
+<div id="verify-result"></div>
+
+
+<h2>ドロップできる消費を探す</h2>
+<form action="" name="drop_search" onsubmit="return false;">
+<table>
+<tr><th>初期seed:<td><input type="text" size="20" name="fseed" value="0x0000010c">
+<tr><th>消費の範囲:<td><input type="text" size="6" name="advancement_min" value="10"> ～ <input type="text" size="6" name="advancement_max" value="1000">
+<tr><th>ドロップ:<td>
+<table>
+<tr>
+<td><input type="checkbox" name="check0">
+<td><input type="checkbox" name="check1">
+<td><input type="checkbox" name="check2" checked>
+<tr>
+<td><input type="text" size="4" name="odd0" value="5"> %
+<td><input type="text" size="4" name="odd1" value="15"> %
+<td><input type="text" size="4" name="odd2" value="2"> %
+</table>
+<tr><th>オプション:
+<td>
+<label><input type="checkbox" name="check_count_before_advancement" checked>試合終了時のセリフ決定の2消費と経験値決定の1消費を考慮する</label>
+<tr><td><td><input type="submit" value="決定"> <input type="button" name="delete_button" value="結果を消す">
+</table>
+</form>
+<div id="drop-search-result"></div>
+
+<h2>ゴールのモーションでリスト作成</h2>
+<form action="" name="goal_list" onsubmit="return false;">
+<table>
+<tr><th>初期seed:<td><input type="text" size="20" name="fseed" value="0x0000010c">
+<tr><th>先頭消費:<td><input type="text" size="6" name="head_advancement" value="">
+<tr><th>現在消費:<td><input type="text" size="6" name="current_advancement" value="">
+<tr><th>目標消費:<td><input type="text" size="6" name="target_advancement" value="">
+<tr><td><td><input type="submit" value="決定"> <input type="button" name="delete_button" value="結果を消す">
+</table>
+</form>
+<div id="goal-list-result"></div>
+
+</body>
+</html>
