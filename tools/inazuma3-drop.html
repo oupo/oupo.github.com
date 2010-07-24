@@ -191,54 +191,26 @@ var addEvent =
                          : function(e, n, f) { e.attachEvent("on" + n, f); };
 
 addEvent(window, "load", function() {
-	init_seed_verify_form();
+	init_binder_seed_verify_form();
+	init_goal_seed_verify_form();
 	init_drop_search_form();
 	init_goal_list_form();
 });
 
 var SETTING_METHOD = {
 	"binder": {before_advancement: 1,
-	           first_advancement: 1,
-	           note: ["靴とんとん", "頭をかく"]},
+	           first_advancement: 1},
 	"goal":   {before_advancement: 0,
-	           first_advancement: 0,
-	           note: ["(→)", "(←)"]}
+	           first_advancement: 0}
 };
 
-function init_seed_verify_form() {
-	var form = document.forms.seed_verify;
-	addEvent(form, "submit", submit_callback(on_submit_seed_verify));
-	for (var i = 0; i < form.method.length; i ++) {
-		addEvent(form.method[i], "click", function(ev) { on_change_method(get_event_target(ev)) });
-	}
-	
-	addEvent(form.delete_button, "click", function() {
-		document.getElementById("verify-result").innerHTML = "";
-	});
-	
-	var index = get_checked_radio_index(form.method);
-	if (index !== null) {
-		on_change_method(form.method[index]);
-	}
-	
-	function on_change_method(input) {
-			if (!SETTING_METHOD.hasOwnProperty(input.value)) return;
-			var buf = "";
-			var note = SETTING_METHOD[input.value].note;
-			for (var i = 0; i < note.length; i ++) {
-				buf += i + ": "+note[i]+"<br>";
-			}
-			document.getElementById("verify-note").innerHTML = buf;
-		}
+function init_binder_seed_verify_form() {
+	var form = document.forms.binder_seed_verify;
+	add_submit_and_delete_event(form, on_submit_binder_seed_verify, "binder-verify-result");
 }
 
-
-function on_submit_seed_verify(f) {
-	var method = get_checked_radio_value(f.method);
-	var method_setting = SETTING_METHOD[method];
-	if (!SETTING_METHOD.hasOwnProperty(method)) {
-		input_error("確認方法が不正です");
-	}
+function on_submit_binder_seed_verify(f) {
+	var result_area = document.getElementById("binder-verify-result");
 	
 	var fseed_base = read_input(f.fseed_base, "初期seedの範囲");
 	var fseed_gosa = read_input(f.fseed_gosa, "初期seedの範囲");
@@ -249,6 +221,27 @@ function on_submit_seed_verify(f) {
 	var fseed_min = fseed_base - fseed_gosa;
 	var fseed_max = fseed_base + fseed_gosa;
 	
+	build_result_verify(fseed_min, fseed_max, advancement_min, advancement_max, filter, result_area, "binder");
+}
+
+function init_goal_seed_verify_form() {
+	var form = document.forms.goal_seed_verify;
+	add_submit_and_delete_event(form, on_submit_goal_seed_verify, "goal-verify-result");
+}
+
+function on_submit_goal_seed_verify(f) {
+	var result_area = document.getElementById("goal-verify-result");
+	
+	var fseed = read_input(f.fseed, "初期seed");
+	var advancement_min = read_input(f.advancement_min, "消費の範囲");
+	var advancement_max = read_input(f.advancement_max, "消費の範囲");
+	var filter = read_filter(f.filter.value);
+	
+	build_result_verify(fseed, fseed, advancement_min, advancement_max, filter, result_area, "goal");
+}
+
+function build_result_verify(fseed_min, fseed_max, advancement_min, advancement_max, filter, result_area, method) {
+	var method_setting = SETTING_METHOD[method];
 	var prng = new PRNG(0, 0);
 	var buf = "";
 	buf += "<table>";
@@ -273,45 +266,46 @@ function on_submit_seed_verify(f) {
 	if (method === "goal" && result.length === 1) {
 		buf += '<input id="auto-submit-button" type="button" value="この結果を下二つのフォームに入力">';
 	}
-	document.getElementById("verify-result").innerHTML = buf;
+	result_area.innerHTML = buf;
 	
 	var button = document.getElementById("auto-submit-button");
-	addEvent(button, "click", func_bind_args(auto_submit, [result[0]]));
+	if (button) {
+		addEvent(button, "click", func_bind_args(auto_submit, [result[0]]));
+	}
 }
 
 function auto_submit(result) {
-		var drop_search_form = document.forms.drop_search;
-		var goal_list_form = document.forms.goal_list;
-		
-		drop_search_form.fseed.value = format_hex(result.fseed, 8);
-		var advancements;
-		try {
-			advancements = on_submit_drop_search(drop_search_form);
-		} catch(e) {
-			console.log(e);
-			if (!(e instanceof InputError)) throw e;
-		}
-		
-		var current_advancement = result.advancement_after;
-		var target_advancement = null;
-		if (advancements) {
-			for (var i = 0; i < advancements.length; i ++) {
-				if (current_advancement <= advancements[i]) {
-					target_advancement = advancements[i];
-					break;
-				}
+	var drop_search_form = document.forms.drop_search;
+	var goal_list_form = document.forms.goal_list;
+	
+	drop_search_form.fseed.value = format_hex(result.fseed, 8);
+	var advancements;
+	try {
+		advancements = on_submit_drop_search(drop_search_form);
+	} catch(e) {
+		if (!(e instanceof InputError)) throw e;
+	}
+	
+	var current_advancement = result.advancement_after;
+	var target_advancement = null;
+	if (advancements) {
+		for (var i = 0; i < advancements.length; i ++) {
+			if (current_advancement <= advancements[i]) {
+				target_advancement = advancements[i];
+				break;
 			}
 		}
-		
-		goal_list_form.fseed.value = format_hex(result.fseed, 8);
-		goal_list_form.head_advancement.value = result.advancement;
-		goal_list_form.current_advancement.value = current_advancement;
-		if (target_advancement !== null) {
-			goal_list_form.target_advancement.value = target_advancement;
-			on_submit_goal_list(goal_list_form);
-		}
-		
 	}
+	
+	goal_list_form.fseed.value = format_hex(result.fseed, 8);
+	goal_list_form.head_advancement.value = result.advancement;
+	goal_list_form.current_advancement.value = current_advancement;
+	if (target_advancement !== null) {
+		goal_list_form.target_advancement.value = target_advancement;
+		on_submit_goal_list(goal_list_form);
+	}
+	
+}
 
 function judge_seed_verify(setting, seed, filter) {
 	var prng = new PRNG(seed.high, seed.row);
@@ -327,10 +321,7 @@ function judge_seed_verify(setting, seed, filter) {
 
 function init_drop_search_form() {
 	var form = document.forms.drop_search;
-	addEvent(form, "submit", submit_callback(on_submit_drop_search));
-	addEvent(form.delete_button, "click", function() {
-		document.getElementById("drop-search-result").innerHTML = "";
-	});
+	add_submit_and_delete_event(form, on_submit_drop_search, "drop-search-result");
 	init_team_select();
 }
 
@@ -426,10 +417,7 @@ function judge_seed_drop_search(seed, drops, before_advancement) {
 
 function init_goal_list_form() {
 	var form = document.forms.goal_list;
-	addEvent(form, "submit", submit_callback(on_submit_goal_list));
-	addEvent(form.delete_button, "click", function() {
-		document.getElementById("goal-list-result").innerHTML = "";
-	});
+	add_submit_and_delete_event(form, on_submit_goal_list, "goal-list-result");
 }
 
 function on_submit_goal_list(f) {
@@ -492,6 +480,13 @@ function on_submit_goal_list(f) {
 			return null;
 		}
 	}
+}
+
+function add_submit_and_delete_event(form, on_submit, result_area_id) {
+	addEvent(form, "submit", submit_callback(on_submit));
+	addEvent(form.delete_button, "click", function() {
+		document.getElementById(result_area_id).innerHTML = "";
+	});
 }
 
 function submit_callback(fn) {
@@ -789,24 +784,39 @@ table.for-layout > * > tr > td {
 </head>
 <body>
 <h1>イナズマ3 アイテムドロップ乱数調整ツール</h1>
-<h2>seed確認</h2>
+<h2>選手バインダーでseed確認</h2>
 <table class="for-layout">
 <tr><td>
-<form action="" name="seed_verify" onsubmit="return false;">
+<form action="" name="binder_seed_verify" onsubmit="return false;">
 <table>
-<tr><th>確認方法:
-<td>
-<label><input type="radio" name="method" value="binder" checked>選手バインダー</label>
-<label><input type="radio" name="method" value="goal">ゴールのモーション</label>
 <tr><th>初期seedの範囲:<td><input type="text" size="20" name="fseed_base" value="0x00000100">±<input type="text" size="6" name="fseed_gosa" value="20">
 <tr><th>消費の範囲:<td><input type="text" size="6" name="advancement_min" value="10"> ～ <input type="text" size="6" name="advancement_max" value="30">
 <tr><th>フィルター:<td><input type="text" size="50" name="filter" value="">
 <tr><td><td><input type="submit" value="決定"> <input type="button" name="delete_button" value="結果を消す">
 </table>
 </form>
-<td id="verify-note">
+<td>
+0: 靴とんとん<br>
+1: 頭をかく
 </table>
-<div id="verify-result"></div>
+<div id="binder-verify-result"></div>
+
+<h2>ゴールのモーションで消費確認</h2>
+<table class="for-layout">
+<tr><td>
+<form action="" name="goal_seed_verify" onsubmit="return false;">
+<table>
+<tr><th>初期seed:<td><input type="text" size="20" name="fseed" value="0x0000010c">
+<tr><th>消費の範囲:<td><input type="text" size="6" name="advancement_min" value="10"> ～ <input type="text" size="6" name="advancement_max" value="1000">
+<tr><th>フィルター:<td><input type="text" size="50" name="filter" value="">
+<tr><td><td><input type="submit" value="決定"> <input type="button" name="delete_button" value="結果を消す">
+</table>
+</form>
+<td>
+0: (→)<br>
+1: (←)
+</table>
+<div id="goal-verify-result"></div>
 
 
 <h2>ドロップできる消費を探す</h2>
