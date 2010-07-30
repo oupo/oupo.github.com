@@ -647,9 +647,11 @@ function build_result_div(shuu, is_open_level, is_hgss, seed, consumption,
 		}
 		buf.push("</p>");
 	} else {
-		buf.push("<p>トレーナー: <select id=\"trainers\">"+build_trainers_options(trainers_candidate, consumption_head, trainers_index)+"</select>");
-		buf.push(" <small>(トレーナー決定時のseed: <span id=\"seed-on-trainers\"></span>)</small><br>");
-		buf.push("<small>トレーナーの種類は相手が何周目のポケモンを使ってくるかに影響します</small></p>");
+		buf.push("<p>トレーナー: <br>");
+		if (trainers_candidate.length >= 2 && is_influenced_by_trainers_shuu(shuu, is_open_level)) {
+			buf.push("<strong>トレーナーのパターンの候補が複数あります。正しい候補を選ばないと結果がずれてきてしまいます</strong><br>");
+		}
+		buf.push(build_trainers_select(trainers_candidate, consumption_head, trainers_index));
 	}
 	for (var i = 1; i <= 7; i ++) {
 		buf.push("<p>"+i+"戦目 <span id=\"trainer-name-"+i+"\"></span>");
@@ -672,7 +674,6 @@ function build_result_div(shuu, is_open_level, is_hgss, seed, consumption,
 	buf.push("<p>ログ</p>");
 	buf.push("<textarea id=\"result-log\" cols=\"60\" rows=\"10\"></textarea>");
 	$(div).html(buf.join(""));
-	update_seed_on_trainers();
 	update_trainer_names();
 	change_enemy_entries0(0, entries_in_hand, r.seed, r.next_consumption);
 	update_log_textarea();
@@ -683,7 +684,7 @@ function build_result_div(shuu, is_open_level, is_hgss, seed, consumption,
 		$("#exchange-clear-"+i).click(on_exchange_select_change);
 	}
 	$("#paste-to-textarea").click(paste_to_textarea);
-	$("#trainers").change(on_trainers_select_change).keypress(on_trainers_select_change);
+	$("#trainers input").click(on_trainers_select_change);
 	$("#result > div.entries > table > tbody > tr").mouseenter(on_mouseenter_tr).mouseleave(on_mouseleave_tr);
 	$("button.show-tooltip").mouseenter(show_tooltip).mouseleave(hide_tooltip);
 }
@@ -780,6 +781,7 @@ function get_trainers_candidate(seed_head, shuu, back_seeds, is_hgss) {
 		var r = get_trainers_by_seed(shuu, seed, is_hgss);
 		if (ary_include(back_seeds, i - r.consumption)) {
 			result.push({start: -i,
+			             seed: seed,
 			             c: r.c,
 			             trainer_ids: r.trainer_ids,
 			             trainer_ids2: r.trainer_ids2,
@@ -821,26 +823,20 @@ function get_selected_trainers_index(candidate, start_offset) {
 	throw new Error("trainers_candidate not found");
 }
 
-function build_trainers_options(trainers_canndidate, consumption, selected_index) {
-	var buf = "";
+function build_trainers_select(trainers_canndidate, consumption, selected_index) {
+	var buf = "<span id=\"trainers\">";
 	for (var i = 0; i < trainers_canndidate.length; i ++) {
-		buf += "<option"+(selected_index===i?" selected":"")+">"+
-		       trainers_to_string(trainers_canndidate[i], consumption)+"</option>";
+		buf += "<label><input type=\"radio\" name=\"trainers-select\" value=\""+i+"\""+(selected_index===i?" checked":"")+">"+
+		       trainers_to_string(trainers_canndidate[i], consumption)+
+		       " ("+format_hex(trainers_canndidate[i].seed, 8)+")</label><br>";
 	}
+	buf += "</span>";
 	return buf;
 }
 
 function trainers_to_string(trainers, consumption) {
 	return (trainers.start+consumption)+".."+(trainers.start+trainers.c-1+consumption)+": "+
 	        map(trainers.trainer_ids, trainer_id_to_name).join(", ");
-}
-
-function update_seed_on_trainers() {
-	if (get_selected_trainers().is_dummy) return;
-	var index = $("#trainers")[0].selectedIndex;
-	var trainers = context.trainers[index];
-	var seed = step_seed(context.infos[0].seed_start, trainers.start);
-	$("#seed-on-trainers").text(format_hex(seed, 8));
 }
 
 // 相手の3匹決定後の乱数消費量を取得
@@ -1120,8 +1116,7 @@ function on_exchange_select_change() {
 
 function on_trainers_select_change() {
 	if (Lock.is_locked()) return;
-	context.selected_trainers_index = this.selectedIndex;
-	update_seed_on_trainers();
+	context.selected_trainers_index = Number(this.value);
 	update_trainer_names();
 	change_enemy_entries(0, context.infos[1].entries_in_hand);
 }
