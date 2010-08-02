@@ -869,7 +869,7 @@ small input {
 <h2>選手バインダーでseed確認</h2>
 <table class="for-layout">
 <tr><td>
-<form action="" name="binder_seed_verify" onsubmit="return false;">
+<form action="" name="binder_seed_verify" onsubmit="return false;" autocomplete="off">
 <table>
 <tr><th>初期seedの範囲:<td><input type="text" size="20" name="fseed_base" value="0x00000100">±<input type="text" size="6" name="fseed_gosa" value="20">
 <tr><th>消費の範囲:<td><input type="text" size="6" name="advancement_min" value="10"> ～ <input type="text" size="6" name="advancement_max" value="30">
@@ -886,7 +886,7 @@ small input {
 <h2>ゴールのモーションで消費確認</h2>
 <table class="for-layout">
 <tr><td>
-<form action="" name="goal_seed_verify" onsubmit="return false;">
+<form action="" name="goal_seed_verify" onsubmit="return false;" autocomplete="off">
 <table>
 <tr><th>初期seed:<td><input type="text" size="20" name="fseed" value="0x0000010c">
 <tr><th>消費の範囲:<td><input type="text" size="6" name="advancement_min" value="10"> ～ <input type="text" size="6" name="advancement_max" value="1000">
@@ -902,7 +902,7 @@ small input {
 
 
 <h2>ドロップできる消費を探す</h2>
-<form action="" name="drop_search" onsubmit="return false;">
+<form action="" name="drop_search" onsubmit="return false;" autocomplete="off">
 <table>
 <tr><th>初期seed:<td><input type="text" size="20" name="fseed" value="0x0000010c">
 <tr><th>消費の範囲:<td><input type="text" size="6" name="advancement_min" value="10"> ～ <input type="text" size="6" name="advancement_max" value="1000">
@@ -922,7 +922,7 @@ small input {
 <div id="drop-search-result"></div>
 
 <h2>ゴールのモーションでリスト作成</h2>
-<form action="" name="goal_list" onsubmit="return false;">
+<form action="" name="goal_list" onsubmit="return false;" autocomplete="off">
 <table>
 <tr><th>初期seed:<td><input type="text" size="20" name="fseed" value="0x0000010c">
 <tr><th>先頭消費:<td><input type="text" size="6" name="head_advancement" value="">
