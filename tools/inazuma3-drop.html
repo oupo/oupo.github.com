@@ -263,14 +263,23 @@ function build_result_verify(fseed_min, fseed_max, advancement_min, advancement_
 		}
 	}
 	buf += "</table>";
-	if (method === "goal" && result.length === 1) {
-		buf += '<input id="auto-submit-button" type="button" value="この結果を下二つのフォームに入力">';
+	if (result.length === 1) {
+		if (method === "goal") {
+			buf += '<input id="auto-submit-button" type="button" value="この結果を下二つのフォームに入力">';
+		} else {
+			buf += '<input id="auto-input-seed-button" type="button" value="この初期seedを下全てのフォームに入力">';
+		}
 	}
 	result_area.innerHTML = buf;
 	
 	var button = document.getElementById("auto-submit-button");
 	if (button) {
 		addEvent(button, "click", func_bind_args(auto_submit, [result[0]]));
+	}
+	
+	var button = document.getElementById("auto-input-seed-button");
+	if (button) {
+		addEvent(button, "click", func_bind_args(auto_input_seed, [result[0]]));
 	}
 }
 
@@ -304,6 +313,28 @@ function auto_submit(result) {
 		goal_list_form.target_advancement.value = target_advancement;
 		on_submit_goal_list(goal_list_form);
 	}
+}
+
+function auto_input_seed(result) {
+	var goal_seed_verify_form = document.forms.goal_seed_verify;
+	var drop_search_form = document.forms.drop_search;
+	var goal_list_form = document.forms.goal_list;
+	
+	var fseed = result.fseed;
+	var advancement_min = result.advancement_after;
+	var advancement_max = (advancement_min + 1000);
+	advancement_max = advancement_max - advancement_max % 1000;
+	
+	goal_seed_verify_form.fseed.value = format_hex(fseed, 8);
+	drop_search_form.fseed.value = format_hex(fseed, 8);
+	goal_list_form.fseed.value = format_hex(fseed, 8);
+	
+	
+	goal_seed_verify_form.advancement_min.value = advancement_min;
+	goal_seed_verify_form.advancement_max.value = advancement_max;
+	
+	drop_search_form.advancement_min.value = advancement_min;
+	drop_search_form.advancement_max.value = advancement_max;
 }
 
 function judge_seed_verify(setting, seed, filter) {
