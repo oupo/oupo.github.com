@@ -207,6 +207,7 @@ var SETTING_METHOD = {
 function init_binder_seed_verify_form() {
 	var form = document.forms.binder_seed_verify;
 	add_submit_and_delete_event(form, on_submit_binder_seed_verify, "binder-verify-result");
+	add_filter_length_info(form.filter);
 }
 
 function on_submit_binder_seed_verify(f) {
@@ -227,6 +228,7 @@ function on_submit_binder_seed_verify(f) {
 function init_goal_seed_verify_form() {
 	var form = document.forms.goal_seed_verify;
 	add_submit_and_delete_event(form, on_submit_goal_seed_verify, "goal-verify-result");
+	add_filter_length_info(form.filter);
 }
 
 function on_submit_goal_seed_verify(f) {
@@ -347,6 +349,14 @@ function judge_seed_verify(setting, seed, filter) {
 		}
 	}
 	return prng.advancement;
+}
+
+function add_filter_length_info(input) {
+	var span = input.parentNode.insertBefore(document.createElement("span"), input.nextSibling);
+	addEvent(input, "keyup", function() {
+		var m = input.value.match(/\d/g);
+		span.innerHTML = m ? " (" + m.length + ")" : "";
+	});
 }
 
 function init_drop_search_form() {
