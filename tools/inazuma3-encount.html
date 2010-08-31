@@ -1,0 +1,1433 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<meta http-equiv="Content-Script-Type" content="text/javascript">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<title>イナズマ3 エンカウント乱数調整ツール</title>
+<script type="text/javascript" src="inazuma3-encount-data.js"></script>
+<script type="text/javascript" src="inazuma3-prng.js"></script>
+<script type="text/javascript">
+var addEvent =
+ window.addEventListener ? function(e, n, f) { e.addEventListener(n, f, false); }
+                         : function(e, n, f) { e.attachEvent("on" + n, f); };
+
+addEvent(window, "load", function() {
+	init_encount_search_form();
+	init_timer_form();
+	init_binder_seed_verify_form();
+	init_npc_list_form();
+	init_encount_list_form();
+	init_battle_result_list_form();
+	
+	var button = document.getElementById("enable-npc-button");
+	addEvent(button, "click", function() {
+		var old = document.getElementById("npc-style");
+		var style = document.createElement("style");
+		style.id = "npc-style";
+		old.parentNode.replaceChild(style, old);
+		var text = ".npc { /* display:; */ }";
+		if (style['styleSheet']) {
+			style.styleSheet.cssText = text;
+		} else {
+			style.appendChild(document.createTextNode(text));
+		}
+		button.className = "clicked";
+	});
+});
+
+//------------------------------------------------------------------------------
+
+
+function init_encount_search_form() {
+	var form = document.forms.encount_search;
+	init_map_select();
+	connect_checkbox_disabled_by_name(form.elements.check_member, form, "member");
+	
+	addEvent(form, "submit", submit_callback(on_submit_encount_search));
+	addEvent(form.elements.delete_button, "click", hide_search_result);
+}
+
+var TITLE_ADVANCEMENT_PER_SEC = 30; // タイトル画面の1秒間の消費
+
+function on_submit_encount_search(form) {
+	hide_search_result();
+	var result_area = document.getElementById("encount-search-result");
+	
+	var f = form.elements;
+	var fseed = read_input(f.fseed, "初期seed");
+	var advancement_min = read_input(f.advancement_min, "消費の範囲");
+	var advancement_max = read_input(f.advancement_max, "消費の範囲");
+	
+	var target_game_id = Number(get_checked_radio_value(f.team));
+	var target_unitno = f.check_member.checked ? Number(get_checked_radio_value(f.member)) : null;
+	
+	var map_index = Number(f.map_select[f.map_select.selectedIndex].value);
+	var map = ENCOUNT_TABLE[map_index];
+	var version = get_checked_radio_value(f.version);
+	var encount_games = get_encount_games(map, version);
+	
+	var buf = "";
+	
+	buf += '<p>引き抜かれた選手: <input type="text" id="input-ignore-unitnames" value="" size="60">';
+	buf += '<br><small>(バトル後に仲間になる調整も行う場合は、実際のゲームとメンバーが一致している必要があります。それ以外では入力の必要なし)</small>';
+	buf += '<br><small>(全てのメンバーについて入力する必要はないです。狙う消費のメンバーが全員引き抜かれていないキャラになるまで入力してください)</small></p>';
+	if (target_unitno !== null) {
+		buf += '<p class="npc"><label><input type="checkbox" id="checkbox-npc">チーム決定からメンバー決定の間でNPC消費が一回挟まっても問題ないのを探す</label>';
+		if (is_unit_battle_scout_type(target_unitno)) {
+			buf += '<br>└ <label><input type="checkbox" id="checkbox-common-scout-adv">'+
+			       'NPC消費がないときとあるときのメンバーで、「'+unitno_to_name(target_unitno)+'」をスカウトできる共通の消費がなければ除外</label>';
+		}
+		buf += '</p>';
+	}
+	buf += "<table>";
+	buf += '<thead><tr><td class="transparent-left"><th>消費<th>待ち時間の範囲<th class="member">メンバー<th class="member2" style="display:none">NPC消費を挟んだメンバー';
+	buf += "<tbody>";
+	
+	var advancement = advancement_min;
+	var j = new EncountSeedJudge(encount_games, target_game_id, target_unitno);
+	var stream = new PRNGStream(0, fseed, advancement, 100, 100);
+	var result = [];
+	var ignore_unitnos_set = [];
+	
+	for (; advancement <= advancement_max; advancement ++) {
+		var r = j.judge(stream.next(), ignore_unitnos_set);
+		if (r) {
+			var unitnames = array_map(r.unitnos, function(n){return UNIT_NAMES[n]});
+			var min = Math.max(advancement - r.advance_range, 0);
+			var time_mid = ((advancement + min) / 2 / TITLE_ADVANCEMENT_PER_SEC).toFixed(1);
+			var time_error = ((advancement - min) / 2 / TITLE_ADVANCEMENT_PER_SEC).toFixed(2);
+			buf += '<tr><td class="transparent-left"><input type="radio" name="select_advancement" value="'+result.length+'">'+
+			       '<td>'+min+"-"+advancement+"<td>"+time_mid+"秒±"+time_error+"<td>"+unitnames.join(", ")+'<td style="display:none">';
+			result.push({advancement_min: min, advancement: advancement, unitnos: r.unitnos, unitnos2: null, enabled: true});
+		}
+	}
+	
+	buf += "</table>";
+	buf += '<p><input type="button" id="button-select-advancement" value="決定"> <input type="button" id="button-delete-tools-for-practice" value="消す">';
+	
+	var context = {
+		area: result_area,
+		fseed: fseed,
+		advancement_min: advancement_min,
+		advancement_max: advancement_max,
+		map: map,
+		version: version,
+		encount_games: encount_games,
+		target_game_id: target_game_id,
+		target_unitno: target_unitno,
+		result: result,
+		ignore_unitnos_set: ignore_unitnos_set,
+		check_npc: false
+	};
+	
+	result_area.innerHTML = buf;
+	
+	var update_fn = func_bind_args(update_search_result, [context]);
+	addEvent(document.getElementById("input-ignore-unitnames"), "keyup", update_fn);
+	addEventIfNotNull(document.getElementById("checkbox-npc"), "click", update_fn);
+	addEventIfNotNull(document.getElementById("checkbox-common-scout-adv"), "click", update_fn);
+
+	add_click_event_search_result(context);
+}
+
+function update_search_result(context) {
+	var input_ignore = document.getElementById("input-ignore-unitnames");
+	var dummy = {checked: false};
+	var check_npc = (document.getElementById("checkbox-npc") || dummy).checked;
+	var check_common_scout_adv = (document.getElementById("checkbox-common-scout-adv") || dummy).checked;
+
+	var ignore_unitnos_set = parse_unitnames(input_ignore.value);
+	var result = context.result;
+	var head_row = context.area.getElementsByTagName("thead")[0].firstChild;
+	var cell_index = search_child_index(head_row, "member");
+	head_row.childNodes[cell_index + 1].style.display = check_npc ? "" : "none";
+	var rows = context.area.getElementsByTagName("tbody")[0].childNodes;
+	
+	context.check_npc = check_npc;
+	context.ignore_unitnos_set = ignore_unitnos_set;
+	for (var i = 0; i < result.length; i ++) {
+		var advancement = result[i].advancement;
+		var prng = new PRNG(0, context.fseed);
+		prng.step(advancement);
+		prng.step(2 + Math.min(context.encount_games.length, 7));
+		var adv = prng.advancement;
+		var unitnos = determine_encount_members(prng, context.encount_games, context.target_game_id, ignore_unitnos_set);
+		var cond = true;
+		if (check_npc) {
+			prng.step(- prng.advancement + adv + NPC_ADVANCEMENT);
+			var unitnos2 = determine_encount_members(prng, context.encount_games, context.target_game_id, ignore_unitnos_set);
+			rows[i].childNodes[cell_index + 1].innerHTML = array_map(unitnos2, unitno_to_name).join(", ");
+			rows[i].childNodes[cell_index + 1].style.display = "";
+			
+			cond = array_include(unitnos2, context.target_unitno);
+			if (check_common_scout_adv) {
+				cond = cond && exist_common_scout_adv(unitnos, unitnos2, context.target_unitno);
+			}
+			result[i].unitnos2 = unitnos2;
+		} else {
+			rows[i].childNodes[cell_index + 1].style.display = "none";
+			result[i].unitnos2 = null;
+		}
+		rows[i].style.display = cond ? "" : "none";
+		result[i].enabled = cond;
+		result[i].unitnos = unitnos;
+		
+		rows[i].childNodes[cell_index].innerHTML = array_map(unitnos, unitno_to_name).join(", ");
+	}
+	
+}
+
+function hide_search_result() {
+	document.getElementById("encount-search-result").innerHTML = "";
+	document.getElementById("tools-for-practice").style.display = "none";
+}
+
+function add_click_event_search_result(context) {
+	var rows = context.area.getElementsByTagName("tbody")[0].childNodes;
+	var selected_index = null;
+	var fn = function(radio, index) {
+		radio.click();
+		selected_index = index;
+	};
+	for (var i = 0; i < rows.length; i ++) {
+		var tr = rows[i];
+		var radio = tr.firstChild.firstChild;
+		addEvent(tr, "click", func_bind_args(fn, [radio, i]));
+		if (i === 0) fn(radio, i);
+	}
+	addEvent(document.getElementById("button-select-advancement"), "click", function() {
+		if (selected_index === null) return;
+		var c = obj_copy(context);
+		c.result = array_map(c.result, obj_copy);
+		
+		var selected = context.result[selected_index];
+		if (!selected.enabled) return;
+		on_select_advancement(c, selected);
+	});
+	addEvent(document.getElementById("button-delete-tools-for-practice"), "click", function() {
+		document.getElementById("tools-for-practice").style.display = "none";
+	});
+}
+
+function on_select_advancement(context, selected) {
+	var tools_for_practice = document.getElementById("tools-for-practice");
+	show_tools_for_practice();
+	var ignore_unitnames = (context.ignore_unitnos_set.length > 0 ? array_map(context.ignore_unitnos_set, unitno_to_name).join(", ") : "(なし)");
+	var version = (is_map_version_diff(context.map) ? " ("+{"spark":"スパーク","bomber":"ボンバー"}[context.version]+")" : "");
+	var buf = "<table>"+
+	          "<tr><th>初期seed<td>"+format_hex(context.fseed, 8)+
+	          "<tr><th>消費<td>"+selected.advancement_min+"-"+selected.advancement+
+	          "<tr><th>マップ<td>"+context.map.name+version+
+	          "<tr><th>チーム<td>"+GAMES_DATA[context.target_game_id].team_name+
+	          "<tr><th>メンバー<td>"+(context.target_unitno !== null ? unitno_to_name(context.target_unitno) : "(なし)")+
+	          "<tr><th>引き抜かれた選手<td>"+ignore_unitnames+
+	          '<tr class="npc"><th>オプション<td>'+(context.check_npc ? "NPC消費が挟まっても問題ない消費" : "(なし)")+
+	          "</table>"+
+	          "<p><small>この情報が以下のフォームで使われます</small></p>";
+	
+	get_child_elem(tools_for_practice, "div").innerHTML = buf;
+	var mid_advancement = (selected.advancement + selected.advancement_min) / 2;
+	var time = (mid_advancement / TITLE_ADVANCEMENT_PER_SEC).toFixed(2);
+	document.forms.timer.elements.time.value = time;
+	document.forms.binder_seed_verify.elements.advancement_base.value = Math.floor(mid_advancement);
+	
+	document.forms.encount_list.elements.advancement_min.value = selected.advancement;
+	document.forms.encount_list.elements.advancement_max.value = selected.advancement + 20;
+	
+	document.forms.battle_result_list.elements.advancement_min.value = selected.advancement_min;
+	document.forms.battle_result_list.elements.advancement_max.value = selected.advancement_min + 100;
+	
+	register_context(context, selected);
+}
+
+function show_tools_for_practice() {
+	var tools_for_practice = document.getElementById("tools-for-practice");
+	tools_for_practice.style.display = "";
+	var divs = get_child_elems(tools_for_practice, "div");
+	for (var i = 0; i < divs.length; i ++) {
+		var div = divs[i];
+		if (hasClass(div, "output-area")) {
+			div.innerHTML = "";
+		}
+	}
+}
+
+function parse_unitnames(str) {
+	var names = str.match(/[^ ,　]+/g) || [];
+	var unitnos = [];
+	for (var i = 0; i < names.length; i ++) {
+		var no = unitname_to_no(names[i]);
+		if (no !== null) {
+			unitnos.push(no);
+		}
+	}
+	return unitnos;
+}
+
+function exist_common_scout_adv(unitnos1, unitnos2, target_unitno) {
+	var candidates1 = get_scout_candidates(unitnos1);
+	var candidates2 = get_scout_candidates(unitnos2);
+	var index1 = array_indexof(candidates1, target_unitno);
+	var index2 = array_indexof(candidates2, target_unitno);
+	var n = gcd(candidates1.length, candidates2.length);
+	return index1 % n === index2 % n;
+}
+
+function gcd(x, y) {
+	while (x != y) {
+		if (x < y) {
+			y -= x;
+		} else {
+			x -= y;
+		}
+	}
+	return x;
+}
+
+function EncountSeedJudge(encount_games, target_game_id, target_unitno) {
+	this.encount_games = encount_games;
+	this.target_game_id = target_game_id;
+	this.target_unitno = target_unitno;
+	this.encount_value_range = calc_encount_value_range(encount_games, target_game_id);
+}
+
+var ENCOUNT_JUDGE_ODD = 5;
+
+EncountSeedJudge.prototype.judge = function(prng, ignore_unitnos_set) {
+	if (prng.rand(100) >= ENCOUNT_JUDGE_ODD) {
+		return null;
+	}
+	prng.step(1);
+	var encount_value = prng.rand(100);
+	if (!(this.encount_value_range.head <= encount_value && encount_value <= this.encount_value_range.tail)) {
+		return null;
+	}
+	step_shuffle_games_rest_advancement(prng, this.encount_games);
+	
+	var unitnos = determine_encount_members(prng, this.encount_games, this.target_game_id, ignore_unitnos_set);
+	if (this.target_unitno !== null && !array_include(unitnos, this.target_unitno)) {
+		return null;
+	}
+	
+	prng.step(-prng.advancement);
+	var advance_range = 0;
+	while (prng.reverse_rand(100) >= ENCOUNT_JUDGE_ODD) {
+		advance_range ++;
+	}
+	return {unitnos: unitnos, advance_range: advance_range};
+};
+
+function get_encount_games(map, version) {
+	var game_ids = version == "spark" ? map.spark_game_ids : map.bomber_game_ids;
+	var odds = map.odds;
+	var r = [];
+	for (var i = 0; i < game_ids.length; i ++) {
+		r[i] = {game_id: game_ids[i], odd: odds[i]};
+	}
+	return r;
+}
+
+function calc_encount_value_range(encount_games, target_game_id) {
+	var sum = 0;
+	for (var i = 0; i < encount_games.length; i ++) {
+		var game_id = encount_games[i].game_id, odd = encount_games[i].odd;
+		if (game_id === target_game_id) {
+			var head = sum > 0 ? sum + 1 : 0;
+			var tail = sum + odd;
+			return {head: head, tail: tail};
+		}
+		sum += odd;
+	}
+}
+
+function determine_encount_members(prng, encount_games, target_game_id, ignore_unitnos_set) {
+	var game_ids = shuffle_encount_games(prng, encount_games);
+	var result_members = [];
+	
+	// とりあえず初回は目的のチーム以外のメンバーは計算しない
+	var advancement = prng.advancement;
+	var result_members = determine_encount_members0(prng, game_ids, target_game_id, ignore_unitnos_set, true);
+	if (result_members.length < 4) {
+		prng.step(- prng.advancement + advancement);
+		result_members = determine_encount_members0(prng, game_ids, target_game_id, ignore_unitnos_set, false);
+	}
+	
+	sort_members(result_members);
+	
+	var unitnos = [];
+	for (var i = 0; i < 4; i ++) {
+		unitnos[i] = result_members[i].unitno;
+	}
+	return unitnos;
+}
+
+function determine_encount_members0(prng, game_ids, target_game_id, ignore_unitnos_set, skip_extra) {
+	var result_members = [];
+
+	var skip_count = 0;
+	var keeper_index = null;
+	for (var i = 0; i < game_ids.length; i ++) {
+		var game_id = game_ids[i];
+		var unitnos = GAMES_DATA[game_id].unitnos;
+		if (skip_extra) {
+			if (game_id !== target_game_id) {
+				skip_count += unitnos.length;
+				continue;
+			}
+			prng.step(skip_count);
+			skip_count = 0;
+		}
+		for (var j = 0; j < unitnos.length; j ++)  {
+			var unitno = unitnos[j];
+			var priority = 15 + prng.rand(240);
+			var is_keeper = j === 0; // インデックス0が背番号1であることを前提にする
+			if (!array_include(ignore_unitnos_set, unitno)) {
+				priority |= 0x8000;
+			} else if(skip_extra) {
+				continue;
+			}
+			if (game_id === target_game_id) {
+				if (is_keeper) { 
+					priority |= 0x4000 | 0x2000;
+					if (keeper_index !== null) {
+						result_members[keeper_index].priority &= ~0x1000;
+					}
+					keeper_index = result_members.length;
+				} else {
+					priority |= 0x2000 | 0x0400;
+				}
+			} else {
+				if (is_keeper) {
+					if (keeper_index === null) {
+						priority |= 0x1000;
+						keeper_index = result_members.length;
+					}
+				} else {
+					priority |= 0x0400;
+				}
+			}
+			result_members.push({unitno: unitno, priority: priority});
+		}
+	}
+	
+	return result_members;
+	
+}
+
+function sort_members(members) {
+	// 同じ優先度の要素が複数ある場合の結果をゲームと同じにするため、あえてArray#sortは使っていない
+	var len = members.length;
+	for (var i = 0; i < len - 1; i ++) {
+		for (var j = i + 1; j < len; j ++) {
+			if (members[i].priority < members[j].priority) {
+				array_swap(members, i, j);
+			}
+		}
+	}
+}
+
+function shuffle_encount_games(prng, encount_games) {
+	encount_games = array_copy(encount_games);
+	var len = encount_games.length;
+	
+	for (var i = 0; i < 7; i ++) {
+		var index = determine_game_id_index(prng, encount_games, i);
+		if (index === null) break;
+		array_swap(encount_games, i, index);
+	}
+	
+	var game_ids = [];
+	for (var i = 0; i < len; i ++) {
+		game_ids[i] = encount_games[i].game_id;
+	}
+	return game_ids;
+}
+
+function determine_game_id_index(prng, encount_games, start_index) {
+	var len = encount_games.length;
+	var sum = 0;
+	for (var i = start_index; i < encount_games.length; i ++) {
+		sum += encount_games[i].odd;
+	}
+	if (sum === 0) return null;
+	var val = prng.rand(sum);
+	
+	var index = start_index;
+	for (; index < len - 1; index ++) {
+		val -= encount_games[index].odd;
+		if (val <= 0) {
+			break;
+		}
+	}
+	return index;
+}
+
+function determine_game_id(prng, encount_games) {
+	return encount_games[determine_game_id_index(prng, encount_games, 0)].game_id;
+}
+
+function step_shuffle_games_rest_advancement(prng, encount_games) {
+	prng.step(Math.min(encount_games.length, 7) - 1);
+}
+
+function init_map_select() {
+	var form = document.forms.encount_search;
+	var area = document.getElementById("map-select-area");
+	var buf = "";
+	buf += '<select name="map_select">';
+	for (var i = 0; i < ENCOUNT_TABLE.length; i ++) {
+		buf += '<option value="'+i+'">'+ENCOUNT_TABLE[i].name;
+	}
+	buf += "</select>";
+	area.innerHTML = buf;
+	var select = area.getElementsByTagName("select")[0];
+	var on_change = func_bind_args(on_change_team_select, [form, select]);
+	addEvent(select, "change", on_change);
+	addEvent(select, "keypress", on_change);
+	addEventAll(form.elements.version, "click", func_bind_args(update_team_select, [form, select]));
+	on_change();
+}
+
+function on_change_team_select(form, select) {
+	var table = ENCOUNT_TABLE[Number(select.value)];
+	var disabled = is_map_version_diff(table) ? "" : "disabled";
+	form.version[0].disabled = disabled;
+	form.version[1].disabled = disabled;
+	update_team_select(form, select);
+}
+
+function is_map_version_diff(map) {
+	return !array_eq(map.spark_game_ids, map.bomber_game_ids);
+}
+
+function update_team_select(form, map_select) {
+	var area = document.getElementById("team-select-area");
+	var table = ENCOUNT_TABLE[Number(map_select.value)];
+	var buf = "";
+	
+	var version = get_checked_radio_value(form.elements.version) === "spark";
+	var game_ids = version ? table.spark_game_ids : table.bomber_game_ids;
+	for (var i = 0; i < game_ids.length; i ++) {
+		var game_id = game_ids[i];
+		buf += '<label><input type="radio" name="team" value="'+game_id+'"'+(i === 0 ? ' checked' : '')+'>' + GAMES_DATA[game_id].team_name + '</label> ';
+	}
+	area.innerHTML = buf;
+	addEventAll(form.elements.team, "click", func_bind_args(update_member_select, [form]));
+	update_member_select(form);
+	
+}
+
+function update_member_select(form) {
+	var area = document.getElementById("member-select-area");
+	var game_id = Number(get_checked_radio_value(form.elements.team));
+	var buf = "";
+	
+	var unitnos = GAMES_DATA[game_id].unitnos;
+	var disabled = form.elements.check_member.checked ? "" : " disabled";
+	for (var i = 0; i < unitnos.length; i ++) {
+		buf += '<label><input type="radio" name="member" value="'+unitnos[i]+'"'+(i === 0 ? ' checked' : '')+disabled+'>' + UNIT_NAMES[unitnos[i]] + '</label> ';
+	}
+	area.innerHTML = buf;
+}
+
+function unitno_to_name(unitno) {
+	if (UNIT_NAMES.hasOwnProperty(unitno)) {
+		return UNIT_NAMES[unitno];
+	} else {
+		return null;
+	}
+}
+
+//------------------------------------------------------------------------------
+
+var gen_onsubmit_context, register_context;
+(function() {
+	var CONTEXT, SELECTED;
+	gen_onsubmit_context = function(fn) {
+		return function(form) {
+			fn(form, CONTEXT, SELECTED);
+		};
+	};
+	register_context = function(context, selected) {
+		CONTEXT = context;
+		SELECTED = selected;
+	};
+})();
+
+function init_binder_seed_verify_form() {
+	var form = document.forms.binder_seed_verify;
+	
+	addEvent(form, "submit", submit_callback(gen_onsubmit_context(on_submit_binder_seed_verify)));
+	addEvent(form.elements.delete_button, "click", function() {
+		document.getElementById("binder-verify-result").innerHTML = "";
+	});
+	add_filter_length_info(form.elements.filter);
+}
+
+function on_submit_binder_seed_verify(form, context, selected) {
+	var result_area = document.getElementById("binder-verify-result");
+	var f = form.elements;
+	
+	var fseed_base = read_input(f.fseed_base, "初期seedの範囲");
+	var fseed_gosa = read_input(f.fseed_gosa, "初期seedの範囲");
+	var advancement_base = read_input(f.advancement_base, "消費の範囲");
+	var advancement_gosa = read_input(f.advancement_gosa, "消費の範囲");
+	var filter = read_filter(f.filter.value);
+	
+	var fseed_min = fseed_base - fseed_gosa;
+	var fseed_max = fseed_base + fseed_gosa;
+	
+	var advancement_min = advancement_base - advancement_gosa;
+	var advancement_max = advancement_base + advancement_gosa;
+	
+	var result = build_result_verify(fseed_min, fseed_max, advancement_min, advancement_max, filter, result_area);
+	
+	var target_unitno = context.target_unitno;
+	if (target_unitno !== null && is_unit_battle_scout_type(target_unitno) &&
+	     result.length === 1 && result[0].fseed === context.fseed &&
+	     selected.advancement_min <= result[0].advancement && result[0].advancement <= selected.advancement) {
+		var buf = "";
+		buf += "<p>「"+UNIT_NAMES[target_unitno]+'」が仲間になる消費:</p>';
+		buf += '<table class="for-layout">';
+		buf += '<tr><td>メンバー<td>'+array_map(selected.unitnos, unitno_to_name).join(", ");
+		if (selected.unitnos2) {
+			buf += ' OR ' + array_map(selected.unitnos2, unitno_to_name).join(", ");
+		}
+		buf += '<tr><td>戦闘での消費数<td><input type="text" value="3" size="3" class="battle-adv">';
+		buf += '<br><small>最小: 3 (コマンドバトルを起こさず必殺技でシュートを決め、GKも必殺技を使った場合)</small>';
+		buf += '<tr><td>消費<td><span class="adv"></span><br><span class="rest-sentence">(これから選手バインダーで選手を<span class="rest-adv"></span>回切り替え)</span>';
+		buf += '</table>';
+		var div = document.createElement("div");
+		div.innerHTML = buf;
+		var input = get_elem_by_tag_and_class(div, "input", "battle-adv");
+		var absolute_advancement_area = get_elem_by_tag_and_class(div, "span", "adv");
+		var rest_sentence = get_elem_by_tag_and_class(div, "span", "rest-sentence");
+		var rest_advancement_area = get_elem_by_tag_and_class(div, "span", "rest-adv");
+		
+		var update_advancement_fn = function() {
+			var battle_advancement = read_int_string(input.value);
+			if (battle_advancement === null) return;
+			var start_advancement = result[0].advancement_after + battle_advancement;
+			var advancement = search_scout_advancement(context.fseed, start_advancement, selected.unitnos, selected.unitnos2, target_unitno);
+			
+			if (advancement !== null) {
+				absolute_advancement_area.innerHTML = advancement;
+				rest_advancement_area.innerHTML = advancement - start_advancement;
+				rest_sentence.style.display = "";
+			} else {
+				absolute_advancement_area.innerHTML = "共通の消費はありません";
+				rest_sentence.style.display = "none";
+			}
+		};
+		addEvent(input, "keyup", update_advancement_fn);
+		update_advancement_fn();
+		
+		result_area.appendChild(div);
+	}
+}
+
+function search_scout_advancement(fseed, start_advancement, encount_unitnos, encount_unitnos2, target_unitno) {
+	var stream = new PRNGStream(0, fseed, start_advancement, 8, 0);
+	var candidates = get_scout_candidates(encount_unitnos);
+	var candidates2 = encount_unitnos2 ? get_scout_candidates(encount_unitnos2) : null;
+	
+	if (encount_unitnos2 && !exist_common_scout_adv(encount_unitnos, encount_unitnos2, target_unitno)) {
+		return null;
+	}
+	
+	for (var advancement = start_advancement; ; advancement ++) {
+		var prng = stream.next();
+		prng.step(1 + 3 + 1 + 1); // クリアポイント、ドロップアイテム(3個)、熱血、友情の決定分の消費
+		var adv = prng.advancement;
+		var cond = is_expected_scout_unitno(prng, candidates, target_unitno);
+		if (encount_unitnos2) {
+			prng.step(- prng.advancement + adv);
+			cond = cond && is_expected_scout_unitno(prng, candidates2, target_unitno);
+		}
+		if (cond) {
+			return advancement;
+		}
+	}
+	
+}
+
+function is_expected_scout_unitno(prng, candidates, target_unitno) {
+	var unitno = candidates[prng.rand(candidates.length)];
+	if (unitno !== target_unitno) return false;
+	if (judge_unit_scout(prng, unitno)) { 
+		return true;
+	}
+}
+
+function get_scout_candidates(unitnos) {
+	var candidates = [];
+	for (var i = 0; i < unitnos.length; i ++) {
+		var unitno = unitnos[i];
+		if (is_unit_battle_scout_type(unitno)) {
+			candidates.push(unitno);
+		}
+	}
+	return candidates;
+}
+
+function is_unit_battle_scout_type(unitno) {
+	return get_unit_scout_odd(unitno) !== null;
+}
+
+function judge_unit_scout(prng, unitno) {
+	return prng.rand(100) <= get_unit_scout_odd(unitno); // ここは実際にゲームでも <= になっている
+}
+
+function get_unit_scout_odd(unitno) {
+	if (UNIT_SCOUT_ODDS.hasOwnProperty(unitno)) {
+		return UNIT_SCOUT_ODDS[unitno];
+	} else {
+		return null;
+	}
+}
+
+function build_result_verify(fseed_min, fseed_max, advancement_min, advancement_max, filter, result_area) {
+	var buf = "";
+	buf += "<table>";
+	buf += "<tr><th>初期seed<th>消費<th>合計消費";
+	var result = [];
+	
+	for (var fseed = fseed_min; fseed <= fseed_max; fseed ++) {
+		var len = filter.length * 2 + 1;
+		var stream = new PRNGStream(0, u32(fseed), advancement_min, len, 0);
+		
+		for (var advancement = advancement_min; advancement <= advancement_max; advancement ++) {
+			var r = judge_seed_verify(stream.next(), filter);
+			if (r !== null) {
+				buf += "<tr><td>"+format_hex(fseed, 8)+"<td>"+advancement+"<td>"+(advancement+r)+"<br>";
+				result.push({fseed: fseed, advancement: advancement, advancement_after: advancement+r});
+			}
+		}
+	}
+	buf += "</table>";
+	result_area.innerHTML = buf;
+	return result;
+}
+
+function judge_seed_verify(prng, filter) {
+	prng.step(1);
+	for (var i = 0; i < filter.length; i ++) {
+		prng.step(1);
+		if (prng.rand(2) !== filter[i]) {
+			return null;
+		}
+	}
+	return prng.advancement;
+}
+
+function add_filter_length_info(input) {
+	var span = input.parentNode.insertBefore(document.createElement("span"), input.nextSibling);
+	addEvent(input, "keyup", function() {
+		var m = input.value.match(/\d/g);
+		span.innerHTML = m ? " (" + m.length + ")" : "";
+	});
+}
+
+//------------------------------------------------------------------------------
+var init_timer_form, on_submit_timer;
+(function() {
+
+init_timer_form = function() {
+	var form = document.forms.timer;
+	
+	addEvent(form, "submit", submit_callback(on_submit_timer));
+	addEvent(form.elements.delete_button, "click", function() {
+		document.getElementById("timer-result").innerHTML = "";
+		clear_timer();
+	});
+};
+
+var on_submit_timer = function(form) {
+	clear_timer();
+	var time = parseFloat(form.elements.time.value);
+	if (isNaN(time)) return;
+	
+	
+	var result_area = document.getElementById("timer-result");
+	result_area.innerHTML = '<p style="font-size:200%;font-family:monospace">0</p>';
+	var text_node = result_area.firstChild.firstChild;
+	
+	var start_time = + new Date;
+	var target_time = start_time + time * 1000;
+	
+	var l = String(Math.floor(time)).length;
+	var spaces = new Array(l + 1);
+	spaces[l] = "";
+	for (var i = l - 1; i >= 0; i --) {
+		spaces[i] = spaces[i+1] + "\u00a0";
+	}
+	
+	var digits_after_period = 2;
+	
+	var fn = function() {
+		var now = + new Date;
+		var diff = target_time - now;
+		if (diff < 0) diff = 0;
+		var s = (diff / 1000).toFixed(digits_after_period);
+		text_node.data = spaces[s.length - digits_after_period - 1] + s;
+		if (diff === 0) {
+			clear_timer();
+		}
+	};
+	
+	start_timer(fn);
+	fn();
+};
+
+var TIMER_ID = null;
+
+function start_timer(fn) {
+	TIMER_ID = setInterval(fn, 33);
+}
+
+function clear_timer() {
+	if (TIMER_ID !== null) {
+		clearInterval(TIMER_ID);
+		TIMER_ID = null;
+	}
+}
+
+})();
+
+//------------------------------------------------------------------------------
+
+function init_npc_list_form() {
+	var form = document.forms.npc_list;
+	
+	addEvent(form, "submit", submit_callback(gen_onsubmit_context(on_submit_npc_list)));
+	addEvent(form.elements.delete_button, "click", function() {
+		document.getElementById("npc-list").innerHTML = "";
+	});
+}
+
+var NPC_ADVANCEMENT = 4;
+
+function on_submit_npc_list(form, context, selected) {
+	var result_area = document.getElementById("npc-list");
+	var f = form.elements;
+	
+	var advancement_min = read_input(f.advancement_min, "消費の範囲");
+	var advancement_max = read_input(f.advancement_max, "消費の範囲");
+	
+	var directions = ["→", "↘", "↓", "↙", "←", "↖", "↑", "↗"];
+	
+	var buf = "";
+	var prng = new PRNG(0, context.fseed);
+	prng.step(advancement_min);
+	
+	buf += "<table>";
+	buf += "<tr><th>消費<th>方向";
+	for (var advancement = advancement_min; advancement <= advancement_max; advancement += NPC_ADVANCEMENT) {
+		prng.step(3);
+		buf += "<tr><td>"+advancement+"<td>"+directions[prng.rand(8)];
+	}
+	buf += "</table>";
+	
+	result_area.innerHTML = buf;
+}
+
+
+//------------------------------------------------------------------------------
+
+function init_encount_list_form() {
+	var form = document.forms.encount_list;
+	
+	addEvent(form, "submit", submit_callback(gen_onsubmit_context(on_submit_encount_list)));
+	addEvent(form.elements.delete_button, "click", function() {
+		document.getElementById("encount-list").innerHTML = "";
+	});
+}
+
+function on_submit_encount_list(form, context, selected) {
+	var result_area = document.getElementById("encount-list");
+	var f = form.elements;
+	
+	var advancement_min = read_input(f.advancement_min, "消費の範囲");
+	var advancement_max = read_input(f.advancement_max, "消費の範囲");
+	
+	var buf = "";
+	buf += "<p>";
+	buf += "消費: エンカウント判定が真になるときの消費<br>";
+	buf += "縦: エンカウント判定が真になってから、エンカウントするまでの歩く量に達するまでの間に挟まったNPCの消費数<br>"
+	buf += "横: チームが決定されてからメンバーが決定されるまでの間に挟まったNPCの消費数</p>"
+	buf += "<table>";
+	
+	var stream = new PRNGStream(0, context.fseed, advancement_min, 100, 0);
+	for (var advancement = advancement_min; advancement <= advancement_max; advancement ++) {
+		var prng = stream.next();
+		if (prng.rand(100) >= ENCOUNT_JUDGE_ODD) continue;
+		buf += '<tr><th colspan="2" style="padding: 0.3em 5px">消費 '+advancement;
+		for (var i = 0; i < 3; i ++) {
+			buf += "<th>+"+(i*NPC_ADVANCEMENT);
+		}
+		prng.step(1);
+		var a = prng.advancement;
+		for (var i = 0; i < 3; i ++) {
+			prng.step(- prng.advancement + a + i * NPC_ADVANCEMENT);
+			var game_id = determine_game_id(prng, context.encount_games);
+			step_shuffle_games_rest_advancement(prng, context.encount_games);
+			buf += '<tr><th>+'+(i*NPC_ADVANCEMENT)+'<td>'+GAMES_DATA[game_id].team_name;
+			var members_list = calc_members_list(prng, context.encount_games, game_id, context.ignore_unitnos_set);
+			buf += array_map(members_list, function(unitnos) {
+				return "<td>"+array_map(unitnos, unitno_to_name).join(", ");
+			}).join("");
+		}
+	}
+	
+	result_area.innerHTML = buf;
+	
+	function calc_members_list(prng, encount_games, target_game_id, ignore_unitnos_set) {
+		var a = prng.advancement;
+		var result = [];
+		for (var i = 0; i < 3; i ++) {
+			prng.step(- prng.advancement + a + i * NPC_ADVANCEMENT);
+			var unitnos = determine_encount_members(prng, encount_games, target_game_id, ignore_unitnos_set);
+			result.push(unitnos);
+		}
+		return result;
+	}
+}
+
+//------------------------------------------------------------------------------
+
+function init_battle_result_list_form() {
+	var form = document.forms.battle_result_list;
+	
+	addEvent(form, "submit", submit_callback(gen_onsubmit_context(on_submit_battle_result_list)));
+	addEvent(form.elements.delete_button, "click", function() {
+		document.getElementById("battle-result-list").innerHTML = "";
+	});
+}
+
+function on_submit_battle_result_list(form, context, selected) {
+	var result_area = document.getElementById("battle-result-list");
+	var f = form.elements;
+	
+	var advancement_min = read_input(f.advancement_min, "消費の範囲");
+	var advancement_max = read_input(f.advancement_max, "消費の範囲");
+	
+	var game = GAMES_DATA[context.target_game_id];
+	var buf = "";
+	if (selected.unitnos2) {
+		buf += "<p>メンバー(NPC消費なし): "+dump_unitnos(selected.unitnos)+"<br>";
+		buf += "メンバー(NPC消費あり): "+dump_unitnos(selected.unitnos2)+"</p>";
+	} else {
+		buf += "<p>メンバー: "+dump_unitnos(selected.unitnos)+"</p>";
+	}
+	
+	buf += "<table>";
+	buf += "<tr><th>消費";
+	for (var i = 0; i < game.item_names.length; i ++) {
+		buf += "<th>"+game.item_names[i]+"("+game.item_odds[i]+"%)";
+	}
+	buf += '<th>経験値<th>熱血<th>友情';
+	if (selected.unitnos2) {
+		buf += '<th>スカウト(NPC消費なし)<th>スカウト(NPC消費あり)';
+	} else {
+		buf += '<th>スカウト';
+	}
+	
+	var stream = new PRNGStream(0, context.fseed, advancement_min, 8, 0);
+	for (var advancement = advancement_min; advancement <= advancement_max; advancement ++) {
+		var prng = stream.next();
+		var exp = to_uneven(prng, game.exp);
+		var itemdrop = [];
+		for (var i = 0; i < game.item_odds.length; i ++) {
+			var odd = game.item_odds[i];
+			itemdrop[i] = prng.rand(100) < odd;
+		}
+		var nekketu = to_uneven(prng, game.nekketu);
+		var yuujou = to_uneven(prng, game.yuujou);
+		var adv = prng.advancement;
+		var scout_unitno = calc_scout_unitno(prng, selected.unitnos);
+		var scout_unitno2 = null;
+		if (selected.unitnos2) {
+			prng.step(- prng.advancement + adv);
+			scout_unitno2 = calc_scout_unitno(prng, selected.unitnos2);
+		}
+		
+		
+		buf += "<tr><td>"+advancement;
+		for (var i = 0; i < game.item_names.length; i ++) {
+			if (itemdrop[i]) {
+				buf += "<td>"+game.item_names[i];
+			} else {
+				buf += "<td>-";
+			}
+		}
+		buf += "<td>"+exp+"<td>"+nekketu+"<td>"+yuujou+"<td>"+(unitno_to_name(scout_unitno) || "-");
+		if (selected.unitnos2) {
+			buf += "<td>"+(unitno_to_name(scout_unitno2) || "-");
+		}
+	}
+	result_area.innerHTML = buf;
+	
+	function dump_unitnos(unitnos) {
+		return array_map(unitnos, function(unitno) {
+			if (is_unit_battle_scout_type(unitno)) {
+				return unitno_to_name(unitno);
+			} else {
+				return "("+unitno_to_name(unitno)+")";
+			}
+		}).join(", ")
+	}
+	
+	function calc_scout_unitno(prng, unitnos) {
+		var candidates = get_scout_candidates(unitnos);
+		if (candidates.length > 0) {
+			var unitno = candidates[prng.rand(candidates.length)];
+			if(judge_unit_scout(prng, unitno)) {
+				return unitno;
+			}
+		}
+		return null;
+	}
+}
+
+function to_uneven(prng, x) {
+	return Math.floor((x * 9 + prng.rand(x * 2)) / 10);
+}
+
+var unitname_to_no = (function() {
+	var table = {};
+	
+	function unitname_to_no(name) {
+		if (table.hasOwnProperty(name)) {
+			return table[name];
+		} else {
+			return null;
+		}
+	}
+	
+	var names = UNIT_NAMES;
+	for (var no in UNIT_NAMES) {
+		table[names[no]] = Number(no);
+	}
+	
+	return unitname_to_no;
+})();
+
+function submit_callback(fn) {
+	return function(ev) {
+		try {
+			fn(get_event_target(ev));
+		} catch(e) {
+			if (!(e instanceof InputError)) throw e;
+			alert(e.message);
+		}
+	}
+}
+
+function read_filter(str) {
+	var result = [];
+	for (var i = 0; i < str.length; i ++) {
+		if (/\d/.test(str.charAt(i))) {
+			result.push(Number(str.charAt(i)));
+		}
+	}
+	return result;
+}
+
+function read_input(input, name, min, max) {
+	var value = read_int_string(input.value);
+	if (min == undefined) min = -Infinity;
+	if (max == undefined) max =  Infinity;
+	if (value !== null && min <= value && value <= max) {
+		return value;
+	} else {
+		input_error(name+"に入力されている値が不正です");
+	}
+}
+
+function read_int_string(s, default_value) {
+	if (/^\s*$/.test(s) && default_value !== undefined) {
+		return default_value;
+	}
+	if (!/^\s*(?:-?\d+|0x[0-9a-f]+)\s*$/i.test(s)) {
+		return null;
+	}
+	return Number(s);
+}
+
+function input_error(message) {
+	throw new InputError(message);
+}
+
+function InputError(message) {
+	this.message = message;
+}
+
+
+
+function get_checked_radio_value(radios) {
+	var index = get_checked_radio_index(radios);
+	if (index === null) return null;
+	return radios[index].value;
+}
+
+function get_checked_radio_index(radios) {
+	for (var i = 0; i < radios.length; i ++) {
+		if (radios[i].checked) return i;
+	}
+	return null;
+}
+
+function get_event_target(event) {
+	return event.target || event.srcElement;
+}
+
+function hasClass(e, className) {
+	var s = e.className;
+	if (s === className) return true;
+	if (!/\s/.test(s)) return false;
+	var classes = s.split(/\s+/);
+	for (var i = 0, l = classes.length; i < l; i ++) {
+		if (classes[i] === className) {
+			return true;
+		}
+	}
+	return false;
+}
+
+function addClass(e, className) {
+	if (e.className === "") {
+		e.className = className;
+		return;
+	}
+	if (!hasClass(e, className)) {
+		e.className += " " + className;
+	}
+}
+
+function removeClass(e, className) {
+	var s = e.className;
+	if (s === className) {
+		e.className = "";
+		return;
+	}
+	if (!/\s/.test(s)) return;
+	var classes = s.split(/\s+/);
+	var index = -1;
+	for (var i = 0, l = classes.length; i < l; i ++) {
+		if (classes[i] === className) {
+			index = i;
+			break;
+		}
+	}
+	if (index >= 0) {
+		classes.splice(index, 1);
+		e.className = classes.join(" ");
+	}
+}
+
+function addEventAll(elements, type, func) {
+	for (var i = 0; i < elements.length; i ++) {
+		addEvent(elements[i], type, func);
+	}
+}
+
+function addEventIfNotNull(elem, type, func) {
+	if (elem) addEvent(elem, type, func);
+}
+
+function connect_checkbox_disabled(checkbox, elem) {
+	var fn = function() {
+		elem.disabled = checkbox.checked ? "" : " disabled";
+	};
+	addEvent(checkbox, "click", fn);
+	fn();
+}
+
+function connect_checkbox_disabled_by_name(checkbox, form, name) {
+	var fn = function() {
+		var list = form.elements[name];
+		if (list === null) return;
+		if (list['length'] === undefined) list = [list];
+		for (var i = 0; i < list.length; i ++) {
+			list[i].disabled = checkbox.checked ? "" : " disabled";
+		}
+	};
+	addEvent(checkbox, "click", fn);
+	fn();
+}
+
+function search_child_index(elem, className) {
+	var nodes = elem.childNodes;
+	for (var i = 0; i < nodes.length; i ++) {
+		if (nodes[i].className === className) {
+			return i;
+		}
+	}
+	return null;
+}
+
+function get_child_elems(elem, tagName) {
+	var nodes = elem.childNodes;
+	var result = [];
+	for (var i = 0; i < nodes.length; i ++) {
+		var node = nodes[i];
+		if (node.nodeType === 1 && node.tagName.toUpperCase() === tagName.toUpperCase()) {
+			result.push(node);
+		}
+	}
+	return result;
+}
+
+function get_child_elem(elem, tagName) {
+	return get_child_elems(elem, tagName)[0];
+}
+
+function get_elem_by_tag_and_class(root, tagName, className) {
+	if (document['querySelector']) {
+		return root.querySelector(tagName+"."+className);
+	}
+	var elems = root.getElementsByTagName(tagName);
+	for (var i = 0; i < elems.length; i ++) {
+		if (hasClass(elems[i], className)) {
+			return elems[i];
+		}
+	}
+}
+
+function format_hex(n, prec) {
+	var s = n.toString(16);
+	return "0x" + (str_repeat("0", prec - s.length) + s);
+}
+
+function str_repeat(s, n) {
+	var r = "";
+	for (var i = 0; i < n; i ++) {
+		r += s;
+	}
+	return r;
+}
+
+function func_bind_args(fn, args) {
+	return function() {
+		return fn.apply(this, args);
+	};
+}
+
+function array_map(array, fn) {
+	var len = array.length;
+	var result = new Array(len);
+	for (var i = 0; i < len; i ++) {
+		result[i] = fn(array[i]);
+	}
+	return result;
+}
+
+function array_eq(a, b) {
+	if (a == b) return true;
+	if (a.length != b.length) return false;
+	var l = a.length;
+	for (var i = 0; i < l; i ++) {
+		if (a[i] !== b[i]) return false;
+	}
+	return true;
+}
+
+function array_swap(a, i, j) {
+	var t = a[i];
+	a[i] = a[j];
+	a[j] = t;
+}
+
+function array_include(ary, e) {
+	return array_indexof(ary, e) >= 0;
+}
+
+function array_indexof(ary, e) {
+	for (var i = 0; i < ary.length; i ++) {
+		if (ary[i] === e) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+function array_copy(ary) {
+	return ary.concat();
+}
+
+function obj_copy(obj) {
+	var result = {};
+	for (var p in obj) {
+		result[p] = obj[p];
+	}
+	return result;
+}
+
+</script>
+<style type="text/css">
+form {
+	margin-bottom: 1em;
+}
+
+table {
+	border-collapse: collapse;
+	font-size: 80%;
+	margin: 0;
+}
+
+p {
+	margin: 0.5em 0;
+}
+
+th, td {
+	padding: 0.1em 5px;
+	border: 1px solid black;
+}
+
+th {
+	background: #ddd;
+}
+
+td.transparent-left {
+	border: 1px solid transparent;
+	border-right-color: black;
+}
+
+form table {
+	font-size: 100%;
+	margin: 0;
+}
+
+form th {
+	text-align: right;
+	background: transparent;
+}
+
+form th,
+form td {
+	border: none;
+}
+
+table.for-layout {
+	font-size: 100%;
+	margin: 0;
+	padding: 0;
+}
+
+table.for-layout > * > tr > th,
+table.for-layout > * > tr > td {
+	border: none;
+	margin: 0;
+	vertical-align: top;
+}
+
+small {
+	color: #777;
+	font-size: 60%;
+}
+
+#enable-npc-button {
+	/* 60% にすると IE8のフォントサイズおかしくなるバグが発動する */
+	font-size: 9px;
+	color: #555;
+	background-color: #E5E1DA;
+	border: 1px #D6D0C7 solid;
+	border-top-color:  #EDEBE8;
+	border-left-color:  #EDEBE8;
+}
+
+#enable-npc-button.clicked {
+	background-color: #D6D0C7;
+	border-top-color: #C9C1B7;
+	border-left-color: #C9C1B7;
+}
+</style>
+<style id="npc-style">
+.npc {
+	display: none;
+}
+</style>
+</head>
+<body>
+<h1>イナズマ3 エンカウント乱数調整ツール</h1>
+<ul>
+<li>解説: <a href="http://gist.github.com/516688">http://gist.github.com/516688</a>
+</ul>
+
+<h2>エンカウントできる消費を探す</h2>
+<form action="" name="encount_search" onsubmit="return false;" autocomplete="off">
+<table>
+<tr><th>初期seed:<td><input type="text" size="20" name="fseed" value="0x0000010c">
+<tr><th>消費の範囲:<td><input type="text" size="6" name="advancement_min" value="10"> ～ <input type="text" size="6" name="advancement_max" value="2000">
+<tr><th>マップ:<td id="map-select-area">
+<tr><th>バージョン:<td><label><input type="radio" name="version" value="spark" checked disabled>スパーク</label> <label><input type="radio" name="version" value="bomber" disabled>ボンバー</label>
+<tr><th>エンカウントしたいチーム:<td id="team-select-area">
+<tr><th><label><input type="checkbox" name="check_member" checked>エンカウントしたいメンバー</label>:<td id="member-select-area">
+<tr><td><td><input type="submit" value="決定"> <input type="button" name="delete_button" value="結果を消す">
+</table>
+</form>
+<p><small>NPCがいる場所での調整は難しく作者も成功させていないのでやらない方がいいです。それでもやりたいなら → </small><button id="enable-npc-button">NPC関連の機能を有効にする</button></p>
+<div class="output-area" id="encount-search-result"></div>
+
+<div id="tools-for-practice" style="display:none">
+<div></div>
+<h3>タイマー</h3>
+<form action="" name="timer" onsubmit="return false;" autocomplete="off">
+<p><input type="text" size="10" name="time" value=""> 秒
+<p><input type="submit" value="決定"> <input type="button" name="delete_button" value="結果を消す">
+</p>
+</form>
+<div class="output-area" id="timer-result"></div>
+
+<h3>選手バインダーでseed確認</h3>
+<table class="for-layout">
+<tr><td>
+<form action="" name="binder_seed_verify" onsubmit="return false;" autocomplete="off">
+<table>
+<tr><th>初期seedの範囲:<td><input type="text" size="20" name="fseed_base" value="0x00000100">±<input type="text" size="6" name="fseed_gosa" value="20">
+<tr><th>消費の範囲:<td><input type="text" size="6" name="advancement_base" value=""> ± <input type="text" size="6" name="advancement_gosa" value="30">
+<tr><th>フィルター:<td><input type="text" size="50" name="filter" value="">
+<tr><td><td><input type="submit" value="決定"> <input type="button" name="delete_button" value="結果を消す">
+</table>
+</form>
+<td>
+0: 靴とんとん<br>
+1: 頭をかく
+</table>
+<div class="output-area" id="binder-verify-result"></div>
+
+<div class="npc">
+<h3>NPCの動く方向のリスト作成</h3>
+<form action="" name="npc_list" onsubmit="return false;" autocomplete="off">
+<table>
+<tr><th>消費の範囲:<td><input type="text" size="6" name="advancement_min" value=""> ～ <input type="text" size="6" name="advancement_max" value="">
+<tr><td><td><input type="submit" value="決定"> <input type="button" name="delete_button" value="結果を消す">
+</table>
+</form>
+<div class="output-area" id="npc-list"></div>
+
+
+<h3>エンカウントのNPCによる消費ずれのリストを作成</h3>
+<form action="" name="encount_list" onsubmit="return false;" autocomplete="off">
+<table>
+<tr><th>消費の範囲:<td><input type="text" size="6" name="advancement_min" value=""> ～ <input type="text" size="6" name="advancement_max" value="">
+<tr><td><td><input type="submit" value="決定"> <input type="button" name="delete_button" value="結果を消す">
+</table>
+</form>
+<div class="output-area" id="encount-list"></div>
+</div>
+
+<h3>バトル後の結果のリストを作成</h3>
+<form action="" name="battle_result_list" onsubmit="return false;" autocomplete="off">
+<table>
+<tr><th>消費の範囲:<td><input type="text" size="6" name="advancement_min" value=""> ～ <input type="text" size="6" name="advancement_max" value="">
+<tr><td><td><input type="submit" value="決定"> <input type="button" name="delete_button" value="結果を消す">
+</table>
+</form>
+<div class="output-area" id="battle-result-list"></div>
+
+</div>
+
+</body>
+</html>
