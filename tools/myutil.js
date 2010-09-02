@@ -79,7 +79,7 @@ function elem_add_class(e, className) {
 		e.className = className;
 		return;
 	}
-	if (!hasClass(e, className)) {
+	if (!elem_has_class(e, className)) {
 		e.className += " " + className;
 	}
 }
@@ -139,7 +139,7 @@ function get_elem_by_tag_and_class(root, tagName, className) {
 	}
 	var elems = root.getElementsByTagName(tagName);
 	for (var i = 0; i < elems.length; i ++) {
-		if (hasClass(elems[i], className)) {
+		if (elem_has_class(elems[i], className)) {
 			return elems[i];
 		}
 	}
