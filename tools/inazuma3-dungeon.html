@@ -280,7 +280,6 @@ function add_map_from_text(text) {
 		for (var x = 0; x < cells.length; x ++) {
 			var cell = cells[x];
 			var m = /^\s*([0-9a-f]+),\s*(\d+),\s*([0-9a-f]+)\s*$/i.exec(cell);
-			if(!map[x]) map[x] = [];
 			map.set(x, y, new Cell(parseInt(m[1], 16), Number(m[2]), parseInt(m[3], 16)));
 		}
 	}
