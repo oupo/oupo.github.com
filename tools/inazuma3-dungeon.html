@@ -67,6 +67,7 @@ addEvent(window, "load", function() {
 	update_search_form_item_control();
 	addEvent(search_form, "submit", submit_callback(on_submit_search));
 	addEvent(search_form.elements.delete_button, "click", function() {
+		clear_search();
 		document.getElementById("search-result").innerHTML = "";
 	});
 	
@@ -116,7 +117,7 @@ function on_submit_search(form) {
 	var result_area = document.getElementById("search-result");
 	var data = DUNGEON_DATA[chapter][course];
 	
-	if (TIMER_ID !== null) clearTimeout(TIMER_ID);
+	clear_search();
 	
 	var advancement = advancement_min;
 	var stream = new PRNGStream(0, fseed, advancement, 512, 0);
@@ -151,8 +152,15 @@ function on_submit_search(form) {
 				return;
 			}
 		}
-		TIMER_ID = null;
+		clear_search();
 		progress_area.parentNode.style.display = "none";
+	}
+}
+
+function clear_search() {
+	if (TIMER_ID !== null) {
+		clearTimeout(TIMER_ID);
+		TIMER_ID = null;
 	}
 }
 
