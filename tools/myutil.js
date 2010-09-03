@@ -24,6 +24,12 @@ function read_input(input, name, min, max) {
 	}
 }
 
+function read_input_re(input, re, name) {
+	var m = re.exec(input.value);
+	if (!m) input_error(name+"に入力されている値が不正です");
+	return m;
+}
+
 function read_int_string(s, default_value) {
 	if (/^\s*$/.test(s) && default_value !== undefined) {
 		return default_value;
