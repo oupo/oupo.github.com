@@ -304,10 +304,11 @@ function unit_id_to_unit_input_name(unit_id) {
 }
 
 function unit_input_name_to_hastalkfile(unit_input_name) {
-	var m = /^.*?([ぁ-ゔァ-ヴー０-９Ａ-Ｚ]*).*?([yn])?$/.exec(unit_input_name);
-	if (m[2] === "y") return true;
-	if (m[2] === "n") return false;
-	return unit_name_to_hastalkfile(m[1]) || false;
+	var name = /[ぁ-ゔァ-ヴー０-９Ａ-Ｚ]*/.exec(unit_input_name)[0];
+	var m = /(?:^|\W)([yn])$/.exec(unit_input_name);
+	if (m && m[1] === "y") return true;
+	if (m && m[1] === "n") return false;
+	return unit_name_to_hastalkfile(name) || false;
 }
 
 var DROP_ITEM_EMPTY_NAME = "なし";
