@@ -230,7 +230,8 @@ function init_units_input_area() {
 	var elem = get_child_elem(document.getElementById("units-input-area"), "td");
 	var buf = "";
 	for (var i = 0; i < 16; i ++) {
-		buf += format_dec(i+1, 2)+': <input type="text" name="unit-name-'+i+'"><br>';
+		var attr = i == 11 ? ' style="margin-top: 5px"' : ''; // ベンチの前にスペースを空ける
+		buf += '<div'+attr+'>'+format_dec(i+1, 2)+': <input type="text" name="unit-name-'+i+'"></div>';
 	}
 	elem.innerHTML = buf;
 }
