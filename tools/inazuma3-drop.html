@@ -234,6 +234,13 @@ function init_units_input_area() {
 		buf += '<div'+attr+'>'+format_dec(i+1, 2)+': <input type="text" name="unit-name-'+i+'"></div>';
 	}
 	elem.innerHTML = buf;
+	
+	addEvent(elem, "keyup", function(e) {
+		var input = get_event_target(e);
+		if (input.tagName.toLowerCase() === "input") {
+			elem_add_or_remove_class(input, "hastalkfile", unit_input_name_to_hastalkfile(input.value));
+		}
+	});
 }
 
 function change_units_input_area(form, game) {
