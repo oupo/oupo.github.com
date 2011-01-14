@@ -147,6 +147,20 @@ function get_child_elem(elem, tagName) {
 	return get_child_elems(elem, tagName)[0];
 }
 
+function get_elems_by_tag_and_class(root, tagName, className) {
+	if (document['querySelector']) {
+		return root.querySelectorAll(tagName+"."+className);
+	}
+	var elems = root.getElementsByTagName(tagName);
+	var result = [];
+	for (var i = 0; i < elems.length; i ++) {
+		if (elem_has_class(elems[i], className)) {
+			result.push(elems[i]);
+		}
+	}
+	return result;
+}
+
 function get_elem_by_tag_and_class(root, tagName, className) {
 	if (document['querySelector']) {
 		return root.querySelector(tagName+"."+className);
@@ -157,6 +171,17 @@ function get_elem_by_tag_and_class(root, tagName, className) {
 			return elems[i];
 		}
 	}
+}
+
+function get_parent_elem(elem, tagName) {
+	var e = elem;
+	while (e && e.nodeType === 1) {
+		if (e !== elem && e.tagName.toLowerCase() === tagName.toLowerCase()) {
+			return e;
+		}
+		e = e.parentNode;
+	}
+	return null;
 }
 
 function format_hex(n, prec) {

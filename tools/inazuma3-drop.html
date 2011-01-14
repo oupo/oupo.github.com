@@ -222,20 +222,28 @@ function init_team_select() {
 			form["odd"+i].value = e.drop_odds[i];
 		}
 		form.exp_base.value = [e.exp, e.nekketu, e.yuujou].join(",");
-		change_units_input_area(form, e);
+		change_enemy_units_input_area(form, e);
 	}
 }
 
 function init_units_input_area(form) {
 	var elem = get_child_elem(document.getElementById("units-input-area"), "td");
+	var team_names = ["player", "enemy"];
 	var buf = "";
-	for (var i = 0; i < 16; i ++) {
-		var attr = i == 11 ? ' style="margin-top: 5px"' : ''; // ベンチの前にスペースを空ける
-		buf += '<div'+attr+'>'+format_dec(i+1, 2)+': <input type="text" name="unit-name-'+i+'" class="unit"></div>';
+	buf += '<table class="for-layout"><tr>';
+	
+	for (var team = 0; team < 2; team ++) {
+		buf += '<td>';
+		buf += (team === 0 ? 'プレイヤー' : '相手') + '<br>';
+		for (var i = 0; i < 16; i ++) {
+			var attr = i == 11 ? ' style="margin-top: 5px"' : ''; // ベンチの前にスペースを空ける
+			buf += '<div'+attr+'>'+format_dec(i+1, 2)+': <input type="text" name="unit-name-'+team_names[team]+'-'+i+'" class="unit"></div>';
+		}
+		buf += '<input type="text" class="swap-unit1" value="12" size="2"> → ';
+		buf += '<input type="text" class="swap-unit2" value="1" size="2"> ';
+		buf += '<input type="button" class="unit-swap-button" value="選手交代">';
 	}
-	buf += '<input type="text" class="swap-unit1" value="12" size="2"> → ';
-	buf += '<input type="text" class="swap-unit2" value="1" size="2"> ';
-	buf += '<input type="button" class="unit-swap-button" value="選手交代">';
+	buf += '</table>';
 	
 	elem.innerHTML = buf;
 	
@@ -246,30 +254,37 @@ function init_units_input_area(form) {
 		}
 	});
 	
-	addEvent(get_elem_by_tag_and_class(elem, "input", "unit-swap-button"), "click", function() {
-		var unit1 = read_int_string(get_elem_by_tag_and_class(elem, "input", "swap-unit1").value);
-		var unit2 = read_int_string(get_elem_by_tag_and_class(elem, "input", "swap-unit2").value);
-		if (1 <= unit1 && unit1 <= 16 && 1 <= unit2 && unit2 <= 16) {
-			var input1 = form.elements["unit-name-"+(unit1 - 1)];
-			var input2 = form.elements["unit-name-"+(unit2 - 1)];
-			var s1 = input1.value, s2 = input2.value;
-			input1.value = s2;
-			input2.value = s1;
-			update_unit_input_color(input1);
-			update_unit_input_color(input2);
-		}
-	});
+	var buttons = get_elems_by_tag_and_class(elem, "input", "unit-swap-button");
+	for (var team = 0; team < 2; team ++) {
+		(function (team) {
+			var button = buttons[team];
+			var parent = get_parent_elem(button, "td");
+			addEvent(button, "click", function() {
+				var unit1 = read_int_string(get_elem_by_tag_and_class(parent, "input", "swap-unit1").value);
+				var unit2 = read_int_string(get_elem_by_tag_and_class(parent, "input", "swap-unit2").value);
+				if (!(1 <= unit1 && unit1 <= 16 && 1 <= unit2 && unit2 <= 16)) return;
+				var team_name = team_names[team];
+				var input1 = form.elements["unit-name-"+team_name+"-"+(unit1 - 1)];
+				var input2 = form.elements["unit-name-"+team_name+"-"+(unit2 - 1)];
+				var s1 = input1.value, s2 = input2.value;
+				input1.value = s2;
+				input2.value = s1;
+				update_unit_input_color(input1);
+				update_unit_input_color(input2);
+			});
+		})(team);
+	}
 }
 
 function update_unit_input_color(input) {
 	elem_add_or_remove_class(input, "hastalkfile", unit_input_name_to_hastalkfile(input.value));
 }
 
-function change_units_input_area(form, game) {
+function change_enemy_units_input_area(form, game) {
 	var enemy_units = game.units;
 	
 	for (var i = 0; i < 16; i ++) {
-		var input = form.elements["unit-name-"+i];
+		var input = form.elements["unit-name-enemy-"+i];
 		var unit_id = i < enemy_units.length ? enemy_units[i] : null;
 		var hastalkfile = unit_id !== null ? get_unit_hastalkfile(unit_id) : false;
 		elem_add_or_remove_class(input, "hastalkfile", hastalkfile);
