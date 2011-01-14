@@ -183,6 +183,8 @@ function init_drop_search_form() {
 	var form = document.forms.drop_search;
 	add_submit_and_delete_event(form, on_submit_drop_search, "drop-search-result");
 	init_team_select();
+	update_units_input_area_display(form);
+	addEvent(form.elements.check_hastalkfile_advancement, "click", func_bind_args(update_units_input_area_display, [form]));
 }
 
 function init_team_select() {
@@ -224,6 +226,11 @@ function init_team_select() {
 		form.exp_base.value = [e.exp, e.nekketu, e.yuujou].join(",");
 		change_enemy_units_input_area(form, e);
 	}
+}
+
+function update_units_input_area_display(form) {
+	var checked = form.elements.check_hastalkfile_advancement.checked;
+	document.getElementById("units-input-area").style.display = checked ? "" : "none";
 }
 
 function init_units_input_area(form) {
@@ -309,6 +316,11 @@ function unit_input_name_to_hastalkfile(unit_input_name) {
 	if (m && m[1] === "y") return true;
 	if (m && m[1] === "n") return false;
 	return unit_name_to_hastalkfile(name) || false;
+}
+
+function cut_yn_from_unit_input_name(unit_input_name) {
+	if (!/(?:^|\W)([yn])$/.test(unit_input_name)) return unit_input_name;
+	return unit_input_name.replace(/\s*[yn]$/, "");
 }
 
 var DROP_ITEM_EMPTY_NAME = "なし";
@@ -606,8 +618,9 @@ small input {
 <small>基本となる値: <input type="text" size="20" name="exp_base" value=""> (経験値,熱血,友情)</small>
 <tr><th>オプション:
 <td>
-<label><input type="checkbox" name="check_count_before_advancement" checked>試合終了時のセリフ決定の2消費を考慮する</label>
-<tr id="units-input-area">
+<label><input type="checkbox" name="check_count_before_advancement" checked>試合終了時のセリフ決定の2消費を考慮する</label><br>
+└<label><input type="checkbox" name="check_hastalkfile_advancement">専用セリフが用意されていない選手の場合の追加消費も考慮する</label>
+<tr id="units-input-area" style="display:none">
 <th>選手:
 <td>
 <tr><td><td><input type="submit" value="決定"> <input type="button" name="delete_button" value="結果を消す">
