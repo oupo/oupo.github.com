@@ -207,13 +207,9 @@ function init_team_select() {
 	buf += "</select>";
 	area.innerHTML = buf;
 	var select = area.getElementsByTagName("select")[0];
-	addEvent(select, "change", on_change_select);
-	addEvent(select, "keypress", on_change_select);
+	add_event_select_change(select, on_change_select);
 	
 	function on_change_select(ev) {
-		if (ev.type == "keypress" && ev.keyCode == 9) { // KeyEvent.DOM_VK_TAB
-			return;
-		}
 		var option = select[select.selectedIndex];
 		var m = /^([^\/]+)\/(.+)$/.exec(option.value);
 		if (!m) return;
@@ -372,12 +368,7 @@ function init_formation(units_input_area, form) {
 	
 	
 	update_formation_coords(select, image_area);
-	addEvent(select, "change", function() { update_formation_coords(select, image_area) });
-	addEvent(select, "keypress", function() {
-		// Firefox 3.6でkeypressイベント内でselectedIndexがうまく反映されないことがあるのでsetTimeoutでごまかし
-		// 再現コード: http://jsdo.it/oupo/sJ8H
-		setTimeout(function() { update_formation_coords(select, image_area) }, 0)
-	});
+	add_event_select_change(select, function() { update_formation_coords(select, image_area) });
 	
 	init_formation_drag_drop(image_area, units_input_area, form);
 	update_formation_unit_names(units_input_area, form);
@@ -830,6 +821,26 @@ function read_fseed_range(input, name) {
 	} else {
 		input_error(name+"に入力されている値が不正です");
 	}
+}
+
+function add_event_select_change(form, func) {
+	var lastSelected = form.selectedIndex;
+	function wrapeed_func(event) {
+		if (form.selectedIndex !== lastSelected) {
+			lastSelected = form.selectedIndex;
+			if (event.type === "keypress") {
+				// Firefox 3.6でkeypressイベント内でselectedIndexがうまく反映されないことがあるのでsetTimeoutでごまかし
+				// 再現コード: http://jsdo.it/oupo/sJ8H
+				setTimeout(function() { func(event) }, 0);;
+			} else {
+				func(event);
+			}
+		}
+	}
+
+	addEvent(form, "change", wrapeed_func);
+	addEvent(form, "keypress", wrapeed_func); // Firefox
+	addEvent(form, "keyup", wrapeed_func); // Google Chrome
 }
 </script>
 <style type="text/css">
