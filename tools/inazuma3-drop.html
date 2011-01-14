@@ -535,8 +535,7 @@ function on_submit_drop_search(f) {
 			for (var i = 0; i < 11; i ++) {
 				var unit_input_name = f.elements["unit-name-"+team_name+"-"+i].value;
 				var cutted_name = cut_yn_from_unit_input_name(unit_input_name);
-				display_name = cutted_name === "" ? String(i+1) : ((i+1)+": "+cutted_name);
-				units[team_name][i] = {name: display_name, hastalkfile: unit_input_name_to_hastalkfile(unit_input_name)};
+				units[team_name][i] = {name: cutted_name, hastalkfile: unit_input_name_to_hastalkfile(unit_input_name), i: i};
 			}
 		}
 	}
@@ -565,8 +564,12 @@ function on_submit_drop_search(f) {
 				
 				array_each([units.player[talk_units.unit_player],
 				            units.enemy[talk_units.unit_enemy]], function(unit) {
-					var attr = unit.hastalkfile ? ' class="hastalkfile"' : '';
-					buf += '<td'+attr+'>'+unit.name;
+					var i = format_dec(unit.i + 1, 2);
+					var s = unit.hastalkfile ? '<span class="hastalkfile">'+i+'</span>' : i;
+					if (unit.name !== "") {
+						s += ": "+unit.name;
+					}
+					buf += '<td>'+s;
 				});
 			}
 			for (var i = 0; i < 3; i ++) {
@@ -786,7 +789,7 @@ small input {
 }
 
 #units-input-area input.unit.hastalkfile,
-td.hastalkfile,
+span.hastalkfile,
 .formation-image div.hastalkfile {
 	background-color: #fcc;
 }
