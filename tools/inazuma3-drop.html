@@ -183,14 +183,17 @@ function init_drop_search_form() {
 	var form = document.forms.drop_search;
 	add_submit_and_delete_event(form, on_submit_drop_search, "drop-search-result");
 	init_team_select();
+	init_units_input_area(form);
 	update_units_input_area_display(form);
 	addEvent(form.elements.check_hastalkfile_advancement, "click", func_bind_args(update_units_input_area_display, [form]));
+	addEventAll(form.elements.version, "click", init_team_select);
 }
 
 function init_team_select() {
 	var form = document.forms.drop_search;
+	var is_ogre = get_checked_radio_value(form.elements.version) === "ogre";
 	var area = document.getElementById("team-select-area");
-	var data = PRACTICE_GAME_DATA;
+	var data = is_ogre ? PRACTICE_GAME_DATA_OGRE : PRACTICE_GAME_DATA;
 	var buf = "";
 	buf += "チーム選択: <select>";
 	buf += "<option>";
@@ -208,7 +211,6 @@ function init_team_select() {
 	var select = area.getElementsByTagName("select")[0];
 	addEvent(select, "change", on_change_select);
 	addEvent(select, "keypress", on_change_select);
-	init_units_input_area(form);
 	
 	function on_change_select(ev) {
 		if (ev.type == "keypress" && ev.keyCode == 9) { // KeyEvent.DOM_VK_TAB
@@ -858,6 +860,9 @@ td.hastalkfile,
 <tr><th>初期seed:<td><input type="text" size="20" name="fseed" value="0x0000010c">
 <tr><th>消費の範囲:<td><input type="text" size="6" name="advancement_min" value="10"> ～ <input type="text" size="6" name="advancement_max" value="1000">
 <tr><th>ドロップ:<td>
+<label><input type="radio" name="version" value="spark-bomber" checked>スパーク・ボンバー</label>
+<label><input type="radio" name="version" value="ogre">ジ・オーガ</label>
+<br>
 <span id="team-select-area"></span><br>
 ドロップしたいアイテムにチェック<br>
 <input type="checkbox" name="check0"> <input type="text" size="20" name="item0" value=""> <input type="text" size="4" name="odd0" value=""> %<br>

@@ -2,6 +2,12 @@ var addEvent =
  window.addEventListener ? function(e, n, f) { e.addEventListener(n, f, false); }
                          : function(e, n, f) { e.attachEvent("on" + n, f); };
 
+function addEventAll(elements, name, func) {
+	array_each(elements, function(element) {
+		addEvent(element, name, func);
+	});
+}
+
 function submit_callback(fn) {
 	return function(ev) {
 		try {
