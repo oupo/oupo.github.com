@@ -122,7 +122,8 @@ function elem_add_or_remove_class(e, className, cond) {
 function html_to_fragment(html) {
 	var div = document.createElement("div");
 	div.innerHTML = html;
-	var nodes = div.childNodes;
+	// liveなNodeListなのでappendChildしたらlistから消えてずれてしまうので普通の配列へ変換
+	var nodes = to_array(div.childNodes);
 	var fragment = document.createDocumentFragment();
 	for (var i = 0; i < nodes.length; i ++) {
 		fragment.appendChild(nodes[i]);
@@ -261,6 +262,15 @@ function array_indexof(ary, e) {
 
 function array_copy(ary) {
 	return ary.concat();
+}
+
+function to_array(src) {
+	var r = [];
+	var l = src.length;
+	for (var i = 0; i < l; i ++) {
+		r[i] = src[i];
+	}
+	return r;
 }
 
 function obj_copy(obj) {

@@ -303,6 +303,43 @@ function init_units_input_area(form) {
 			});
 		})(team);
 	}
+	
+	init_formation(elem);
+}
+
+function init_formation(elem) {
+	var buf = "";
+	buf += '<select class="formation-select">';
+
+	var data = PRACTICE_GAME_DATA;
+	buf += array_map(FORMATION_DATA, function(e) { return '<option value="'+e.name+'">'+e.name+'</option>'; }).join("");
+	buf += '</select>';
+	buf += '<div class="formation-image">';
+	for (var i = 0; i < 16; i ++) {
+		buf += '<div>'+format_dec(i + 1, 2)+'</div>';
+	}
+	buf += '</div>';
+	elem.appendChild(html_to_fragment(buf));
+	update_formation_coords(elem);
+	var select = get_elem_by_tag_and_class(elem, "select", "formation-select");
+	addEvent(select, "change", function(){ update_formation_coords(elem) });
+	addEvent(select, "keypress", function() {
+		// Firefox 3.6でkeypressイベント内でselectedIndexがうまく反映されないことがあるのでsetTimeoutでごまかし
+		// 再現コード: http://jsdo.it/oupo/sJ8H
+		setTimeout(function() { update_formation_coords(elem) }, 0)
+	});
+}
+
+function update_formation_coords(elem) {
+	var select = get_elem_by_tag_and_class(elem, "select", "formation-select");
+	var image_area = get_elem_by_tag_and_class(elem, "div", "formation-image");
+	var formation = FORMATION_DATA[select.selectedIndex];
+	
+	for (var i = 0; i < 16; i ++) {
+		var e = image_area.childNodes[i];
+		e.style.left = ((formation.coords[i][0] - 32) * 3 + 5)+"px";
+		e.style.top  = ((formation.coords[i][1] - 64) * 1.5 + 5)+"px";
+	}
 }
 
 function update_unit_input_color(input) {
@@ -628,6 +665,21 @@ small input {
 #units-input-area input.unit.hastalkfile,
 td.hastalkfile {
 	background-color: #fcc;
+}
+
+.formation-image {
+	position: relative;
+	background: #AAEAA8;
+	width: 690px;
+	height: 170px;
+}
+
+.formation-image div {
+	position: absolute;
+	border: 1px solid #000;
+	width: 65px;
+	background: #fff;
+	font-size: 80%;
 }
 </style>
 </head>
