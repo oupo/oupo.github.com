@@ -230,20 +230,20 @@ function init_team_select() {
 
 function update_units_input_area_display(form) {
 	var checked = form.elements.check_hastalkfile_advancement.checked;
-	var elem = document.getElementById("units-input-area");
-	elem.style.display = checked ? "" : "none";
+	var units_input_area = document.getElementById("units-input-area");
+	units_input_area.style.display = checked ? "" : "none";
 	
 	// keyupイベントが起きない方法で入力したとかで色が反映されていなくても
 	// チェックを一度外しもう一度つければ反映されるようにしておく
 	if (checked) {
-		array_each(get_elems_by_tag_and_class(elem, "input", "unit"), update_unit_input_color);
+		array_each(get_elems_by_tag_and_class(units_input_area, "input", "unit"), update_unit_input_color);
 	}
 }
 
 var TEAM_NAMES = ["player", "enemy"];
 
 function init_units_input_area(form) {
-	var elem = get_child_elem(document.getElementById("units-input-area"), "td");
+	var units_input_area = get_child_elem(document.getElementById("units-input-area"), "td");
 	var buf = "";
 	buf += '<table class="for-layout"><tr>';
 	
@@ -261,25 +261,25 @@ function init_units_input_area(form) {
 	}
 	buf += '</table>';
 	
-	elem.innerHTML = buf;
+	units_input_area.innerHTML = buf;
 	
-	addEvent(elem, "keyup", function(e) {
+	addEvent(units_input_area, "keyup", function(e) {
 		var input = get_event_target(e);
 		if (input.tagName.toLowerCase() === "input" && elem_has_class(input, "unit")) {
 			update_unit_input_color(input);
-			update_formation_unit_names(elem, form);
+			update_formation_unit_names(units_input_area, form);
 		}
 	});
 	
 	for (var team = 0; team < 2; team ++) {
 		(function (team) {
-			var parent = get_elem_by_tag_and_class(elem, "td", "units-input-team-"+team);
+			var parent = get_elem_by_tag_and_class(units_input_area, "td", "units-input-team-"+team);
 			var team_name = TEAM_NAMES[team];
 			addEvent(get_elem_by_tag_and_class(parent, "input", "unit-swap-button"), "click", function() {
 				var unit1 = read_int_string(get_elem_by_tag_and_class(parent, "input", "swap-unit1").value);
 				var unit2 = read_int_string(get_elem_by_tag_and_class(parent, "input", "swap-unit2").value);
 				if (!(1 <= unit1 && unit1 <= 16 && 1 <= unit2 && unit2 <= 16)) return;
-				swap_unit(elem, form, team_name, unit1 - 1, unit2 - 1);
+				swap_unit(units_input_area, form, team_name, unit1 - 1, unit2 - 1);
 			});
 			addEvent(get_elem_by_tag_and_class(parent, "input", "unit-copy-paste"), "click", function() {
 				var str_orig = array_map(iota(16), function(i) {
@@ -293,17 +293,17 @@ function init_units_input_area(form) {
 					var input = form.elements["unit-name-"+team_name+"-"+i];
 					input.value = names[i] || "";
 					update_unit_input_color(input);
-					update_formation_unit_names(elem, form);
+					update_formation_unit_names(units_input_area, form);
 				}
 				
 			});
 		})(team);
 	}
 	
-	init_formation(elem, form);
+	init_formation(units_input_area, form);
 }
 
-function swap_unit(elem, form, team_name, unit1, unit2) {
+function swap_unit(units_input_area, form, team_name, unit1, unit2) {
 	var input1 = form.elements["unit-name-"+team_name+"-"+unit1];
 	var input2 = form.elements["unit-name-"+team_name+"-"+unit2];
 	var s1 = input1.value, s2 = input2.value;
@@ -311,10 +311,10 @@ function swap_unit(elem, form, team_name, unit1, unit2) {
 	input2.value = s1;
 	update_unit_input_color(input1);
 	update_unit_input_color(input2);
-	update_formation_unit_names(elem, form);
+	update_formation_unit_names(units_input_area, form);
 }
 
-function init_formation(elem, form) {
+function init_formation(units_input_area, form) {
 	var buf = "";
 	buf += '<select class="formation-select">';
 
@@ -326,9 +326,9 @@ function init_formation(elem, form) {
 		buf += '<div></div>';
 	}
 	buf += '</div>';
-	elem.appendChild(html_to_fragment(buf));
-	var image_area = get_elem_by_tag_and_class(elem, "div", "formation-image");
-	var select = get_elem_by_tag_and_class(elem, "select", "formation-select");
+	units_input_area.appendChild(html_to_fragment(buf));
+	var image_area = get_elem_by_tag_and_class(units_input_area, "div", "formation-image");
+	var select = get_elem_by_tag_and_class(units_input_area, "select", "formation-select");
 	
 	
 	update_formation_coords(select, image_area);
@@ -339,8 +339,8 @@ function init_formation(elem, form) {
 		setTimeout(function() { update_formation_coords(select, image_area) }, 0)
 	});
 	
-	init_formation_drag_drop(image_area, elem, form);
-	update_formation_unit_names(elem, form);
+	init_formation_drag_drop(image_area, units_input_area, form);
+	update_formation_unit_names(units_input_area, form);
 }
 
 function update_formation_coords(select, image_area) {
@@ -353,8 +353,8 @@ function update_formation_coords(select, image_area) {
 	}
 }
 
-function update_formation_unit_names(elem, form) {
-	var image_area = get_elem_by_tag_and_class(elem, "div", "formation-image");
+function update_formation_unit_names(units_input_area, form) {
+	var image_area = get_elem_by_tag_and_class(units_input_area, "div", "formation-image");
 	for (var i = 0; i < 16; i ++) {
 		var unit_input_name = form.elements["unit-name-player-"+i].value;
 		var hastalkfile = unit_input_name_to_hastalkfile(unit_input_name);
