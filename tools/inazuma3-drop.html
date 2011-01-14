@@ -281,49 +281,47 @@ function init_units_input_area(form) {
 		}
 	});
 	
-	for (var team = 0; team < 2; team ++) {
-		(function (team) {
-			var parent = get_elem_by_tag_and_class(units_input_area, "td", "units-input-team-"+team);
-			var team_name = TEAM_NAMES[team];
-			var input1 = get_elem_by_tag_and_class(parent, "input", "swap-unit1");
-			var input2 = get_elem_by_tag_and_class(parent, "input", "swap-unit2");
-			
-			addEvent(input1, "keypress", on_keypress_input);
-			addEvent(input2, "keypress", on_keypress_input);
-			addEvent(get_elem_by_tag_and_class(parent, "input", "unit-swap-button"), "click", swap_submit);
-			
-			function on_keypress_input(ev) {
-				if(ev.keyCode === 13) {
-					swap_submit();
-					stopEvent(ev); // submitイベントが発生しないようにする
-				}
+	array_each(iota(2), function(team) {
+		var parent = get_elem_by_tag_and_class(units_input_area, "td", "units-input-team-"+team);
+		var team_name = TEAM_NAMES[team];
+		var input1 = get_elem_by_tag_and_class(parent, "input", "swap-unit1");
+		var input2 = get_elem_by_tag_and_class(parent, "input", "swap-unit2");
+		
+		addEvent(input1, "keypress", on_keypress_input);
+		addEvent(input2, "keypress", on_keypress_input);
+		addEvent(get_elem_by_tag_and_class(parent, "input", "unit-swap-button"), "click", swap_submit);
+		
+		function on_keypress_input(ev) {
+			if(ev.keyCode === 13) {
+				swap_submit();
+				stopEvent(ev); // submitイベントが発生しないようにする
 			}
+		}
+		
+		function swap_submit() {
+			var unit1 = read_int_string(input1.value);
+			var unit2 = read_int_string(input2.value);
+			if (!(1 <= unit1 && unit1 <= 16 && 1 <= unit2 && unit2 <= 16)) return;
+			swap_unit(units_input_area, form, team_name, unit1 - 1, unit2 - 1);
+		}
+		
+		addEvent(get_elem_by_tag_and_class(parent, "input", "unit-copy-paste"), "click", function() {
+			var str_orig = array_map(iota(16), function(i) {
+				return form.elements["unit-name-"+team_name+"-"+i].value;
+			}).join(",").replace(/,+$/, "");
+			var str = window.prompt("選手名リスト", str_orig);
+			if (str === null) return;
+			var names = str.split(",");
 			
-			function swap_submit() {
-				var unit1 = read_int_string(input1.value);
-				var unit2 = read_int_string(input2.value);
-				if (!(1 <= unit1 && unit1 <= 16 && 1 <= unit2 && unit2 <= 16)) return;
-				swap_unit(units_input_area, form, team_name, unit1 - 1, unit2 - 1);
+			for (var i = 0; i < 16; i ++) {
+				var input = form.elements["unit-name-"+team_name+"-"+i];
+				input.value = names[i] || "";
+				update_unit_input_color(input);
 			}
+			fire_change_unit_names(units_input_area, TEAM_NAMES[team]);
 			
-			addEvent(get_elem_by_tag_and_class(parent, "input", "unit-copy-paste"), "click", function() {
-				var str_orig = array_map(iota(16), function(i) {
-					return form.elements["unit-name-"+team_name+"-"+i].value;
-				}).join(",").replace(/,+$/, "");
-				var str = window.prompt("選手名リスト", str_orig);
-				if (str === null) return;
-				var names = str.split(",");
-				
-				for (var i = 0; i < 16; i ++) {
-					var input = form.elements["unit-name-"+team_name+"-"+i];
-					input.value = names[i] || "";
-					update_unit_input_color(input);
-				}
-				fire_change_unit_names(units_input_area, TEAM_NAMES[team]);
-				
-			});
-		})(team);
-	}
+		});
+	});
 	
 	init_formation(units_input_area, form);
 	init_goal_talk_input(units_input_area);
