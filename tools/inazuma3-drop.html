@@ -33,16 +33,12 @@ function init_binder_seed_verify_form() {
 function on_submit_binder_seed_verify(f) {
 	var result_area = document.getElementById("binder-verify-result");
 	
-	var fseed_base = read_input(f.fseed_base, "初期seedの範囲");
-	var fseed_gosa = read_input(f.fseed_gosa, "初期seedの範囲");
+	var fseed_range = read_fseed_range(f.fseed, "初期seedの範囲");
 	var advancement_min = read_input(f.advancement_min, "消費の範囲");
 	var advancement_max = read_input(f.advancement_max, "消費の範囲");
 	var filter = read_filter(f.filter.value);
 	
-	var fseed_min = fseed_base - fseed_gosa;
-	var fseed_max = fseed_base + fseed_gosa;
-	
-	build_result_verify(fseed_min, fseed_max, advancement_min, advancement_max, filter, result_area, "binder");
+	build_result_verify(fseed_range, advancement_min, advancement_max, filter, result_area, "binder");
 }
 
 function init_goal_seed_verify_form() {
@@ -54,21 +50,23 @@ function init_goal_seed_verify_form() {
 function on_submit_goal_seed_verify(f) {
 	var result_area = document.getElementById("goal-verify-result");
 	
-	var fseed = read_input(f.fseed, "初期seed");
+	var fseed_range = read_fseed_range(f.fseed, "初期seedの範囲");
 	var advancement_min = read_input(f.advancement_min, "消費の範囲");
 	var advancement_max = read_input(f.advancement_max, "消費の範囲");
 	var filter = read_filter(f.filter.value);
 	
-	build_result_verify(fseed, fseed, advancement_min, advancement_max, filter, result_area, "goal");
+	build_result_verify(fseed_range, advancement_min, advancement_max, filter, result_area, "goal");
 }
 
-function build_result_verify(fseed_min, fseed_max, advancement_min, advancement_max, filter, result_area, method) {
+function build_result_verify(fseed_range, advancement_min, advancement_max, filter, result_area, method) {
 	var method_setting = SETTING_METHOD[method];
 	var prng = new PRNG(0, 0);
 	var buf = "";
 	buf += "<table>";
 	buf += "<tr><th>初期seed<th>消費<th>合計消費";
 	var result = [];
+	var fseed_min = fseed_range.min;
+	var fseed_max = fseed_range.max;
 	
 	for (var fseed = fseed_min; fseed <= fseed_max; fseed ++) {
 		prng.set_seed(0, u32(fseed));
@@ -621,7 +619,6 @@ function on_submit_drop_search(f) {
 	} else {
 		before_advancement = f.check_count_before_advancement.checked ? 2 : 0;
 	}
-	console.log(before_advancement);
 	
 	var units = null;
 	if (enabled_hastalkfile) {
@@ -818,6 +815,22 @@ function read_filter(str) {
 	}
 	return result;
 }
+
+function read_fseed_range(input, name) {
+	var str = input.value;
+	var m;
+	if ((m = /^(0x[0-9a-f]+|\d+)$/.exec(str))) {
+		return {min: Number(m[1]), max: Number(m[1])};
+	} else if ((m = /^(0x[0-9a-f]+|\d+)\.\.(0x[0-9a-f]+|\d+)$/.exec(str))) {
+		return {min: Number(m[1]), max: Number(m[2])};
+	} else if ((m = /^(0x[0-9a-f]+|\d+)(?:\+-|±)(0x[0-9a-f]+|\d+)$/.exec(str))) {
+		var base = Number(m[1]);
+		var err = Number(m[2]);
+		return {min: base - err, max: base + err};
+	} else {
+		input_error(name+"に入力されている値が不正です");
+	}
+}
 </script>
 <style type="text/css">
 form {
@@ -926,7 +939,7 @@ input.goal-talk-unit-input.hastalkfile {
 <tr><td>
 <form action="" name="binder_seed_verify" onsubmit="return false;" autocomplete="off">
 <table>
-<tr><th>初期seedの範囲:<td><input type="text" size="20" name="fseed_base" value="0x00000100">±<input type="text" size="6" name="fseed_gosa" value="20">
+<tr><th>初期seedの範囲:<td><input type="text" size="40" name="fseed" value="0x00000000..0x00000140">
 <tr><th>消費の範囲:<td><input type="text" size="6" name="advancement_min" value="10"> ～ <input type="text" size="6" name="advancement_max" value="30">
 <tr><th>フィルター:<td><input type="text" size="50" name="filter" value="">
 <tr><td><td><input type="submit" value="決定"> <input type="button" name="delete_button" value="結果を消す">
@@ -943,7 +956,7 @@ input.goal-talk-unit-input.hastalkfile {
 <tr><td>
 <form action="" name="goal_seed_verify" onsubmit="return false;" autocomplete="off">
 <table>
-<tr><th>初期seed:<td><input type="text" size="20" name="fseed" value="0x0000010c">
+<tr><th>初期seedの範囲:<td><input type="text" size="20" name="fseed" value="0x0000010c">
 <tr><th>消費の範囲:<td><input type="text" size="6" name="advancement_min" value="10"> ～ <input type="text" size="6" name="advancement_max" value="1000">
 <tr><th>フィルター:<td><input type="text" size="50" name="filter" value="">
 <tr><td><td><input type="submit" value="決定"> <input type="button" name="delete_button" value="結果を消す">
@@ -998,7 +1011,7 @@ input.goal-talk-unit-input.hastalkfile {
 <h2>使い方</h2>
 <ol>
 <li>リセット
-<li>「選手バインダーでseed確認」で初期seed確認 (初期seedはほぼ一定なので0x00000100±20のままでOK)
+<li>「選手バインダーでseed確認」で初期seed確認
 <li>普通に対戦をする
 <li>試合終了直前に必殺技でゴールを決める
 <li>リプレイ時のゴールが入ったときのモーションで「ゴールのモーションで消費確認」を使って現在消費を確認
