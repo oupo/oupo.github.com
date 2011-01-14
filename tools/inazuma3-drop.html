@@ -206,7 +206,7 @@ function init_team_select() {
 	var select = area.getElementsByTagName("select")[0];
 	addEvent(select, "change", on_change_select);
 	addEvent(select, "keypress", on_change_select);
-	init_units_input_area();
+	init_units_input_area(form);
 	
 	function on_change_select(ev) {
 		if (ev.type == "keypress" && ev.keyCode == 9) { // KeyEvent.DOM_VK_TAB
@@ -226,21 +226,43 @@ function init_team_select() {
 	}
 }
 
-function init_units_input_area() {
+function init_units_input_area(form) {
 	var elem = get_child_elem(document.getElementById("units-input-area"), "td");
 	var buf = "";
 	for (var i = 0; i < 16; i ++) {
 		var attr = i == 11 ? ' style="margin-top: 5px"' : ''; // ベンチの前にスペースを空ける
-		buf += '<div'+attr+'>'+format_dec(i+1, 2)+': <input type="text" name="unit-name-'+i+'"></div>';
+		buf += '<div'+attr+'>'+format_dec(i+1, 2)+': <input type="text" name="unit-name-'+i+'" class="unit"></div>';
 	}
+	buf += '<input type="text" class="swap-unit1" value="12" size="2"> → ';
+	buf += '<input type="text" class="swap-unit2" value="1" size="2"> ';
+	buf += '<input type="button" class="unit-swap-button" value="選手交代">';
+	
 	elem.innerHTML = buf;
 	
 	addEvent(elem, "keyup", function(e) {
 		var input = get_event_target(e);
-		if (input.tagName.toLowerCase() === "input") {
-			elem_add_or_remove_class(input, "hastalkfile", unit_input_name_to_hastalkfile(input.value));
+		if (input.tagName.toLowerCase() === "input" && elem_has_class(input, "unit")) {
+			update_unit_input_color(input);
 		}
 	});
+	
+	addEvent(get_elem_by_tag_and_class(elem, "input", "unit-swap-button"), "click", function() {
+		var unit1 = read_int_string(get_elem_by_tag_and_class(elem, "input", "swap-unit1").value);
+		var unit2 = read_int_string(get_elem_by_tag_and_class(elem, "input", "swap-unit2").value);
+		if (1 <= unit1 && unit1 <= 16 && 1 <= unit2 && unit2 <= 16) {
+			var input1 = form.elements["unit-name-"+(unit1 - 1)];
+			var input2 = form.elements["unit-name-"+(unit2 - 1)];
+			var s1 = input1.value, s2 = input2.value;
+			input1.value = s2;
+			input2.value = s1;
+			update_unit_input_color(input1);
+			update_unit_input_color(input2);
+		}
+	});
+}
+
+function update_unit_input_color(input) {
+	elem_add_or_remove_class(input, "hastalkfile", unit_input_name_to_hastalkfile(input.value));
 }
 
 function change_units_input_area(form, game) {
@@ -507,12 +529,12 @@ small input {
 	font-size: 80%;
 }
 
-#units-input-area input {
+#units-input-area input.unit {
 	background-color: #fff;
 	color: #000;
 }
 
-#units-input-area input.hastalkfile {
+#units-input-area input.unit.hastalkfile {
 	background-color: #fcc;
 }
 </style>
