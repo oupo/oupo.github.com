@@ -287,10 +287,10 @@ function init_units_input_area(form) {
 				update_unit_input_color(input2);
 			});
 			addEvent(get_elem_by_tag_and_class(parent, "input", "unit-copy-paste"), "click", function() {
-				var names_orig = array_map(iota(16), function(i) {
+				var str_orig = array_map(iota(16), function(i) {
 					return form.elements["unit-name-"+team_name+"-"+i].value;
-				});
-				var str = window.prompt("選手名リスト", names_orig.join(","));
+				}).join(",").replace(/,+$/, "");
+				var str = window.prompt("選手名リスト", str_orig);
 				if (str === null) return;
 				var names = str.split(",");
 				
