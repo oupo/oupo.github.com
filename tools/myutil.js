@@ -215,6 +215,14 @@ function func_bind_args(fn, args) {
 	};
 }
 
+function func_bind(fn, thisObj) {
+	var args_part = Array.prototype.slice.call(arguments, 2);
+	return function() {
+		var args = args_part.concat(to_array(arguments));
+		return fn.apply(thisObj, args);
+	}
+}
+
 function array_each(array, fn) {
 	var len = array.length;
 	for (var i = 0; i < len; i ++) {

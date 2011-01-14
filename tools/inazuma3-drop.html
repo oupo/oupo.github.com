@@ -267,6 +267,7 @@ function init_units_input_area(form) {
 		var input = get_event_target(e);
 		if (input.tagName.toLowerCase() === "input" && elem_has_class(input, "unit")) {
 			update_unit_input_color(input);
+			update_formation_unit_names(elem, form);
 		}
 	});
 	
@@ -278,13 +279,7 @@ function init_units_input_area(form) {
 				var unit1 = read_int_string(get_elem_by_tag_and_class(parent, "input", "swap-unit1").value);
 				var unit2 = read_int_string(get_elem_by_tag_and_class(parent, "input", "swap-unit2").value);
 				if (!(1 <= unit1 && unit1 <= 16 && 1 <= unit2 && unit2 <= 16)) return;
-				var input1 = form.elements["unit-name-"+team_name+"-"+(unit1 - 1)];
-				var input2 = form.elements["unit-name-"+team_name+"-"+(unit2 - 1)];
-				var s1 = input1.value, s2 = input2.value;
-				input1.value = s2;
-				input2.value = s1;
-				update_unit_input_color(input1);
-				update_unit_input_color(input2);
+				swap_unit(elem, form, team_name, unit1 - 1, unit2 - 1);
 			});
 			addEvent(get_elem_by_tag_and_class(parent, "input", "unit-copy-paste"), "click", function() {
 				var str_orig = array_map(iota(16), function(i) {
@@ -298,16 +293,28 @@ function init_units_input_area(form) {
 					var input = form.elements["unit-name-"+team_name+"-"+i];
 					input.value = names[i] || "";
 					update_unit_input_color(input);
+					update_formation_unit_names(elem, form);
 				}
 				
 			});
 		})(team);
 	}
 	
-	init_formation(elem);
+	init_formation(elem, form);
 }
 
-function init_formation(elem) {
+function swap_unit(elem, form, team_name, unit1, unit2) {
+	var input1 = form.elements["unit-name-"+team_name+"-"+unit1];
+	var input2 = form.elements["unit-name-"+team_name+"-"+unit2];
+	var s1 = input1.value, s2 = input2.value;
+	input1.value = s2;
+	input2.value = s1;
+	update_unit_input_color(input1);
+	update_unit_input_color(input2);
+	update_formation_unit_names(elem, form);
+}
+
+function init_formation(elem, form) {
 	var buf = "";
 	buf += '<select class="formation-select">';
 
@@ -316,29 +323,144 @@ function init_formation(elem) {
 	buf += '</select>';
 	buf += '<div class="formation-image">';
 	for (var i = 0; i < 16; i ++) {
-		buf += '<div>'+format_dec(i + 1, 2)+'</div>';
+		buf += '<div></div>';
 	}
 	buf += '</div>';
 	elem.appendChild(html_to_fragment(buf));
-	update_formation_coords(elem);
+	var image_area = get_elem_by_tag_and_class(elem, "div", "formation-image");
 	var select = get_elem_by_tag_and_class(elem, "select", "formation-select");
-	addEvent(select, "change", function(){ update_formation_coords(elem) });
+	
+	
+	update_formation_coords(select, image_area);
+	addEvent(select, "change", function() { update_formation_coords(select, image_area) });
 	addEvent(select, "keypress", function() {
 		// Firefox 3.6でkeypressイベント内でselectedIndexがうまく反映されないことがあるのでsetTimeoutでごまかし
 		// 再現コード: http://jsdo.it/oupo/sJ8H
-		setTimeout(function() { update_formation_coords(elem) }, 0)
+		setTimeout(function() { update_formation_coords(select, image_area) }, 0)
 	});
+	
+	init_formation_drag_drop(image_area, elem, form);
+	update_formation_unit_names(elem, form);
 }
 
-function update_formation_coords(elem) {
-	var select = get_elem_by_tag_and_class(elem, "select", "formation-select");
-	var image_area = get_elem_by_tag_and_class(elem, "div", "formation-image");
+function update_formation_coords(select, image_area) {
 	var formation = FORMATION_DATA[select.selectedIndex];
 	
 	for (var i = 0; i < 16; i ++) {
 		var e = image_area.childNodes[i];
 		e.style.left = ((formation.coords[i][0] - 32) * 3 + 5)+"px";
 		e.style.top  = ((formation.coords[i][1] - 64) * 1.5 + 5)+"px";
+	}
+}
+
+function update_formation_unit_names(elem, form) {
+	var image_area = get_elem_by_tag_and_class(elem, "div", "formation-image");
+	for (var i = 0; i < 16; i ++) {
+		var unit_input_name = form.elements["unit-name-player-"+i].value;
+		var hastalkfile = unit_input_name_to_hastalkfile(unit_input_name);
+		var name = cut_yn_from_unit_input_name(unit_input_name);
+		
+		var e = image_area.childNodes[i];
+		elem_add_or_remove_class(e, "hastalkfile", hastalkfile);
+		e.innerHTML = format_dec(i + 1, 2) + (name !== "" ? ": "+name : "");
+	}
+}
+
+function init_formation_drag_drop(image_area, units_input_area, form) {
+	for (var i = 0; i < 16; i ++) {
+		var elem = get_elem(i);
+		addEvent(elem, "mousedown", func_bind(onmousedown, null, i, elem));
+	}
+	addEvent(image_area, "mousemove", onmousemove);
+	addEvent(image_area, "mouseup", onmouseup);
+	
+	var dragging_id = null;
+	var dragging_x, dragging_y;
+	var dragging_elem;
+	var last_drop_id = null;
+	var orig_left, orig_top;
+	
+	function onmousedown(i, elem, event) {
+		stopEvent(event);
+		if (dragging_id !== null) return;
+		var rect = elem.getBoundingClientRect();
+		dragging_id = i;
+		dragging_elem = elem;
+		dragging_x = Math.round(event.clientX - rect.left);
+		dragging_y = Math.round(event.clientY - rect.top);
+		orig_left = elem.style.left;
+		orig_top = elem.style.top;
+		dragging_elem.style.zIndex = 1;
+	}
+	
+	function onmousemove(event) {
+		if (dragging_id === null) return;
+		stopEvent(event);
+		var rect = image_area.getBoundingClientRect();
+		var x = Math.round(event.clientX - rect.left);
+		var y = Math.round(event.clientY - rect.top);
+		
+		dragging_elem.style.left = (x - dragging_x) + "px";
+		dragging_elem.style.top  = (y - dragging_y) + "px";
+		
+		var drop_id = find_collision_elem(dragging_elem);
+		if (last_drop_id !== null && last_drop_id !== drop_id) {
+			elem_remove_class(get_elem(last_drop_id), "drop");
+		}
+		if (drop_id !== null && last_drop_id !== drop_id) {
+			elem_add_class(get_elem(drop_id), "drop");
+		}
+		last_drop_id = drop_id;
+	}
+
+	function onmouseup(event) {
+		if (dragging_id === null) return;
+		var drop_id = find_collision_elem(dragging_elem);
+		if (last_drop_id !== null) {
+			elem_remove_class(get_elem(last_drop_id), "drop");
+		}
+		dragging_elem.style.left = orig_left;
+		dragging_elem.style.top = orig_top;
+		if (drop_id !== null) {
+			swap_unit(units_input_area, form, "player", dragging_id, drop_id);
+		}
+		
+		dragging_id = null;
+		dragging_elem.style.zIndex = 0;
+		dragging_x = dragging_y = null;
+		dragging_elem = null;
+		last_drop_id = null;
+		orig_left = orig_top = null;
+	}
+	
+	function get_elem(i) {
+		return image_area.childNodes[i];
+	}
+	
+	function find_collision_elem(elem1) {
+		var l1 = parseInt(elem1.style.left, 10), t1 = parseInt(elem1.style.top, 10), r1 = l1 + elem1.offsetWidth, b1 = t1 + elem1.offsetHeight;
+		
+		for (var i = 0; i < 16; i ++) {
+			var elem2 = get_elem(i);
+			if (elem1 === elem2) continue;
+			
+			var l2 = parseInt(elem2.style.left, 10), t2 = parseInt(elem2.style.top, 10), r2 = l2 + elem2.offsetWidth, b2 = t2 + elem2.offsetHeight;
+			
+			if (l1 < r2 && r1 > l2 && t1 < b2 && b1 > t2) {
+				return i;
+			}
+		}
+		return null;
+	}
+}
+
+function stopEvent(event) {
+	if (event.preventDefault) {
+		event.preventDefault();
+		event.stopPropagation();
+	} else {
+		event.returnValue = false;
+		event.cancelBubble = true;
 	}
 }
 
@@ -663,7 +785,8 @@ small input {
 }
 
 #units-input-area input.unit.hastalkfile,
-td.hastalkfile {
+td.hastalkfile,
+.formation-image div.hastalkfile {
 	background-color: #fcc;
 }
 
@@ -679,7 +802,17 @@ td.hastalkfile {
 	border: 1px solid #000;
 	width: 65px;
 	background: #fff;
-	font-size: 80%;
+	font-size: 12px;
+	overflow: hidden;
+	white-space: nowrap;
+	padding-top: 2px;
+	padding-left: 1px;
+	line-height: 1;
+	cursor: pointer;
+}
+
+.formation-image div.drop {
+	background: #ccc;
 }
 </style>
 </head>
