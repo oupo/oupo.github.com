@@ -318,7 +318,6 @@ function init_formation(units_input_area, form) {
 	var buf = "";
 	buf += '<select class="formation-select">';
 
-	var data = PRACTICE_GAME_DATA;
 	buf += array_map(FORMATION_DATA, function(e) { return '<option value="'+e.name+'">'+e.name+'</option>'; }).join("");
 	buf += '</select>';
 	buf += '<div class="formation-image">';
