@@ -265,18 +265,21 @@ function init_units_input_area(form) {
 	
 	units_input_area.innerHTML = buf;
 	
-	addEvent(units_input_area, "keyup", on_input_text_change);
-	// コンテキストメニューの貼り付けなどkeyupイベントが起きない方法で入力した場合を考えてblurでもチェックする
-	// blurイベントはバブルしないようなので
-	addEventAll(get_elems_by_tag_and_class(units_input_area, "input", "unit"), "blur", on_input_text_change);
-	
-	function on_input_text_change(e) {
-		var input = get_event_target(e);
-		if (input.tagName.toLowerCase() === "input" && elem_has_class(input, "unit")) {
-			update_unit_input_color(input);
-			update_formation_unit_names(units_input_area, form);
+	array_each(iota(2), function(team) {
+		var parent = get_elem_by_tag_and_class(units_input_area, "td", "units-input-team-"+team);
+		addEvent(parent, "keyup", on_input_text_change);
+		// コンテキストメニューの貼り付けなどkeyupイベントが起きない方法で入力した場合を考えてblurでもチェックする
+		// blurイベントはバブルしないようなので
+		addEventAll(get_elems_by_tag_and_class(parent, "input", "unit"), "blur", on_input_text_change);
+		
+		function on_input_text_change(e) {
+			var input = get_event_target(e);
+			if (input.tagName.toLowerCase() === "input" && elem_has_class(input, "unit")) {
+				update_unit_input_color(input);
+				fire_change_unit_names(units_input_area, TEAM_NAMES[team]);
+			}
 		}
-	}
+	});
 	
 	for (var team = 0; team < 2; team ++) {
 		(function (team) {
@@ -315,14 +318,34 @@ function init_units_input_area(form) {
 					var input = form.elements["unit-name-"+team_name+"-"+i];
 					input.value = names[i] || "";
 					update_unit_input_color(input);
-					update_formation_unit_names(units_input_area, form);
 				}
+				fire_change_unit_names(units_input_area, TEAM_NAMES[team]);
 				
 			});
 		})(team);
 	}
 	
 	init_formation(units_input_area, form);
+	init_goal_talk_input(units_input_area);
+}
+
+function fire_change_unit_names(units_input_area, team_name) {
+	var handlers = units_input_area.handlers_change_unit_names || [];
+	array_each(handlers, function(handler) {
+		handler(team_name);
+	});
+}
+
+function add_listener_change_unit_names(units_input_area, handler) {
+	if (!units_input_area.handlers_change_unit_names) {
+		units_input_area.handlers_change_unit_names = [];
+	}
+	units_input_area.handlers_change_unit_names.push(handler);
+}
+
+function get_unit_name_input(units_input_area, team_name, n) {
+	var form = get_parent_elem(units_input_area, "form");
+	return form.elements["unit-name-"+team_name+"-"+n];
 }
 
 function swap_unit(units_input_area, form, team_name, unit1, unit2) {
@@ -333,7 +356,7 @@ function swap_unit(units_input_area, form, team_name, unit1, unit2) {
 	input2.value = s1;
 	update_unit_input_color(input1);
 	update_unit_input_color(input2);
-	update_formation_unit_names(units_input_area, form);
+	fire_change_unit_names(units_input_area, team_name);
 }
 
 function init_formation(units_input_area, form) {
@@ -362,6 +385,12 @@ function init_formation(units_input_area, form) {
 	
 	init_formation_drag_drop(image_area, units_input_area, form);
 	update_formation_unit_names(units_input_area, form);
+	
+	add_listener_change_unit_names(units_input_area, function(team_name) {
+		if (team_name === "player") {
+			update_formation_unit_names(units_input_area, form);
+		}
+	});
 }
 
 function update_formation_coords(select, image_area) {
@@ -485,11 +514,54 @@ function stopEvent(event) {
 	}
 }
 
+function init_goal_talk_input(units_input_area) {
+	var buf = "";
+	buf += '最後のゴール時のセリフの選手: ';
+	for (var i = 0; i < 2; i ++) {
+		buf += '<input type="text" class="goal-talk-unit-input goal-talk-unit-input'+i+'" value="1" size="3">';
+		buf += ' <span class="goal-talk-unit-name'+i+'"></span> ';
+	}
+	buf += ': 追加消費 <input type="text" class="goal-advancement" size="3"></span>';
+	
+	units_input_area.appendChild(html_to_fragment(buf));
+	
+	
+	var update = function() { update_goal_talk_input(units_input_area) };
+	
+	var inputs = get_elems_by_tag_and_class(units_input_area, "input", "goal-talk-unit-input");
+	
+	addEventAll(inputs, "keyup", update);
+	add_listener_change_unit_names(units_input_area, update);
+	update();
+}
+
+function update_goal_talk_input(units_input_area) {
+	var units = [];
+	var advancement = 0;
+	array_each(iota(2), function(i) {
+		var input = get_elem_by_tag_and_class(units_input_area, "input", "goal-talk-unit-input"+i);
+		var name_span = get_elem_by_tag_and_class(units_input_area, "span", "goal-talk-unit-name"+i);
+		var n = read_int_string(input.value);
+		var name = "";
+		var hastalkfile = false;
+		if (n !== null && 1 <= n && n <= 16) {
+			var unit_input_name = get_unit_name_input(units_input_area, TEAM_NAMES[i], n-1).value;
+			hastalkfile = unit_input_name_to_hastalkfile(unit_input_name);
+			name = cut_yn_from_unit_input_name(unit_input_name);
+		}
+		if (!hastalkfile) advancement ++;
+		name_span.innerHTML = name !== "" ? "("+name+")" : "";
+		elem_add_or_remove_class(input, "hastalkfile", hastalkfile);
+	});
+	get_elem_by_tag_and_class(units_input_area, "input", "goal-advancement").value = String(advancement);
+}
+
 function update_unit_input_color(input) {
 	elem_add_or_remove_class(input, "hastalkfile", unit_input_name_to_hastalkfile(input.value));
 }
 
 function change_enemy_units_input_area(form, game) {
+	var units_input_area = get_child_elem(document.getElementById("units-input-area"), "td");
 	var enemy_units = game.units;
 	
 	for (var i = 0; i < 16; i ++) {
@@ -499,6 +571,7 @@ function change_enemy_units_input_area(form, game) {
 		elem_add_or_remove_class(input, "hastalkfile", hastalkfile);
 		input.value = unit_id_to_unit_input_name(unit_id);
 	}
+	fire_change_unit_names(units_input_area, "enemy");
 }
 
 function unit_id_to_unit_input_name(unit_id) {
@@ -544,7 +617,13 @@ function on_submit_drop_search(f) {
 	
 	var exp_base = read_exp_base(f.exp_base.value);
 	var enabled_hastalkfile = f.elements.check_hastalkfile_advancement.checked;
-	var before_advancement = (!enabled_hastalkfile && f.check_count_before_advancement.checked) ? 2 : 0;
+	var before_advancement;
+	if (enabled_hastalkfile) {
+		before_advancement = read_input(get_elem_by_tag_and_class(f, "input", "goal-advancement"), "追加消費");
+	} else {
+		before_advancement = f.check_count_before_advancement.checked ? 2 : 0;
+	}
+	console.log(before_advancement);
 	
 	var units = null;
 	if (enabled_hastalkfile) {
@@ -803,14 +882,16 @@ small input {
 	font-size: 80%;
 }
 
-#units-input-area input.unit {
+#units-input-area input.unit,
+input.goal-talk-unit-input {
 	background-color: #fff;
 	color: #000;
 }
 
 #units-input-area input.unit.hastalkfile,
 span.hastalkfile,
-.formation-image div.hastalkfile {
+.formation-image div.hastalkfile,
+input.goal-talk-unit-input.hastalkfile {
 	background-color: #fcc;
 }
 
