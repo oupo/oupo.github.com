@@ -265,13 +265,18 @@ function init_units_input_area(form) {
 	
 	units_input_area.innerHTML = buf;
 	
-	addEvent(units_input_area, "keyup", function(e) {
+	addEvent(units_input_area, "keyup", on_input_text_change);
+	// コンテキストメニューの貼り付けなどkeyupイベントが起きない方法で入力した場合を考えてblurでもチェックする
+	// blurイベントはバブルしないようなので
+	addEventAll(get_elems_by_tag_and_class(units_input_area, "input", "unit"), "blur", on_input_text_change);
+	
+	function on_input_text_change(e) {
 		var input = get_event_target(e);
 		if (input.tagName.toLowerCase() === "input" && elem_has_class(input, "unit")) {
 			update_unit_input_color(input);
 			update_formation_unit_names(units_input_area, form);
 		}
-	});
+	}
 	
 	for (var team = 0; team < 2; team ++) {
 		(function (team) {
