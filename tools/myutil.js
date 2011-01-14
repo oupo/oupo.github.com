@@ -270,3 +270,12 @@ function obj_copy(obj) {
 	}
 	return result;
 }
+
+function iota(count, start) {
+	var r = new Array(count);
+	if (start === undefined) start = 0;
+	for (i = 0; i < count; i ++) {
+		r[i] = start + i;
+	}
+	return r;
+}

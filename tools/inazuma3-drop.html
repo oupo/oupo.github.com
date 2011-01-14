@@ -248,7 +248,7 @@ function init_units_input_area(form) {
 	buf += '<table class="for-layout"><tr>';
 	
 	for (var team = 0; team < 2; team ++) {
-		buf += '<td>';
+		buf += '<td class="units-input-team-'+team+'">';
 		buf += (team === 0 ? 'プレイヤー' : '相手') + '<br>';
 		for (var i = 0; i < 16; i ++) {
 			var attr = i == 11 ? ' style="margin-top: 5px"' : ''; // ベンチの前にスペースを空ける
@@ -256,7 +256,8 @@ function init_units_input_area(form) {
 		}
 		buf += '<input type="text" class="swap-unit1" value="12" size="2"> → ';
 		buf += '<input type="text" class="swap-unit2" value="1" size="2"> ';
-		buf += '<input type="button" class="unit-swap-button" value="選手交代">';
+		buf += '<input type="button" class="unit-swap-button" value="選手交代"><br>';
+		buf += '<input type="button" class="unit-copy-paste" value="コピー / ペースト">';
 	}
 	buf += '</table>';
 	
@@ -269,16 +270,14 @@ function init_units_input_area(form) {
 		}
 	});
 	
-	var buttons = get_elems_by_tag_and_class(elem, "input", "unit-swap-button");
 	for (var team = 0; team < 2; team ++) {
 		(function (team) {
-			var button = buttons[team];
-			var parent = get_parent_elem(button, "td");
-			addEvent(button, "click", function() {
+			var parent = get_elem_by_tag_and_class(elem, "td", "units-input-team-"+team);
+			var team_name = TEAM_NAMES[team];
+			addEvent(get_elem_by_tag_and_class(parent, "input", "unit-swap-button"), "click", function() {
 				var unit1 = read_int_string(get_elem_by_tag_and_class(parent, "input", "swap-unit1").value);
 				var unit2 = read_int_string(get_elem_by_tag_and_class(parent, "input", "swap-unit2").value);
 				if (!(1 <= unit1 && unit1 <= 16 && 1 <= unit2 && unit2 <= 16)) return;
-				var team_name = TEAM_NAMES[team];
 				var input1 = form.elements["unit-name-"+team_name+"-"+(unit1 - 1)];
 				var input2 = form.elements["unit-name-"+team_name+"-"+(unit2 - 1)];
 				var s1 = input1.value, s2 = input2.value;
@@ -286,6 +285,21 @@ function init_units_input_area(form) {
 				input2.value = s1;
 				update_unit_input_color(input1);
 				update_unit_input_color(input2);
+			});
+			addEvent(get_elem_by_tag_and_class(parent, "input", "unit-copy-paste"), "click", function() {
+				var names_orig = array_map(iota(16), function(i) {
+					return form.elements["unit-name-"+team_name+"-"+i].value;
+				});
+				var str = window.prompt("選手名リスト", names_orig.join(","));
+				if (str === null) return;
+				var names = str.split(",");
+				
+				for (var i = 0; i < 16; i ++) {
+					var input = form.elements["unit-name-"+team_name+"-"+i];
+					input.value = names[i] || "";
+					update_unit_input_color(input);
+				}
+				
 			});
 		})(team);
 	}
