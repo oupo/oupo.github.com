@@ -230,12 +230,20 @@ function init_team_select() {
 
 function update_units_input_area_display(form) {
 	var checked = form.elements.check_hastalkfile_advancement.checked;
-	document.getElementById("units-input-area").style.display = checked ? "" : "none";
+	var elem = document.getElementById("units-input-area");
+	elem.style.display = checked ? "" : "none";
+	
+	// keyupイベントが起きない方法で入力したとかで色が反映されていなくても
+	// チェックを一度外しもう一度つければ反映されるようにしておく
+	if (checked) {
+		array_each(get_elems_by_tag_and_class(elem, "input", "unit"), update_unit_input_color);
+	}
 }
+
+var TEAM_NAMES = ["player", "enemy"];
 
 function init_units_input_area(form) {
 	var elem = get_child_elem(document.getElementById("units-input-area"), "td");
-	var team_names = ["player", "enemy"];
 	var buf = "";
 	buf += '<table class="for-layout"><tr>';
 	
@@ -244,7 +252,7 @@ function init_units_input_area(form) {
 		buf += (team === 0 ? 'プレイヤー' : '相手') + '<br>';
 		for (var i = 0; i < 16; i ++) {
 			var attr = i == 11 ? ' style="margin-top: 5px"' : ''; // ベンチの前にスペースを空ける
-			buf += '<div'+attr+'>'+format_dec(i+1, 2)+': <input type="text" name="unit-name-'+team_names[team]+'-'+i+'" class="unit"></div>';
+			buf += '<div'+attr+'>'+format_dec(i+1, 2)+': <input type="text" name="unit-name-'+TEAM_NAMES[team]+'-'+i+'" class="unit"></div>';
 		}
 		buf += '<input type="text" class="swap-unit1" value="12" size="2"> → ';
 		buf += '<input type="text" class="swap-unit2" value="1" size="2"> ';
@@ -270,7 +278,7 @@ function init_units_input_area(form) {
 				var unit1 = read_int_string(get_elem_by_tag_and_class(parent, "input", "swap-unit1").value);
 				var unit2 = read_int_string(get_elem_by_tag_and_class(parent, "input", "swap-unit2").value);
 				if (!(1 <= unit1 && unit1 <= 16 && 1 <= unit2 && unit2 <= 16)) return;
-				var team_name = team_names[team];
+				var team_name = TEAM_NAMES[team];
 				var input1 = form.elements["unit-name-"+team_name+"-"+(unit1 - 1)];
 				var input2 = form.elements["unit-name-"+team_name+"-"+(unit2 - 1)];
 				var s1 = input1.value, s2 = input2.value;
@@ -341,9 +349,28 @@ function on_submit_drop_search(f) {
 	}
 	
 	var exp_base = read_exp_base(f.exp_base.value);
-	var before_advancement = f.check_count_before_advancement.checked ? 2 : 0;
+	var enabled_hastalkfile = f.elements.check_hastalkfile_advancement.checked;
+	var before_advancement = (!enabled_hastalkfile && f.check_count_before_advancement.checked) ? 2 : 0;
+	
+	var units = null;
+	if (enabled_hastalkfile) {
+		units = {};
+		for (var team = 0; team < 2; team ++) {
+			var team_name = TEAM_NAMES[team];
+			units[team_name] = [];
+			for (var i = 0; i < 11; i ++) {
+				var unit_input_name = f.elements["unit-name-"+team_name+"-"+i].value;
+				var cutted_name = cut_yn_from_unit_input_name(unit_input_name);
+				display_name = cutted_name === "" ? String(i+1) : ((i+1)+": "+cutted_name);
+				units[team_name][i] = {name: display_name, hastalkfile: unit_input_name_to_hastalkfile(unit_input_name)};
+			}
+		}
+	}
 	
 	var buf = "<table><tr><th>消費";
+	if (enabled_hastalkfile) {
+		buf += "<th>セリフ1<th>セリフ2";
+	}
 	for (var i = 0; i < 3; i ++) {
 		buf += "<th>"+drops[i].item_name;
 	}
@@ -354,9 +381,20 @@ function on_submit_drop_search(f) {
 	var advancement = advancement_min;
 	prng.step(advancement);
 	for (; advancement <= advancement_max; advancement ++) {
-		var r = judge_seed_drop_search(prng.seed, drops, before_advancement);
+		var r = judge_seed_drop_search(prng.seed, drops, before_advancement, units);
 		if (r) {
 			buf += "<tr><td>" + advancement;
+			var cloned_prng = prng.clone();
+			cloned_prng.step(before_advancement);
+			if (enabled_hastalkfile) {
+				var talk_units = calc_talk_units(cloned_prng, units);
+				
+				array_each([units.player[talk_units.unit_player],
+				            units.enemy[talk_units.unit_enemy]], function(unit) {
+					var attr = unit.hastalkfile ? ' class="hastalkfile"' : '';
+					buf += '<td'+attr+'>'+unit.name;
+				});
+			}
 			for (var i = 0; i < 3; i ++) {
 				var cell = (r[i] ? drops[i].item_name : "-");
 				if (drops[i].empty) {
@@ -364,7 +402,7 @@ function on_submit_drop_search(f) {
 				}
 				buf += "<td>"+cell;
 			}
-			var e = calc_exp_and_money(prng.seed, exp_base, before_advancement, num_drop_items);
+			var e = calc_exp_and_money(cloned_prng, exp_base, num_drop_items);
 			buf += "<td>"+e.exp+"<td>"+e.nekketu+"<td>"+e.yuujou;
 			result.push(advancement);
 		}
@@ -374,9 +412,13 @@ function on_submit_drop_search(f) {
 	return result;
 }
 
-function judge_seed_drop_search(seed, drops, before_advancement) {
+function judge_seed_drop_search(seed, drops, before_advancement, units) {
 	var prng = new PRNG(seed.high, seed.row);
-	prng.step(before_advancement + 1);
+	prng.step(before_advancement);
+	if (units) {
+		calc_talk_units(prng, units);
+	}
+	prng.step(1); // 経験値決定の分
 	var result = [];
 	for (var i = 0; i < 3; i ++) {
 		if (drops[i].empty) continue;
@@ -389,9 +431,16 @@ function judge_seed_drop_search(seed, drops, before_advancement) {
 	return result;
 }
 
-function calc_exp_and_money(seed, base, before_advancement, num_drop_items) {
-	var prng = new PRNG(seed.high, seed.row);
-	prng.step(before_advancement);
+function calc_talk_units(prng, units) {
+	// ピッチにいるのが11人未満の場合は考慮していない
+	var unit_player = prng.rand(11);
+	if (!units.player[unit_player].hastalkfile) prng.rand(2);
+	var unit_enemy = prng.rand(11);
+	if (!units.enemy[unit_enemy].hastalkfile) prng.rand(2);
+	return {unit_player: unit_player, unit_enemy: unit_enemy};
+}
+
+function calc_exp_and_money(prng, base, num_drop_items) {
 	var exp = to_uneven(prng, base[0]);
 	prng.step(num_drop_items);
 	var nekketu = to_uneven(prng, base[1]);
@@ -562,7 +611,8 @@ small input {
 	color: #000;
 }
 
-#units-input-area input.unit.hastalkfile {
+#units-input-area input.unit.hastalkfile,
+td.hastalkfile {
 	background-color: #fcc;
 }
 </style>
@@ -619,7 +669,7 @@ small input {
 <tr><th>オプション:
 <td>
 <label><input type="checkbox" name="check_count_before_advancement" checked>試合終了時のセリフ決定の2消費を考慮する</label><br>
-└<label><input type="checkbox" name="check_hastalkfile_advancement">専用セリフが用意されていない選手の場合の追加消費も考慮する</label>
+<label><input type="checkbox" name="check_hastalkfile_advancement">専用セリフが用意されていない選手の場合の追加消費も考慮する</label>
 <tr id="units-input-area" style="display:none">
 <th>選手:
 <td>

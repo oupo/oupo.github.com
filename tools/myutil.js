@@ -214,6 +214,13 @@ function func_bind_args(fn, args) {
 	};
 }
 
+function array_each(array, fn) {
+	var len = array.length;
+	for (var i = 0; i < len; i ++) {
+		fn(array[i]);
+	}
+}
+
 function array_map(array, fn) {
 	var len = array.length;
 	var result = new Array(len);

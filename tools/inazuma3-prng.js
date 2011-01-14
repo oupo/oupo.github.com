@@ -71,6 +71,10 @@ PRNG.prototype.reverse_rand = function(max) {
 	return ret;
 };
 
+PRNG.prototype.clone = function() {
+	return new PRNG(this.seed.high, this.seed.row);
+}
+
 PRNG.gen_rand = function(high, max) {
 	// JSのnumberは2^53までの整数しか正確に表現できないけど、誤差が0x100000000を超えることはないはず？
 	return u32(high * max / 0x100000000);
