@@ -111,6 +111,14 @@ function elem_remove_class(e, className) {
 	}
 }
 
+function elem_add_or_remove_class(e, className, cond) {
+	if (cond) {
+		elem_add_class(e, className);
+	} else {
+		elem_remove_class(e, className);
+	}
+}
+
 function html_to_fragment(html) {
 	var div = document.createElement("div");
 	div.innerHTML = html;

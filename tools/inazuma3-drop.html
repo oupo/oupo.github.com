@@ -240,8 +240,29 @@ function change_units_input_area(form, game) {
 	
 	for (var i = 0; i < 16; i ++) {
 		var input = form.elements["unit-name-"+i];
-		input.value = get_unit_name(enemy_units[i]);
+		var unit_id = i < enemy_units.length ? enemy_units[i] : null;
+		var hastalkfile = unit_id !== null ? get_unit_hastalkfile(unit_id) : false;
+		elem_add_or_remove_class(input, "hastalkfile", hastalkfile);
+		input.value = unit_id_to_unit_input_name(unit_id);
 	}
+}
+
+function unit_id_to_unit_input_name(unit_id) {
+	if (unit_id === null) return "";
+	var name = get_unit_name(unit_id);
+	var hastalkfile = get_unit_hastalkfile(unit_id);
+	if (hastalkfile !== unit_name_to_hastalkfile(name)) {
+		return name + " " + (hastalkfile ? "y" : "n");
+	} else {
+		return name;
+	}
+}
+
+function unit_input_name_to_hastalkfile(unit_input_name) {
+	var m = /^.*?([ぁ-ゔァ-ヴ０-９Ａ-Ｚ]*).*?([yn])?/.exec(unit_input_name);
+	if (m[2] === "y") return true;
+	if (m[2] === "n") return false;
+	return unit_name_to_hastalkfile(m[1]) || false;
 }
 
 var DROP_ITEM_EMPTY_NAME = "なし";
@@ -476,6 +497,15 @@ table.for-layout > * > tr > td {
 
 small input {
 	font-size: 80%;
+}
+
+#units-input-area input {
+	background-color: #fff;
+	color: #000;
+}
+
+#units-input-area input.hastalkfile {
+	background-color: #fcc;
 }
 </style>
 </head>
