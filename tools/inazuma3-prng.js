@@ -98,7 +98,7 @@ function PRNGStream(high, row, advancement, next_size, prev_size) {
 	this.prev_size = prev_size;
 	this.buffer_size = next_size + prev_size + 1;
 	
-	this.buffer = gen_buffer(this.seed, advancement, next_size, prev_size);
+	this.buffer = gen_buffer([], this.seed, advancement, next_size, prev_size);
 	this.buffer_index = 0;
 	this.prng_fake = new PRNGFake(this.buffer, next_size, prev_size);
 }
@@ -112,8 +112,14 @@ PRNGStream.prototype.next = function() {
 	return this.prng_fake;
 };
 
-function gen_buffer(seed, advancement, next_size, prev_size) {
-	var buffer = [];
+PRNGStream.prototype.reset = function(high, row, advancement) {
+	this.seed.high = high, this.seed.row = row;
+	gen_buffer(this.buffer, this.seed, advancement, this.next_size, this.prev_size);
+	this.buffer_index = 0;
+	this.prng_fake.reset((this.buffer_index + this.prev_size) % this.buffer_size);
+};
+
+function gen_buffer(buffer, seed, advancement, next_size, prev_size) {
 	// 1回目のnextで初期状態にするため初期状態の1つ前にする
 	PRNG.step_seed(seed, advancement - prev_size - 1);
 	var size = next_size + prev_size + 1;

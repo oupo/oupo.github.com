@@ -60,7 +60,8 @@ function on_submit_goal_seed_verify(f) {
 
 function build_result_verify(fseed_range, advancement_min, advancement_max, filter, result_area, method) {
 	var method_setting = SETTING_METHOD[method];
-	var prng = new PRNG(0, 0);
+	var stream_size = calc_verify_advancement(method_setting, filter);
+	var stream = new PRNGStream(0, 0, 0, stream_size, 0);
 	var buf = "";
 	buf += "<table>";
 	buf += "<tr><th>初期seed<th>消費<th>合計消費";
@@ -69,17 +70,16 @@ function build_result_verify(fseed_range, advancement_min, advancement_max, filt
 	var fseed_max = fseed_range.max;
 	
 	for (var fseed = fseed_min; fseed <= fseed_max; fseed ++) {
-		prng.set_seed(0, u32(fseed));
+		stream.reset(0, u32(fseed), advancement_min);
 		
 		var advancement = advancement_min;
-		prng.step(advancement);
 		for (; advancement <= advancement_max; advancement ++) {
-			var r = judge_seed_verify(method_setting, prng.seed, filter);
+			var prng = stream.next();
+			var r = judge_seed_verify(method_setting, prng, filter);
 			if (r !== null) {
 				buf += "<tr><td>"+format_hex(fseed, 8)+"<td>"+advancement+"<td>"+(advancement+r)+"<br>";
 				result.push({fseed: fseed, advancement: advancement, advancement_after: advancement+r});
 			}
-			prng.step(1);
 		}
 	}
 	buf += "</table>";
@@ -157,8 +157,11 @@ function auto_input_seed(result) {
 	drop_search_form.advancement_max.value = advancement_max;
 }
 
-function judge_seed_verify(setting, seed, filter) {
-	var prng = new PRNG(seed.high, seed.row);
+function calc_verify_advancement(setting, filter) {
+	return setting.first_advancement + filter.length * (setting.before_advancement + 1);
+}
+
+function judge_seed_verify(setting, prng, filter) {
 	prng.step(setting.first_advancement);
 	for (var i = 0; i < filter.length; i ++) {
 		prng.step(setting.before_advancement);
