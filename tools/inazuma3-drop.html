@@ -60,27 +60,14 @@ function on_submit_goal_seed_verify(f) {
 
 function build_result_verify(fseed_range, advancement_min, advancement_max, filter, result_area, method) {
 	var method_setting = SETTING_METHOD[method];
-	var stream_size = calc_verify_advancement(method_setting, filter);
-	var stream = new PRNGStream(0, 0, 0, stream_size, 0);
 	var buf = "";
 	buf += "<table>";
 	buf += "<tr><th>初期seed<th>消費<th>合計消費";
-	var result = [];
-	var fseed_min = fseed_range.min;
-	var fseed_max = fseed_range.max;
+	var result = verify_seed_search(method_setting, fseed_range.min, fseed_range.max, advancement_min, advancement_max, filter);
 	
-	for (var fseed = fseed_min; fseed <= fseed_max; fseed ++) {
-		stream.reset(0, u32(fseed), advancement_min);
-		
-		var advancement = advancement_min;
-		for (; advancement <= advancement_max; advancement ++) {
-			var prng = stream.next();
-			var r = judge_seed_verify(method_setting, prng, filter);
-			if (r !== null) {
-				buf += "<tr><td>"+format_hex(fseed, 8)+"<td>"+advancement+"<td>"+(advancement+r)+"<br>";
-				result.push({fseed: fseed, advancement: advancement, advancement_after: advancement+r});
-			}
-		}
+	for (var i = 0; i < result.length; i ++) {
+		var r = result[i];
+		buf += "<tr><td>"+format_hex(r.fseed, 8)+"<td>"+r.advancement+"<td>"+(r.advancement_after)+"<br>";
 	}
 	buf += "</table>";
 	if (result.length === 1) {
@@ -101,6 +88,85 @@ function build_result_verify(fseed_range, advancement_min, advancement_max, filt
 	if (button) {
 		addEvent(button, "click", func_bind_args(auto_input_seed, [result[0]]));
 	}
+}
+
+// 文字列として構築してString#indexOfを使って高速に検索！というもくろみ
+function verify_seed_search(setting, fseed_min, fseed_max, advancement_min, advancement_max, filter) {
+	var prng = new PRNG(0, 0);
+	var filter_str = filter.join("");
+	var step = (setting.before_advancement + 1);
+	var rand_len = setting.first_advancement + filter.length * step;
+	var len = (advancement_max - advancement_min + 1) + Math.max(filter.length - 1, 0) * step;
+	var even_len = Math.ceil(len / 2);
+	
+	if (setting.before_advancement > 1) throw "not implemented: before_advancement > 1";
+	var alternate = (setting.before_advancement === 1);
+	
+	var result = [];
+	var building_fseed = fseed_min;
+	
+	while (building_fseed <= fseed_max) {
+		var str_for_search = "";
+		var start_fseed = building_fseed;
+		
+		for (; building_fseed <= fseed_max; building_fseed ++) {
+			prng.set_seed(0, building_fseed);
+			prng.step(advancement_min + setting.first_advancement + setting.before_advancement);
+			var str_for_search_even = "", str_for_search_odd = "";
+			
+			str_for_search += "|";
+			for (var i = 0; i < len; i ++) {
+				if (alternate) {
+					if (i % 2 === 0) {
+						str_for_search_even += prng.rand(2);
+					} else {
+						str_for_search_odd += prng.rand(2);
+					}
+				} else {
+					str_for_search += prng.rand(2);
+				}
+			}
+			if (alternate) {
+				str_for_search += str_for_search_even + "|" + str_for_search_odd;
+			}
+			if (str_for_search.length >= 256 * 1024) {
+				// 文字列が大きくなりすぎないように、ある程度溜まったらその分の処理をやってしまう
+				building_fseed ++;
+				break;
+			}
+		}
+		
+		var index = 0;
+		
+		var strlen_block = len + 1 + (alternate ? 1 : 0); // '|'の分を足す
+		
+		while (index < str_for_search.length) {
+			var found_index = str_for_search.indexOf(filter_str, index);
+			if (found_index === -1) break;
+			index = found_index + 1;
+			if (filter_str === "" && str_for_search.charAt(found_index) == '|') continue;
+			
+			var block_index = Math.floor(found_index / strlen_block);
+			var offset = (found_index % strlen_block) - 1;
+			
+			var fseed = start_fseed + block_index;
+			var advancement = advancement_min + offset;
+			if (alternate) {
+				if (offset < even_len) {
+					advancement = advancement_min + offset * 2;
+				} else {
+					advancement = advancement_min + (offset - (even_len + 1)) * 2 + 1;
+				}
+			}
+			result.push({fseed: fseed, advancement: advancement, advancement_after: advancement + rand_len});
+		}
+	}
+	
+	// alternateの場合偶数消費がそれより小さい奇数消費よりも前にくるので
+	result.sort(function(a, b) {
+		return (a.fseed - b.fseed) || (a.advancement - b.advancement);
+	});
+	return result;
 }
 
 function auto_submit(result) {
@@ -155,21 +221,6 @@ function auto_input_seed(result) {
 	
 	drop_search_form.advancement_min.value = advancement_min;
 	drop_search_form.advancement_max.value = advancement_max;
-}
-
-function calc_verify_advancement(setting, filter) {
-	return setting.first_advancement + filter.length * (setting.before_advancement + 1);
-}
-
-function judge_seed_verify(setting, prng, filter) {
-	prng.step(setting.first_advancement);
-	for (var i = 0; i < filter.length; i ++) {
-		prng.step(setting.before_advancement);
-		if (prng.rand(2) !== filter[i]) {
-			return null;
-		}
-	}
-	return prng.advancement;
 }
 
 function add_filter_length_info(input) {
