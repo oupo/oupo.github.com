@@ -15,16 +15,16 @@ function on_submit() {
 	}
 	var f = document.forms.f;
 	var pid = read_int_string(f.pid.value);
-	var seed_row_min = read_int_string(f.seed_row_min.value);
+	var seed_low_min = read_int_string(f.seed_low_min.value);
 	if (pid === null) {
 		alert("性格値に入力されている値が不正です");
 		return;
 	}
-	if (seed_row_min === null) {
+	if (seed_low_min === null) {
 		alert("初期seed下4桁最小値に入力されている値が不正です");
 		return;
 	}
-	var procedure = new SearchSeedProcedure(pid, seed_row_min);
+	var procedure = new SearchSeedProcedure(pid, seed_low_min);
 	var buf = [];
 	var output = $("output");
 	var progress = $("progress");
@@ -60,11 +60,11 @@ function on_click(e) {
 	}
 }
 
-function SearchSeedProcedure(pid, seed_row_min) {
+function SearchSeedProcedure(pid, seed_low_min) {
 	this.pid = pid;
 	this.search_value = ((pid >>> 16) ^ (pid & 0xffff)) & ~7;
-	this.seed_row_min = seed_row_min;
-	this.row = seed_row_min;
+	this.seed_low_min = seed_low_min;
+	this.low = seed_low_min;
 	this.h2 = 0;
 	this.count = 0;
 	this.hitCount = 0;
@@ -73,16 +73,16 @@ function SearchSeedProcedure(pid, seed_row_min) {
 SearchSeedProcedure.prototype.run = function(timeout) {
 	var start_time = +new Date;
 	var result = [];
-	var start_row = this.row;
+	var start_low = this.low;
 	var search_value = this.search_value;
-	for (;; this.row ++) {
-		var row = this.row;
+	for (;; this.low ++) {
+		var low = this.low;
 		var h2 = 0;
-		if (row === start_row) h2 = this.h2;
+		if (low === start_low) h2 = this.h2;
 		
 		for (; h2 < 24; h2 ++) {
 			for (var h1 = 0; h1 < 0x100; h1 ++) {
-				var seed = (h1 << 24 | h2 << 16 | row) >>> 0;
+				var seed = (h1 << 24 | h2 << 16 | low) >>> 0;
 				var id = calc_trainer_id_by_seed(seed);
 				if ((((id >>> 16) ^ (id & 0xffff)) & ~7) === search_value) {
 					result.push({seed: seed, id: id & 0xffff, sid: id >>> 16});
@@ -169,7 +169,7 @@ th {text-align:right}
 <table>
 <tbody>
 <tr><th>性格値: <td><input type="text" size="20" name="pid" value="0x1234abcd"></tr>
-<tr><th>初期seed下4桁最小値: <td><input type="text" size="10" name="seed_row_min" value="3500"></tr>
+<tr><th>初期seed下4桁最小値: <td><input type="text" size="10" name="seed_low_min" value="3500"></tr>
 <tr><td colspan="2" style="text-align:center"><input type="submit" value="検索"><input type="button" id="stop-button" onclick="on_click(this)" value="停止" disabled>
 <tr><td colspan="2"><textarea cols="50" rows="5" id="output"></textarea></tr>
 <tr><td colspan="2" id="progress"></tr>

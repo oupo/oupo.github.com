@@ -498,9 +498,9 @@ TowerPRNG.prototype.rand = function() {
 };
 
 TowerPRNG.prototype.rand32 = function() {
-	var row = this.rand();
+	var low = this.rand();
 	var high = this.rand();
-	return (high << 16 | row) >>> 0;
+	return (high << 16 | low) >>> 0;
 };
 
 TowerPRNG.prototype.step = function(n) {

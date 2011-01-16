@@ -119,8 +119,8 @@ function search_seeds_by_iv(iv, nature) {
 			var s = prev_seed(seed);
 			var pid_high = s >>> 16;
 			s = prev_seed(s);
-			var pid_row = s >>> 16;
-			var pid = (pid_high << 16 | pid_row) >>> 0;
+			var pid_low = s >>> 16;
+			var pid = (pid_high << 16 | pid_low) >>> 0;
 			if (pid % 25 === nature) {
 				result.push(s);
 			}

@@ -15,8 +15,8 @@ function on_submit(ev) {
 	var roads_on_save = read_roads(f.roads_on_save.value);
 	var roads = read_roads(f.roads.value);
 	var target_seed = read_seed_string(f.target_seed.value);
-	var row_head = read_row_value(f.row_head.value);
-	var row_tail = read_row_value(f.row_tail.value);
+	var low_head = read_low_value(f.low_head.value);
+	var low_tail = read_low_value(f.low_tail.value);
 	var arrow_second_lag = f.second_lag.checked;
 	var err = "";
 	if (!roads_on_save)       err += "セーブ直前の位置が無効な値です\n";
@@ -26,14 +26,14 @@ function on_submit(ev) {
 		err += "セーブ直前とロード後の位置が対応していません\n";
 	}
 	if (target_seed === null) err += "目標初期seedが無効な値です\n";
-	if (row_head === null)    err += "下4桁の下限が無効な値です\n"
-	if (row_tail === null)    err += "下4桁の上限が無効な値です\n"
+	if (low_head === null)    err += "下4桁の下限が無効な値です\n"
+	if (low_tail === null)    err += "下4桁の上限が無効な値です\n"
 	if (err !== "") {
 		alert(err);
 		return;
 	}
 	var buf = [];
-	var procedure = new SearchSeedProcedure(target_seed >>> 16, roads, roads_on_save, arrow_second_lag, row_head, row_tail);
+	var procedure = new SearchSeedProcedure(target_seed >>> 16, roads, roads_on_save, arlow_second_lag, low_head, low_tail);
 	(function loop() {
 		var result = procedure.run(500);
 		for (var i = 0; i < result.length; i ++) {
@@ -58,16 +58,16 @@ function on_submit(ev) {
 	}
 }
 
-function SearchSeedProcedure(seed_high, roads, roads_on_save, arrow_second_lag, row_head, row_tail) {
+function SearchSeedProcedure(seed_high, roads, roads_on_save, arlow_second_lag, low_head, low_tail) {
 	this.seed_high = seed_high;
 	this.roads = roads;
 	this.roads_on_save = roads_on_save;
 	this.arrow_second_lag = arrow_second_lag;
-	this.row_head = row_head;
-	this.row_tail = row_tail;
+	this.low_head = low_head;
+	this.low_tail = low_tail;
 	this.n = arrow_second_lag ? 1 : 0;
 	this.i = -this.n;
-	this.r = row_head;
+	this.r = low_head;
 	this.finished = false;
 }
 
@@ -78,7 +78,7 @@ SearchSeedProcedure.prototype.run = function(timeout) {
 	var start_i = this.i;
 	for (; this.i <= this.n; this.i ++) {
 		var h = (((this.seed_high >>> 8) + this.i) & 0xff) << 8 | (this.seed_high & 0xff);
-		var r = this.row_head;
+		var r = this.low_head;
 		if (this.i === start_i) r = this.r;
 		while (true) {
 			var seed = (h << 16 | r) >>> 0;
@@ -86,7 +86,7 @@ SearchSeedProcedure.prototype.run = function(timeout) {
 			if (ary_eq(res.roads, this.roads)) {
 				result.push({seed: seed, consuption: res.consuption});
 			}
-			if (r == this.row_tail) break;
+			if (r == this.low_tail) break;
 			r = (r + 1) & 0xffff;
 			if ((r & 15) === 0 && new Date - start_time >= timeout) {
 				this.r = r;
@@ -153,7 +153,7 @@ function read_roads(s) {
 	return roads;
 }
 
-function read_row_value(s) {
+function read_low_value(s) {
 	if (!/^\s*(?:\d+|0x[0-9a-f]+)\s*$/i.test(s)) {
 		return null;
 	}
@@ -213,9 +213,9 @@ th {text-align:right}
 <tr><th><label for="roads_on_save">セーブ直前の位置</label><td><input type="text" name="roads_on_save" id="roads_on_save" size="20" value="29,29,1"></tr>
 <tr><th><label for="roads">ロード後の位置</label><td><input type="text" name="roads" id="roads" size="20" value="45,44,16"></tr>
 <tr><th><label for="target_seed">目標初期seed</label><td><input type="text" name="target_seed" id="target_seed" size="20" value="0x0f0101f2"></tr>
-<tr><th><label for="row_head">下4桁の範囲</label><td>
-<input type="text" name="row_head" id="row_head" size="10" value="484"> ～ 
-<input type="text" name="row_tail" id="row_tail" size="10" value="534"></tr>
+<tr><th><label for="low_head">下4桁の範囲</label><td>
+<input type="text" name="low_head" id="low_head" size="10" value="484"> ～ 
+<input type="text" name="low_tail" id="low_tail" size="10" value="534"></tr>
 <tr><td colspan="2" style="text-align:right"><label><input type="checkbox" name="second_lag">秒のずれを許容</input></label></tr>
 <tr><td colspan="2" style="text-align:center"><input type="submit" value="計算"></tr>
 <tr><td colspan="2"><textarea cols="50" rows="5" id="output"></textarea></tr>

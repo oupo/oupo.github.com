@@ -1628,11 +1628,11 @@ function get_entries_info(rank, bonus_rank, seed, consumption, num, visited_entr
 		seed = next_seed(seed); c ++;
 		var nature = entries[i].nature;
 		do {
-			var pid_row = seed >>> 16;
+			var pid_low = seed >>> 16;
 			seed = next_seed(seed); c ++;
 			var pid_high = seed >>> 16;
 			seed = next_seed(seed); c ++;
-			var pid = (pid_high << 16 | pid_row) >>> 0;
+			var pid = (pid_high << 16 | pid_low) >>> 0;
 		} while (pid % 25 !== nature || is_shiny_pid(parent_id, secret_id, pid));
 		infos[i].parent_id = parent_id;
 		infos[i].secret_id = secret_id;
@@ -1847,11 +1847,11 @@ FindSeedProcedure.prototype.match_parent_ids = function(seed, raw_entries) {
 		seed = next_seed(seed);
 		var nature = entry.nature;
 		do {
-			var pid_row = seed >>> 16;
+			var pid_low = seed >>> 16;
 			seed = next_seed(seed);
 			var pid_high = seed >>> 16;
 			seed = next_seed(seed);
-			var pid = (pid_high << 16 | pid_row) >>> 0;
+			var pid = (pid_high << 16 | pid_low) >>> 0;
 		} while (pid % 25 !== nature || is_shiny_pid(parent_id, secret_id, pid));
 	}
 	return seed;

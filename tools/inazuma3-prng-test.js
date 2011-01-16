@@ -69,67 +69,67 @@ test_stream_prev(0x00000000, 0x00000000, 100);
 });
 
 
-function test_add(a_high, a_row, b_high, b_row, r_high, r_row) {
-	var x = new MutableUint64(a_high, a_row);
-	x.add(b_high, b_row);
-	test([x.high, x.row], [r_high, r_row]);
+function test_add(a_high, a_low, b_high, b_low, r_high, r_low) {
+	var x = new MutableUint64(a_high, a_low);
+	x.add(b_high, b_low);
+	test([x.high, x.low], [r_high, r_low]);
 }
 
-function test_mul(a_high, a_row, b_high, b_row, r_high, r_row) {
-	var x = new MutableUint64(a_high, a_row);
-	x.mul(b_high, b_row);
-	test([x.high, x.row], [r_high, r_row]);
+function test_mul(a_high, a_low, b_high, b_low, r_high, r_low) {
+	var x = new MutableUint64(a_high, a_low);
+	x.mul(b_high, b_low);
+	test([x.high, x.low], [r_high, r_low]);
 }
 
-function test_seeds(high, row, max, expected_values) {
+function test_seeds(high, low, max, expected_values) {
 	test_title("seeds");
-	var prng = new PRNG(high, row);
+	var prng = new PRNG(high, low);
 	for (var i = 0; i < expected_values.length; i ++) {
 		var e_high = expected_values[i][0],
-		    e_row = expected_values[i][1],
+		    e_low = expected_values[i][1],
 		    e_val = expected_values[i][2];
 		var val = prng.rand(max);
-		var high = prng.seed.high, row = prng.seed.row;
-		test([high, row, val], [e_high, e_row, e_val]);
+		var high = prng.seed.high, low = prng.seed.low;
+		test([high, low, val], [e_high, e_low, e_val]);
 	}
 }
 
-function test_step(high, row, max, times) {
+function test_step(high, low, max, times) {
 	test_title("step");
-	var prng = new PRNG(high, row);
+	var prng = new PRNG(high, low);
 	var seeds = [];
 	for (var i = 0; i < times; i ++) {
-		var h = prng.seed.high, r = prng.seed.row;
+		var h = prng.seed.high, r = prng.seed.low;
 		var val = prng.rand(max);
 		seeds[i] = [h, r, val];
 	}
 	for (var i = 0; i < times; i ++) {
-		var prng = new PRNG(high, row);
+		var prng = new PRNG(high, low);
 		prng.step(i);
-		var h = prng.seed.high, r = prng.seed.row;
+		var h = prng.seed.high, r = prng.seed.low;
 		var val = prng.rand(max);
 		test([h, r, val], seeds[i]);
 	}
 }
 
-function test_step_double(high, row, times) {
+function test_step_double(high, low, times) {
 	test_title("step_double");
 	var n = 1;
 	for (var i = 0; i < times; i ++) {
-		var prng = new PRNG(high, row);
+		var prng = new PRNG(high, low);
 		prng.step(n);
 		prng.step(n);
-		var h = prng.seed.high, r = prng.seed.row;
-		var prng = new PRNG(high, row);
+		var h = prng.seed.high, r = prng.seed.low;
+		var prng = new PRNG(high, low);
 		prng.step(n * 2);
-		test([prng.seed.high, prng.seed.row], [h, r]);
+		test([prng.seed.high, prng.seed.low], [h, r]);
 		n *= 2;
 	}
 }
 
-function test_advancement(high, row, times, step_num) {
+function test_advancement(high, low, times, step_num) {
 	test_title("advancement");
-	var prng = new PRNG(high, row);
+	var prng = new PRNG(high, low);
 	var a = 0;
 	for (var i = 0; i < times; i ++) {
 		test([prng.advancement], [a]);
@@ -146,40 +146,40 @@ function test_advancement(high, row, times, step_num) {
 	}
 }
 
-function test_reverse(high, row, max, times) {
+function test_reverse(high, low, max, times) {
 	test_title("reverse");
-	var prng = new PRNG(high, row);
+	var prng = new PRNG(high, low);
 	var seeds = [];
 	for (var i = 0; i < times; i ++) {
-		var high = prng.seed.high, row = prng.seed.row;
+		var high = prng.seed.high, low = prng.seed.low;
 		var val = prng.rand(max);
-		seeds[i] = [high, row, val];
+		seeds[i] = [high, low, val];
 	}
 	for (var i = 0; i < times; i ++) {
 		var val = prng.reverse_rand(max);
-		var high = prng.seed.high, row = prng.seed.row;
-		test([high, row, val], seeds[times-1-i]);
+		var high = prng.seed.high, low = prng.seed.low;
+		test([high, low, val], seeds[times-1-i]);
 	}
 }
 
-function test_max(high, row, values) {
+function test_max(high, low, values) {
 	test_title("max");
 	for (var i = 0; i < values.length; i ++) {
 		var max = values[i][0], expected = values[i][1];
-		var prng = new PRNG(high, row);
+		var prng = new PRNG(high, low);
 		var val = prng.reverse_rand(max);
 		test([val], [expected]);
 	}
 }
 
-function test_stream(high, row, advancement, buffer_size, times, inner_times, max) {
+function test_stream(high, low, advancement, buffer_size, times, inner_times, max) {
 	test_title("stream");
-	var prng = new PRNG(high, row);
+	var prng = new PRNG(high, low);
 	prng.step(advancement);
-	var stream = new PRNGStream(high, row, advancement, buffer_size, 0);
+	var stream = new PRNGStream(high, low, advancement, buffer_size, 0);
 	
 	for (var i = 0; i < times; i ++) {
-		var p = new PRNG(prng.seed.high, prng.seed.row);
+		var p = new PRNG(prng.seed.high, prng.seed.low);
 		var p2 = stream.next();
 		
 		for (var j = 0; j < inner_times; j ++) {
@@ -191,14 +191,14 @@ function test_stream(high, row, advancement, buffer_size, times, inner_times, ma
 	}
 }
 
-function test_stream_step(high, row, advancement, buffer_size, times, inner_times, step_num, max) {
+function test_stream_step(high, low, advancement, buffer_size, times, inner_times, step_num, max) {
 	test_title("stream_step");
-	var prng = new PRNG(high, row);
+	var prng = new PRNG(high, low);
 	prng.step(advancement);
-	var stream = new PRNGStream(high, row, advancement, buffer_size, 0);
+	var stream = new PRNGStream(high, low, advancement, buffer_size, 0);
 	
 	for (var i = 0; i < times; i ++) {
-		var p = new PRNG(prng.seed.high, prng.seed.row);
+		var p = new PRNG(prng.seed.high, prng.seed.low);
 		var p2 = stream.next();
 		
 		for (var j = 0; j < 2; j ++) {
@@ -216,14 +216,14 @@ function test_stream_step(high, row, advancement, buffer_size, times, inner_time
 	}
 }
 
-function test_stream_prev(high, row, advancement) {
+function test_stream_prev(high, low, advancement) {
 	test_title("stream_prev");
 	var step = 6;
-	var prng = new PRNG(high, row);
+	var prng = new PRNG(high, low);
 	prng.step(advancement + step);
 	
 	
-	var stream = new PRNGStream(high, row, advancement, 5, 5);
+	var stream = new PRNGStream(high, low, advancement, 5, 5);
 	for (i = 0; i < step; i ++) { stream.next(); }
 	var prng2 = stream.next();
 	var a = 0;
