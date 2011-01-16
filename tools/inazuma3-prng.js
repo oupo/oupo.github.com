@@ -181,6 +181,10 @@ PRNGFake.prototype.step = function(num) {
 	}
 };
 
+PRNGFake.prototype.rewind = function() {
+		this.step(-this.advancement);
+};
+
 PRNGFake.prototype.get_seed = function() {
 	var index = mod(this.buffer_index + this.advancement, this.buffer_size);
 	var row = this.buffer[index * 2];

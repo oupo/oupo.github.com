@@ -640,17 +640,17 @@ function on_submit_drop_search(f) {
 	buf += "<th>経験値<th>熱血<th>友情";
 	var result = [];
 	
-	var prng = new PRNG(0, fseed);
+	var stream = new PRNGStream(0, fseed, advancement_min, 16, 0);
 	var advancement = advancement_min;
-	prng.step(advancement);
 	for (; advancement <= advancement_max; advancement ++) {
-		var r = judge_seed_drop_search(prng.seed, drops, before_advancement, units);
+		var prng = stream.next();
+		var r = judge_seed_drop_search(prng, drops, before_advancement, units);
 		if (r) {
 			buf += "<tr><td>" + advancement;
-			var cloned_prng = prng.clone();
-			cloned_prng.step(before_advancement);
+			prng.rewind();
+			prng.step(before_advancement);
 			if (enabled_hastalkfile) {
-				var talk_units = calc_talk_units(cloned_prng, units);
+				var talk_units = calc_talk_units(prng, units);
 				
 				array_each([units.player[talk_units.unit_player],
 				            units.enemy[talk_units.unit_enemy]], function(unit) {
@@ -669,18 +669,16 @@ function on_submit_drop_search(f) {
 				}
 				buf += "<td>"+cell;
 			}
-			var e = calc_exp_and_money(cloned_prng, exp_base, num_drop_items);
+			var e = calc_exp_and_money(prng, exp_base, num_drop_items);
 			buf += "<td>"+e.exp+"<td>"+e.nekketu+"<td>"+e.yuujou;
 			result.push(advancement);
 		}
-		prng.step(1);
 	}
 	document.getElementById("drop-search-result").innerHTML = buf;
 	return result;
 }
 
-function judge_seed_drop_search(seed, drops, before_advancement, units) {
-	var prng = new PRNG(seed.high, seed.row);
+function judge_seed_drop_search(prng, drops, before_advancement, units) {
 	prng.step(before_advancement);
 	if (units) {
 		calc_talk_units(prng, units);
