@@ -17,7 +17,7 @@ function on_submit(ev) {
 	var target_seed = read_seed_string(f.target_seed.value);
 	var low_head = read_low_value(f.low_head.value);
 	var low_tail = read_low_value(f.low_tail.value);
-	var arrow_second_lag = f.second_lag.checked;
+	var allow_second_lag = f.second_lag.checked;
 	var err = "";
 	if (!roads_on_save)       err += "セーブ直前の位置が無効な値です\n";
 	if (!roads)               err += "ロード後の位置が無効な値です\n";
@@ -33,7 +33,7 @@ function on_submit(ev) {
 		return;
 	}
 	var buf = [];
-	var procedure = new SearchSeedProcedure(target_seed >>> 16, roads, roads_on_save, arlow_second_lag, low_head, low_tail);
+	var procedure = new SearchSeedProcedure(target_seed >>> 16, roads, roads_on_save, allow_second_lag, low_head, low_tail);
 	(function loop() {
 		var result = procedure.run(500);
 		for (var i = 0; i < result.length; i ++) {
@@ -58,14 +58,14 @@ function on_submit(ev) {
 	}
 }
 
-function SearchSeedProcedure(seed_high, roads, roads_on_save, arlow_second_lag, low_head, low_tail) {
+function SearchSeedProcedure(seed_high, roads, roads_on_save, allow_second_lag, low_head, low_tail) {
 	this.seed_high = seed_high;
 	this.roads = roads;
 	this.roads_on_save = roads_on_save;
-	this.arrow_second_lag = arrow_second_lag;
+	this.allow_second_lag = allow_second_lag;
 	this.low_head = low_head;
 	this.low_tail = low_tail;
-	this.n = arrow_second_lag ? 1 : 0;
+	this.n = allow_second_lag ? 1 : 0;
 	this.i = -this.n;
 	this.r = low_head;
 	this.finished = false;
