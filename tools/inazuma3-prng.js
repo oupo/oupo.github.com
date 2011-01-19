@@ -3,17 +3,17 @@ function PRNG(high, low) {
 	this.advancement = 0;
 }
 
-PRNG.A_HIGH = 0x5d588b65, PRNG.A_low = 0x6c078965;
-PRNG.B_HIGH = 0x00000000, PRNG.B_low = 0x00269ec3;
+PRNG.A_HIGH = 0x5d588b65, PRNG.A_LOW = 0x6c078965;
+PRNG.B_HIGH = 0x00000000, PRNG.B_LOW = 0x00269ec3;
 
 PRNG.CONST_REVERSE = {
-	A_HIGH: 0xdedcedae, A_low: 0x9638806d,
-	B_HIGH: 0x9b1ae6e9, B_low: 0xa384e6f9
+	A_HIGH: 0xdedcedae, A_LOW: 0x9638806d,
+	B_HIGH: 0x9b1ae6e9, B_LOW: 0xa384e6f9
 };
 
 PRNG.CONST_ffffffff00000000 = {
-	A_HIGH: 0x8f2f99a4, A_low: 0x00000001, 
-	B_HIGH: 0xae4f7273, B_low: 0x00000000
+	A_HIGH: 0x8f2f99a4, A_LOW: 0x00000001, 
+	B_HIGH: 0xae4f7273, B_LOW: 0x00000000
 };
 
 PRNG.prototype.set_seed = function(high, low) {
@@ -23,8 +23,8 @@ PRNG.prototype.set_seed = function(high, low) {
 }
 
 PRNG.prototype.rand = function(max) {
-	this.seed.mul(PRNG.A_HIGH, PRNG.A_low);
-	this.seed.add(PRNG.B_HIGH, PRNG.B_low);
+	this.seed.mul(PRNG.A_HIGH, PRNG.A_LOW);
+	this.seed.add(PRNG.B_HIGH, PRNG.B_LOW);
 	this.advancement ++;
 	
 	return PRNG.gen_rand(this.seed.high, max);
@@ -36,13 +36,13 @@ PRNG.prototype.step = function(num) {
 };
 
 PRNG.step_seed = function(seed, num) {
-	var a = new MutableUint64(PRNG.A_HIGH, PRNG.A_low);
-	var b = new MutableUint64(PRNG.B_HIGH, PRNG.B_low);
+	var a = new MutableUint64(PRNG.A_HIGH, PRNG.A_LOW);
+	var b = new MutableUint64(PRNG.B_HIGH, PRNG.B_LOW);
 	var n = num >>> 0;
 	if (num < 0) {
 		var c = PRNG.CONST_ffffffff00000000;
-		seed.mul(c.A_HIGH, c.A_low);
-		seed.add(c.B_HIGH, c.B_low);
+		seed.mul(c.A_HIGH, c.A_LOW);
+		seed.add(c.B_HIGH, c.B_LOW);
 	}
 	while (true) {
 		if (n & 1) {
@@ -64,8 +64,8 @@ PRNG.prototype.reverse_rand = function(max) {
 	var ret = PRNG.gen_rand(this.seed.high, max);
 	
 	var c = PRNG.CONST_REVERSE;
-	this.seed.mul(c.A_HIGH, c.A_low);
-	this.seed.add(c.B_HIGH, c.B_low);
+	this.seed.mul(c.A_HIGH, c.A_LOW);
+	this.seed.add(c.B_HIGH, c.B_LOW);
 	this.advancement --;
 	
 	return ret;
@@ -217,8 +217,8 @@ PRNGFake.prototype.get_seed_high = function() {
 };
 
 function next_seed(seed) {
-	seed.mul(PRNG.A_HIGH, PRNG.A_low);
-	seed.add(PRNG.B_HIGH, PRNG.B_low);
+	seed.mul(PRNG.A_HIGH, PRNG.A_LOW);
+	seed.add(PRNG.B_HIGH, PRNG.B_LOW);
 }
 
 function mod(a, b) {
