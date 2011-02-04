@@ -31,6 +31,10 @@ test_mul(0x77f21822, 0xf7fb7430, 0x2d96e2ef, 0x1c939716, 0xceb2722f, 0x98b44c20)
 test_mul(0xb25cb151, 0x3298e199, 0xfa613983, 0x6760f28c, 0x278db8a0, 0x593e01ac);
 test_mul(0x721379aa, 0x6583bef7, 0x488eb2f9, 0x5a8184ee, 0x0c52ed87, 0x5f69e5a2);
 
+
+// + ((a1b0 + a0b1) << 16) を + (u32(a1b0 + a0b1) << 16) とすると失敗になる例
+test_mul(0x08d1dd28, 0xeb26d24e, 0x4d5a2200, 0x5a78edc1, 0x8b2ad9ae, 0x3986c2ce);
+
 test_seeds(0x00000000, 0x00000000, 10000, [
 	[0x00000000, 0x00269ec3,    0],
 	[0x7188d00c, 0x55ae9cb2, 4434],
@@ -67,6 +71,16 @@ test_stream_step(0x00000000, 0x00000000, 100, 2, 3, 1, 101, 10000);
 test_stream_prev(0x00000000, 0x00000000, 100);
 
 });
+
+(function() {
+	var start_time = new Date().getTime();
+	var prng = new PRNG(0, 0);
+	for (var i = 0; i < 20000; i ++) {
+		prng.rand(10000);
+	}
+	var end_time = new Date().getTime();
+	print("benchmark: "+(end_time - start_time)+" ms");
+})();
 
 
 function test_add(a_high, a_low, b_high, b_low, r_high, r_low) {

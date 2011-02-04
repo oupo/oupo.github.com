@@ -247,37 +247,40 @@ MutableUint64.prototype.add = function(o_high, o_low) {
 	return this;
 };
 
-MutableUint64.prototype.add_shift = function(other, shift) {
-	var low, high;
-	if (shift < 32) {
-		low = u32(other << shift);
-		high = shift == 0 ? 0 : other >>> (32 - shift);
-	} else {
-		low = 0;
-		high = u32(other << (shift - 32));
-	}
-	this.add(high, low);
-};
-
-MutableUint64.prototype.mul = function(o_high, o_low) {
-	var a = this.high >>> 16, b = this.high & 0xffff, c = this.low >>> 16, d = this.low & 0xffff;
-	var e =    o_high >>> 16, f =    o_high & 0xffff, g =    o_low >>> 16, h =    o_low & 0xffff;
+MutableUint64.prototype.mul = function(b_high, b_low) {
+	var a = this;
+	var a3 = a.high >>> 16, a2 = a.high & 0xffff, a1 = a.low >>> 16, a0 = a.low & 0xffff;
+	var b3 = b_high >>> 16, b2 = b_high & 0xffff, b1 = b_low >>> 16, b0 = b_low & 0xffff;
 	
-	this.high = this.low = 0;
+	/*
 	
-	this.add_shift(h * d,  0);
-	this.add_shift(h * c, 16);
-	this.add_shift(h * b, 32);
-	this.add_shift(h * a, 48);
+	掛け算の筆算
 	
-	this.add_shift(g * d, 16);
-	this.add_shift(g * c, 32);
-	this.add_shift(g * b, 48);
+	              :  a3   a2   a1   a0
+	            X :  b3   b2   b1   b0
+	-------------------------------------
+	              :a3b0 a2b0 a1b0 a0b0
+	          a3b1:a2b1 a1b1 a0b1
+	     a3b2 a2b2:a1b2 a0b2
+	a3b3 a2b3 a1b3:a0b3
+	------------------------------------
 	
-	this.add_shift(f * d, 32);
-	this.add_shift(f * c, 48);
+	a * b
+	  = a0b0
+	  + ((a1b0 + a0b1) << 16)
+	  + ((a2b0 + a1b1 + a0b2) << 32)
+	  + ((a3b0 + a2b1 + a1b2 + a0b3) << 48)
+	*/
 	
-	this.add_shift(e * d, 48);
+	this.high = u32((a2*b0 + a1*b1 + a0*b2) + (a3*b0 + a2*b1 + a1*b2 + a0*b3) * 0x10000);
+	this.low = u32(a0*b0);
+	
+	// ((a1b0 + a0b1) << 16)の部分はhighとlowにまたがっていて繰り上がりの処理をしなければならない
+	var x = a1*b0;
+	this.add(x >>> 16, u32(x << 16));
+	var x = a0*b1;
+	this.add(x >>> 16, u32(x << 16));
+	
 	return this;
 };
 
