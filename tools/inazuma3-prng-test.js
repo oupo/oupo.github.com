@@ -63,8 +63,11 @@ test_max(0xffffffff, 0, [
 	[10000000, 9999999],
 	[100000000, 99999999],
 	[1000000000, 999999999],
-	[0xffffffff, 0xfffffffe]])
+	[0xffffffff, 0xfffffffe]]);
 
+test_title("big_gen_rand");
+test_big_gen_rand(0x05a8ed83, 0x05a876d5, 0x0020061f);
+test_big_gen_rand(0xe9f70919, 0xafed3371, 0xa0c8a7ee);
 
 test_stream(0x00000000, 0x00000000, 100, 3, 5, 5, 10000);
 test_stream_step(0x00000000, 0x00000000, 100, 2, 3, 1, 101, 10000);
@@ -184,6 +187,10 @@ function test_max(high, low, values) {
 		var val = prng.reverse_rand(max);
 		test([val], [expected]);
 	}
+}
+
+function test_big_gen_rand(high, max, expected) {
+	test([PRNG.gen_rand(high, max)], [expected]);
 }
 
 function test_stream(high, low, advancement, buffer_size, times, inner_times, max) {

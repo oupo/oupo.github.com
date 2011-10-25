@@ -76,8 +76,16 @@ PRNG.prototype.clone = function() {
 }
 
 PRNG.gen_rand = function(high, max) {
-	// JSのnumberは2^53までの整数しか正確に表現できないけど、誤差が0x100000000を超えることはないはず？
-	return u32(high * max / 0x100000000);
+	// u32((x * y) / 2^32) を計算するのだが x * y の計算で誤差がでうる
+	// y が 2^(53-32) 以下の場合 x * y は 2 ^ 53 以下となり誤差はでない
+	var x = high, y = max;
+	var _2_pow_32 = 0x100000000;
+	var product = x * y;
+	if (y <= (1<<(53-32)) || product % _2_pow_32 !== 0) {
+		return u32(product / _2_pow_32);
+	} else {
+		return new MutableUint64(0, x).mul(0, y).high;
+	}
 };
 
 /*
