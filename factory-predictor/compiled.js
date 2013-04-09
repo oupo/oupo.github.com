@@ -941,6 +941,9 @@ var Assigner = function() {
   }, {});
   return $Assigner;
 }();
+if (!(traceur.runtime.elementHas(window, 'console'))) window.console = {log: (function(x) {
+    return x;
+  })};
 var env;
 function main() {
   var $that = this;
