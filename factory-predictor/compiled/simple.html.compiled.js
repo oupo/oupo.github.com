@@ -365,6 +365,10 @@ var $__util_js = (function() {
             var s = n.toString(16);
             return "0x" + (this.str_repeat("0", prec - s.length) + s);
           },
+          dec: function(n, prec) {
+            var s = String(n);
+            return this.str_repeat("0", prec - s.length) + s;
+          },
           str_repeat: function(s, n) {
             var r = "";
             for (var i = 0; i < n; i++) {
@@ -532,7 +536,7 @@ var $__factory_helper_js = (function() {
           $continuation();
           return $result.createPromise();
         },
-        choose_entry: function(env, prng) {
+        choose_entry: function(env, prng, battle_index) {
           try {
             throw undefined;
           } catch (x) {
@@ -540,49 +544,68 @@ var $__factory_helper_js = (function() {
               throw undefined;
             } catch (prngp) {
               prngp = prng.dup();
-              x = this.choose_entryQ(env, prngp);
+              x = this.choose_entryQ(env, prngp, battle_index);
               return [prngp, x];
             }
           }
         },
-        choose_entryQ: function(env, prng) {
+        choose_entryQ: function(env, prng, battle_index) {
           try {
             throw undefined;
-          } catch (last) {
+          } catch (i) {
             try {
               throw undefined;
-            } catch (i) {
-              i = prng.randQ(env.allEntries.length);
-              last = env.allEntries.length - 1;
-              return traceur.runtime.elementGet(env.allEntries, last - i);
+            } catch (end) {
+              try {
+                throw undefined;
+              } catch (start) {
+                try {
+                  throw undefined;
+                } catch ($__9) {
+                  {
+                    $__9 = this._choice_range(env, battle_index);
+                    start = traceur.runtime.elementGet($__9, 0);
+                    end = traceur.runtime.elementGet($__9, 1);
+                  }
+                  i = end - 1 - prng.randQ(end - start);
+                  return traceur.runtime.elementGet(env.allEntries, i);
+                }
+              }
             }
           }
         },
-        choose_entries: function(env, prng, n) {
+        _choice_range: function(env, battle_index) {
+          if (battle_index != 7) {
+            return [0, 150];
+          } else {
+            return [150, 250];
+          }
+        },
+        choose_entries: function(env, prng, n, battle_index) {
           try {
             throw undefined;
           } catch (x) {
             try {
               throw undefined;
             } catch (prngp) {
-              var unchoosable = traceur.runtime.elementGet(arguments, 3) !== (void 0) ? traceur.runtime.elementGet(arguments, 3): [];
+              var unchoosable = traceur.runtime.elementGet(arguments, 4) !== (void 0) ? traceur.runtime.elementGet(arguments, 4): [];
               prngp = prng.dup();
-              x = this.choose_entriesQ(env, prngp, n, unchoosable);
+              x = this.choose_entriesQ(env, prngp, n, battle_index, unchoosable);
               return [prngp, x];
             }
           }
         },
-        choose_entriesQ: function(env, prng, n) {
+        choose_entriesQ: function(env, prng, n, battle_index) {
           try {
             throw undefined;
           } catch (entries) {
-            var unchoosable = traceur.runtime.elementGet(arguments, 3) !== (void 0) ? traceur.runtime.elementGet(arguments, 3): [];
+            var unchoosable = traceur.runtime.elementGet(arguments, 4) !== (void 0) ? traceur.runtime.elementGet(arguments, 4): [];
             entries = [];
             while (entries.length < n) {
               try {
                 throw undefined;
               } catch (entry) {
-                entry = this.choose_entryQ(env, prng);
+                entry = this.choose_entryQ(env, prng, battle_index);
                 if (!entry.collides_within($__spread(entries, unchoosable))) {
                   entries.push(entry);
                 }
@@ -608,24 +631,24 @@ var $__factory_helper_js = (function() {
           try {
             throw undefined;
           } catch (starters) {
-            starters = this.choose_entriesQ(env, prng, env.nStarters);
+            starters = this.choose_entriesQ(env, prng, env.nStarters, 0);
             this._pid_loopQ(env, prng, starters);
             prng.stepQ(2);
             return starters;
           }
         },
-        after_consumption: function(env, prng, entries, i) {
+        after_consumption: function(env, prng, entries, battle_index) {
           try {
             throw undefined;
           } catch (prngp) {
             prngp = prng.dup();
-            this.after_consumptionQ(env, prngp, entries, i);
+            this.after_consumptionQ(env, prngp, entries, battle_index);
             return prngp;
           }
         },
-        after_consumptionQ: function(env, prng, entries, i) {
+        after_consumptionQ: function(env, prng, entries, battle_index) {
           this._pid_loopQ(env, prng, entries);
-          prng.stepQ(i == 0 ? 24: 6);
+          prng.stepQ(battle_index == 1 ? 24: 6);
         },
         _pid_loopQ: function(env, prng, entries) {
           {
@@ -730,25 +753,25 @@ var $__rough_js = (function() {
                 } catch (results) {
                   try {
                     throw undefined;
-                  } catch (maybe_players) {
+                  } catch (battle_index) {
                     try {
                       throw undefined;
-                    } catch (unchoosable) {
+                    } catch (maybe_players) {
                       try {
                         throw undefined;
-                      } catch (i) {
+                      } catch (unchoosable) {
                         if (enemies.length == this.env.nBattles) {
                           return [new RoughPredictorResult(prng, enemies, skipped, starters)];
                         }
-                        i = enemies.length;
                         unchoosable = enemies.last || starters;
-                        maybe_players = $__spread(starters, enemies.slice(0, i - 1).flatten());
-                        results = OneEnemyPredictor.predict(this.env, prng, unchoosable, maybe_players);
+                        maybe_players = $__spread(starters, enemies.slice(0, - 1).flatten());
+                        battle_index = enemies.length + 1;
+                        results = OneEnemyPredictor.predict(this.env, prng, unchoosable, maybe_players, battle_index);
                         return results.map((function(result) {
                           try {
                             throw undefined;
                           } catch (prngp) {
-                            prngp = FactoryHelper.after_consumption(env, result.prng, result.chosen, i);
+                            prngp = FactoryHelper.after_consumption(env, result.prng, result.chosen, battle_index);
                             return this.predict0(prngp, $__spread(enemies, [result.chosen]), $__spread(skipped, [result.skipped]), starters);
                           }
                         }).bind(this)).flatten();
@@ -775,10 +798,11 @@ var $__rough_js = (function() {
           OneEnemyPredictor = function() {
             'use strict';
             var $OneEnemyPredictor = ($__createClassNoExtends)({
-              constructor: function(env, unchoosable, maybe_players) {
+              constructor: function(env, unchoosable, maybe_players, battle_index) {
                 this.env = env;
                 this.unchoosable = unchoosable;
                 this.maybe_players = maybe_players;
+                this.battle_index = battle_index;
               },
               predict: function(prng) {
                 return this.predict0(prng, [], []);
@@ -797,7 +821,7 @@ var $__rough_js = (function() {
                         return [new OneEnemyPredictorResult(prng, chosen, skipped)];
                       }
                       {
-                        $__9 = FactoryHelper.choose_entry(this.env, prng);
+                        $__9 = FactoryHelper.choose_entry(this.env, prng, this.battle_index);
                         prngp = traceur.runtime.elementGet($__9, 0);
                         x = traceur.runtime.elementGet($__9, 1);
                       }
@@ -822,8 +846,8 @@ var $__rough_js = (function() {
                   }
                 }
               }
-            }, {predict: function(env, prng, unchoosable, maybe_players) {
-                return new this(env, unchoosable, maybe_players).predict(prng);
+            }, {predict: function(env, prng, unchoosable, maybe_players, battle_index) {
+                return new this(env, unchoosable, maybe_players, battle_index).predict(prng);
               }});
             return $OneEnemyPredictor;
           }();
@@ -1241,7 +1265,11 @@ var Util = $__util_js.Util;
 if (!(traceur.runtime.elementHas(window, 'console'))) window.console = {log: (function(x) {
     return x;
   })};
+function icon_url(id) {
+  return ("http://veekun.com/dex/media/pokemon/icons/" + id + ".png");
+}
 var env;
+var POKEMON_NAME_TO_ID;
 function main() {
   var $that = this;
   var $state = 0;
@@ -1262,7 +1290,7 @@ function main() {
             nParty: 3,
             nStarters: 6,
             nBattles: 7,
-            allEntriesURL: "entries.csv"
+            allEntriesURL: "entries.csv?1366277583"
           });
           $waitTask.then($createCallback(1), $createErrback(2));
           return;
@@ -1277,16 +1305,132 @@ function main() {
           $state = 3;
           break;
         case 3:
-          document.body.innerHTML = "\n\t\t<h1>factory-predictor Demo</h1>\n\t\t<form action=\"\" onsubmit=\"return false\">\n\t\tseed: <input type=\"text\" id=\"seed\" value=\"0\">\n\t\t<input type=\"submit\" value=\"実行\">\n\t\t</form>\n\t\t<div id=\"result\"></div>\n\t";
+          $waitTask = load_pokemon_name_to_id();
+          $waitTask.then($createCallback(5), $createErrback(6));
+          return;
           $state = 5;
           break;
         case 5:
-          document.querySelector("form").addEventListener("submit", (function() {
-            exec(Number(document.querySelector("#seed").value));
-          }), false);
+          POKEMON_NAME_TO_ID = $value;
+          $state = 7;
+          break;
+        case 6:
+          throw $err;
           $state = 7;
           break;
         case 7:
+          document.body.innerHTML = "\n\t\t<h1>factory-predictor Demo</h1>\n\t\t<form action=\"\" onsubmit=\"return false\">\n\t\tseed: <input type=\"text\" id=\"seed\" value=\"0\">\n\t\t<input type=\"submit\" value=\"実行\">\n\t\t</form>\n\t\t<div id=\"result\"></div>\n\t";
+          $state = 9;
+          break;
+        case 9:
+          document.querySelector("form").addEventListener("submit", (function() {
+            exec(Number(document.querySelector("#seed").value));
+          }), false);
+          $state = 11;
+          break;
+        case 11:
+          $result.callback(undefined);
+          $state = -2;
+          break;
+        case -2:
+          return;
+        case -3:
+          $result.errback($storedException);
+          $state = -2;
+          break;
+        default:
+          throw "traceur compiler bug: invalid state in state machine" + $state;
+      }
+    },
+    moveNext: function($yieldSent, $yieldAction) {
+      while (true) try {
+        return this.innerFunction($yieldSent, $yieldAction);
+      } catch ($caughtException) {
+        $storedException = $caughtException;
+        switch ($state) {
+          default:
+            $state = -3;
+            break;
+        }
+      }
+    }
+  };
+  var $continuation = $G.moveNext.bind($G);
+  var $createCallback = function($newState) {
+    return function($0) {
+      $state = $newState;
+      $value = $0;
+      $continuation();
+    };
+  };
+  var $createErrback = function($newState) {
+    return function($0) {
+      $state = $newState;
+      $err = $0;
+      $continuation();
+    };
+  };
+  $continuation();
+  return $result.createPromise();
+}
+function load_pokemon_name_to_id() {
+  var $that = this;
+  var $state = 7;
+  var $storedException;
+  var $finallyFallThrough;
+  var name_to_id;
+  var pokemon_names;
+  var pokemon_names_str;
+  var $value;
+  var $err;
+  var $result = new Deferred();
+  var $waitTask;
+  var $G = {
+    GState: 0,
+    current: undefined,
+    yieldReturn: undefined,
+    innerFunction: function($yieldSent, $yieldAction) {
+      while (true) switch ($state) {
+        case 7:
+          ;
+          $state = 8;
+          break;
+        case 8:
+          $waitTask = Util.xhr("pokemon-names.txt");
+          $waitTask.then($createCallback(1), $createErrback(2));
+          return;
+          $state = 1;
+          break;
+        case 1:
+          pokemon_names_str = $value;
+          $state = 3;
+          break;
+        case 2:
+          throw $err;
+          $state = 3;
+          break;
+        case 3:
+          pokemon_names = Util.split(pokemon_names_str, "\n");
+          $state = 10;
+          break;
+        case 10:
+          name_to_id = Object.create(null);
+          $state = 12;
+          break;
+        case 12:
+          pokemon_names.forEach((function(name, i) {
+            traceur.runtime.elementSet(name_to_id, name, i + 1);
+          }));
+          $state = 14;
+          break;
+        case 14:
+          $result.callback(name_to_id);
+          $state = 5;
+          break;
+        case 5:
+          $state = -2;
+          break;
+        case 6:
           $result.callback(undefined);
           $state = -2;
           break;
@@ -1337,12 +1481,14 @@ function exec(seed) {
   document.querySelector("#result").innerHTML = ("\n\t\t結果: " + result.length + " 件\n\t\t<table>\n\t\t<tr><td></td>" + Util.iota(env.nBattles).map((function(i) {
     return ("<td>" + (i + 1) + "戦目</td>");
   })).join("") + "</tr>\n\t\t" + result.map((function(r, i) {
-    return ("<tr>\n\t\t\t\t<td>" + i + "件目</td>\n\t\t\t\t" + r.enemies.map((function(enemy) {
-      return ("<td>" + enemy.map((function(x) {
-        return x.pokemon;
-      })).join(",") + "</td>");
-    })).join("") + "\n\t\t\t\t</tr>");
+    return ("<tr>\n\t\t\t\t<td>" + i + "件目</td>\n\t\t\t\t" + r.enemies.map(td).join("") + "\n\t\t\t\t</tr>");
   })).join("") + "</table>\n\t");
+  function td(enemy) {
+    return ("<td>" + enemy.map((function(x) {
+      var id = traceur.runtime.elementGet(POKEMON_NAME_TO_ID, x.pokemon);
+      return ("<img src=\"" + icon_url(id) + "\" alt=\"" + x.pokemon + "\">");
+    })).join("") + "</td>");
+  }
 }
 window.addEventListener("load", (function() {
   main().then((function() {
