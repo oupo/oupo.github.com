@@ -359,6 +359,18 @@ var $__util_js = (function() {
             xhr.open("GET", url, true);
             xhr.send();
             return deferred;
+          },
+          hex: function(n) {
+            var prec = traceur.runtime.elementGet(arguments, 1) !== (void 0) ? traceur.runtime.elementGet(arguments, 1): 8;
+            var s = n.toString(16);
+            return "0x" + (this.str_repeat("0", prec - s.length) + s);
+          },
+          str_repeat: function(s, n) {
+            var r = "";
+            for (var i = 0; i < n; i++) {
+              r += s;
+            }
+            return r;
           }
         });
         return $Util;
@@ -536,9 +548,14 @@ var $__factory_helper_js = (function() {
         choose_entryQ: function(env, prng) {
           try {
             throw undefined;
-          } catch (i) {
-            i = prng.randQ(env.allEntries.length);
-            return traceur.runtime.elementGet(env.allEntries, i);
+          } catch (last) {
+            try {
+              throw undefined;
+            } catch (i) {
+              i = prng.randQ(env.allEntries.length);
+              last = env.allEntries.length - 1;
+              return traceur.runtime.elementGet(env.allEntries, last - i);
+            }
           }
         },
         choose_entries: function(env, prng, n) {
@@ -727,7 +744,7 @@ var $__rough_js = (function() {
                         try {
                           throw undefined;
                         } catch (prngp) {
-                          prngp = FactoryHelper.after_consumption(env, prng, result.chosen);
+                          prngp = FactoryHelper.after_consumption(env, result.prng, result.chosen);
                           return this.predict0(prngp, $__spread(enemies, [result.chosen]), $__spread(skipped, [result.skipped]), starters);
                         }
                       }).bind(this)).flatten();
