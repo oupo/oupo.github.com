@@ -24,7 +24,7 @@ var $__getDescriptors = function(object) {
   }
   return rv;
 };
-var $__9;
+var $__10;
 var $__env_js = (function() {
   try {
     throw undefined;
@@ -36,10 +36,11 @@ var $__env_js = (function() {
       Entry = function() {
         'use strict';
         var $Entry = ($__createClassNoExtends)({
-          constructor: function(id, item, pokemon) {
+          constructor: function(id, item, pokemon, nature) {
             this.id = id;
             this.item = item;
             this.pokemon = pokemon;
+            this.nature = nature;
           },
           collides_with: function(other) {
             return this.item == other.item || this.pokemon == other.pokemon;
@@ -82,80 +83,107 @@ var $__env_js = (function() {
 var $__prng_js = (function() {
   try {
     throw undefined;
-  } catch (PRNG) {
-    "use strict";
-    PRNG = function() {
-      'use strict';
-      var $PRNG = ($__createClassNoExtends)({
-        constructor: function(seed) {
-          this.seed = seed;
-        },
-        rand: function(n) {
-          try {
-            throw undefined;
-          } catch (prngp) {
-            prngp = this.dup();
-            return [prngp, prngp.randQ(n)];
-          }
-        },
-        randQ: function(n) {
-          this.succ();
-          return (this.seed >>> 16) % n;
-        },
-        succ: function() {
+  } catch (u32) {
+    try {
+      throw undefined;
+    } catch (mul) {
+      try {
+        throw undefined;
+      } catch (make_const) {
+        try {
+          throw undefined;
+        } catch (PRNG) {
           try {
             throw undefined;
           } catch (B) {
             try {
               throw undefined;
             } catch (A) {
+              "use strict";
               {
                 A = 0x41c64e6d;
                 B = 0x6073;
               }
-              this.seed = (this._mul(this.seed, A) + B) >>> 0;
-            }
-          }
-        },
-        dup: function() {
-          return new PRNG(this.seed);
-        },
-        _mul: function(a, b) {
-          try {
-            throw undefined;
-          } catch (b2) {
-            try {
-              throw undefined;
-            } catch (b1) {
-              try {
-                throw undefined;
-              } catch (a2) {
-                try {
-                  throw undefined;
-                } catch (a1) {
-                  {
-                    a1 = a >>> 16;
-                    a2 = a & 0xffff;
+              PRNG = function() {
+                'use strict';
+                var $PRNG = ($__createClassNoExtends)({
+                  constructor: function(seed) {
+                    this.seed = seed;
+                  },
+                  rand: function(n) {
+                    try {
+                      throw undefined;
+                    } catch (prngp) {
+                      prngp = this.dup();
+                      return [prngp, prngp.randQ(n)];
+                    }
+                  },
+                  randQ: function(n) {
+                    this.succ();
+                    return (this.seed >>> 16) % n;
+                  },
+                  succ: function() {
+                    this.seed = u32(mul(this.seed, A) + B);
+                  },
+                  stepQ: function(n) {
+                    try {
+                      throw undefined;
+                    } catch (b) {
+                      try {
+                        throw undefined;
+                      } catch (a) {
+                        try {
+                          throw undefined;
+                        } catch ($__9) {
+                          {
+                            $__9 = make_const(n);
+                            a = traceur.runtime.elementGet($__9, 0);
+                            b = traceur.runtime.elementGet($__9, 1);
+                          }
+                          this.seed = u32(mul(this.seed, a) + b);
+                        }
+                      }
+                    }
+                  },
+                  dup: function() {
+                    return new PRNG(this.seed);
                   }
-                  {
-                    b1 = b >>> 16;
-                    b2 = b & 0xffff;
+                }, {});
+                return $PRNG;
+              }();
+              make_const = function(n) {
+                var a = A, b = B;
+                var c = 1, d = 0;
+                while (n) {
+                  if (n & 1) {
+                    d = u32(mul(d, a) + b);
+                    c = mul(c, a);
                   }
-                  return (((a1 * b2 + a2 * b1) << 16) + a2 * b2) >>> 0;
+                  b = u32(mul(b, a) + b);
+                  a = mul(a, a);
+                  n >>>= 1;
                 }
-              }
+                return [c, d];
+              };
+              mul = function(a, b) {
+                var a1 = a >>> 16, a2 = a & 0xffff;
+                var b1 = b >>> 16, b2 = b & 0xffff;
+                return u32(((a1 * b2 + a2 * b1) << 16) + a2 * b2);
+              };
+              u32 = function(x) {
+                return x >>> 0;
+              };
+              return Object.preventExtensions(Object.create(null, {PRNG: {
+                  get: function() {
+                    return PRNG;
+                  },
+                  enumerable: true
+                }}));
             }
           }
         }
-      }, {});
-      return $PRNG;
-    }();
-    return Object.preventExtensions(Object.create(null, {PRNG: {
-        get: function() {
-          return PRNG;
-        },
-        enumerable: true
-      }}));
+      }
+    }
   }
 }).call(this);
 var $__util_js = (function() {
@@ -170,7 +198,7 @@ var $__util_js = (function() {
         value: function() {
           var ret = [];
           for (var i = 0; i < this.length; i++) {
-            ($__9 = ret).push.apply($__9, $__toObject(traceur.runtime.elementGet(this, i)));
+            ($__10 = ret).push.apply($__10, $__toObject(traceur.runtime.elementGet(this, i)));
           }
           return ret;
         },
@@ -288,15 +316,12 @@ var $__util_js = (function() {
         }
         return null;
       });
+      defineMethod(Array.prototype, "isEmpty", function() {
+        return this.length == 0;
+      });
       Object.defineProperty(Array.prototype, "last", {
         get: function() {
           return traceur.runtime.elementGet(this, this.length - 1);
-        },
-        enumerable: false
-      });
-      Object.defineProperty(Array.prototype, "isEmpty", {
-        get: function() {
-          return this.length == 0;
         },
         enumerable: false
       });
@@ -353,31 +378,46 @@ var $__factory_helper_js = (function() {
   } catch (FactoryHelper) {
     "use strict";
     var Util = $__util_js.Util;
-    var $__8 = $__env_js, Entry = $__8.Entry, Env = $__8.Env;
+    var $__9 = $__env_js, Entry = $__9.Entry, Env = $__9.Env;
     FactoryHelper = function() {
       'use strict';
       var $FactoryHelper = ($__createClassNoExtends)({constructor: function() {}}, {
         parseAllEntries: function(csvString) {
-          return Util.split(csvString, "\n").map((function(line, i) {
-            try {
-              throw undefined;
-            } catch (item) {
+          try {
+            throw undefined;
+          } catch (NATURE_NAMES) {
+            NATURE_NAMES = "がんばりや さみしがり ゆうかん いじっぱり やんちゃ ずぶとい すなお のんき わんぱく のうてんき おくびょう せっかち まじめ ようき むじゃき ひかえめ おっとり れいせい てれや うっかりや おだやか おとなしい なまいき しんちょう きまぐれ".split(" ");
+            return Util.split(csvString, "\n").map((function(line, i) {
               try {
                 throw undefined;
-              } catch (pokemon) {
+              } catch (nature) {
                 try {
                   throw undefined;
-                } catch ($__8) {
-                  {
-                    $__8 = line.split(",");
-                    pokemon = traceur.runtime.elementGet($__8, 0);
-                    item = traceur.runtime.elementGet($__8, 1);
+                } catch (natureName) {
+                  try {
+                    throw undefined;
+                  } catch (item) {
+                    try {
+                      throw undefined;
+                    } catch (pokemon) {
+                      try {
+                        throw undefined;
+                      } catch ($__9) {
+                        {
+                          $__9 = line.split(",");
+                          pokemon = traceur.runtime.elementGet($__9, 0);
+                          item = traceur.runtime.elementGet($__9, 1);
+                          natureName = traceur.runtime.elementGet($__9, 2);
+                        }
+                        nature = NATURE_NAMES.indexOf(natureName);
+                        return new Entry(i + 1, item, pokemon, nature);
+                      }
+                    }
                   }
-                  return new Entry(i + 1, item, pokemon);
                 }
               }
-            }
-          }));
+            }));
+          }
         },
         buildEnv: function(options) {
           var $that = this;
@@ -533,6 +573,86 @@ var $__factory_helper_js = (function() {
             }
             return entries;
           }
+        },
+        choose_starters: function(env, prng) {
+          try {
+            throw undefined;
+          } catch (starters) {
+            try {
+              throw undefined;
+            } catch (prngp) {
+              prngp = prng.dup();
+              starters = this.choose_startersQ(env, prngp);
+              return [prngp, starters];
+            }
+          }
+        },
+        choose_startersQ: function(env, prng) {
+          try {
+            throw undefined;
+          } catch (starters) {
+            starters = this.choose_entriesQ(env, prng, env.nStarters);
+            this._pid_loopQ(env, prng, starters);
+            prng.stepQ(2);
+            return starters;
+          }
+        },
+        after_consumption: function(env, prng, entries) {
+          try {
+            throw undefined;
+          } catch (prngp) {
+            prngp = prng.dup();
+            this.after_consumptionQ(env, prngp, entries);
+            return prngp;
+          }
+        },
+        after_consumptionQ: function(env, prng, entries) {
+          this._pid_loopQ(env, prng, entries);
+          prng.stepQ(24);
+        },
+        _pid_loopQ: function(env, prng, entries) {
+          {
+            var $__5 = traceur.runtime.getIterator(entries);
+            try {
+              while (true) {
+                try {
+                  throw undefined;
+                } catch (entry) {
+                  entry = $__5.next();
+                  {
+                    try {
+                      throw undefined;
+                    } catch (trainer_id) {
+                      trainer_id = this._rand32Q(prng);
+                      while (true) {
+                        try {
+                          throw undefined;
+                        } catch (pid) {
+                          pid = this._rand32Q(prng);
+                          if (pid % 25 == entry.nature) break;
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            } catch (e) {
+              if (!traceur.runtime.isStopIteration(e)) throw e;
+            }
+          }
+        },
+        _rand32Q: function(prng) {
+          try {
+            throw undefined;
+          } catch (high) {
+            try {
+              throw undefined;
+            } catch (low) {
+              low = prng.randQ(0x10000);
+              high = prng.randQ(0x10000);
+              return (high << 16 | low) >>> 0;
+            }
+          }
         }
       });
       return $FactoryHelper;
@@ -576,11 +696,11 @@ var $__rough_js = (function() {
                   } catch (prngp) {
                     try {
                       throw undefined;
-                    } catch ($__8) {
+                    } catch ($__9) {
                       {
-                        $__8 = FactoryHelper.choose_entries(this.env, prng, this.env.nStarters);
-                        prngp = traceur.runtime.elementGet($__8, 0);
-                        starters = traceur.runtime.elementGet($__8, 1);
+                        $__9 = FactoryHelper.choose_starters(this.env, prng);
+                        prngp = traceur.runtime.elementGet($__9, 0);
+                        starters = traceur.runtime.elementGet($__9, 1);
                       }
                       return this.predict0(prngp, [], [], starters);
                     }
@@ -604,7 +724,12 @@ var $__rough_js = (function() {
                       maybe_players = $__spread(starters, enemies.slice(0, - 1).flatten());
                       results = OneEnemyPredictor.predict(this.env, prng, unchoosable, maybe_players);
                       return results.map((function(result) {
-                        return this.predict0(result.prng, $__spread(enemies, [result.chosen]), $__spread(skipped, [result.skipped]), starters);
+                        try {
+                          throw undefined;
+                        } catch (prngp) {
+                          prngp = FactoryHelper.after_consumption(env, prng, result.chosen);
+                          return this.predict0(prngp, $__spread(enemies, [result.chosen]), $__spread(skipped, [result.skipped]), starters);
+                        }
                       }).bind(this)).flatten();
                     }
                   }
@@ -645,14 +770,14 @@ var $__rough_js = (function() {
                   } catch (prngp) {
                     try {
                       throw undefined;
-                    } catch ($__8) {
+                    } catch ($__9) {
                       if (chosen.length == this.env.nParty) {
                         return [new OneEnemyPredictorResult(prng, chosen, skipped)];
                       }
                       {
-                        $__8 = FactoryHelper.choose_entry(this.env, prng);
-                        prngp = traceur.runtime.elementGet($__8, 0);
-                        x = traceur.runtime.elementGet($__8, 1);
+                        $__9 = FactoryHelper.choose_entry(this.env, prng);
+                        prngp = traceur.runtime.elementGet($__9, 0);
+                        x = traceur.runtime.elementGet($__9, 1);
                       }
                       if (x.collides_within($__spread(this.unchoosable, chosen, skipped))) {
                         return this.predict0(prngp, skipped, chosen);
@@ -771,22 +896,22 @@ var $__judge_js = (function() {
               } catch (assigner) {
                 assigner = new Assigner(this.env);
                 {
-                  var $__6 = traceur.runtime.getIterator(Util.range(2, this.env.nBattles));
+                  var $__7 = traceur.runtime.getIterator(Util.range(2, this.env.nBattles));
                   try {
                     while (true) {
                       try {
                         throw undefined;
                       } catch (i) {
-                        i = $__6.next();
+                        i = $__7.next();
                         {
                           {
-                            var $__5 = traceur.runtime.getIterator(traceur.runtime.elementGet(this.gate, i));
+                            var $__6 = traceur.runtime.getIterator(traceur.runtime.elementGet(this.gate, i));
                             try {
                               while (true) {
                                 try {
                                   throw undefined;
                                 } catch (item) {
-                                  item = $__5.next();
+                                  item = $__6.next();
                                   {
                                     try {
                                       throw undefined;
@@ -826,78 +951,21 @@ var $__judge_js = (function() {
               } catch (player) {
                 player = null;
                 {
-                  var $__7 = traceur.runtime.getIterator(Util.range(2, this.env.nBattles));
+                  var $__8 = traceur.runtime.getIterator(Util.range(2, this.env.nBattles));
                   try {
                     while (true) {
                       try {
                         throw undefined;
                       } catch (i) {
-                        i = $__7.next();
+                        i = $__8.next();
                         {
-                          try {
-                            throw undefined;
-                          } catch (sh) {
-                            sh = traceur.runtime.elementGet(this.shop, i - 2);
-                            if (i == 2) {
-                              try {
-                                throw undefined;
-                              } catch (items) {
-                                items = schedule.filter((function(w) {
-                                  return w.head == i;
-                                })).map((function(w) {
-                                  return w.item;
-                                }));
-                                player = $__spread(items, (sh.diff(items).sortBy((function(item) {
-                                  return - this.caught(item, i);
-                                }).bind(this)))).slice(0, this.env.nParty);
-                              }
-                            } else {
-                              try {
-                                throw undefined;
-                              } catch (work) {
-                                try {
-                                  throw undefined;
-                                } catch (a) {
-                                  try {
-                                    throw undefined;
-                                  } catch (player_desertable) {
-                                    try {
-                                      throw undefined;
-                                    } catch (current_works) {
-                                      current_works = schedule.filter((function(w) {
-                                        return w.range.include(i) && w.head != i;
-                                      }));
-                                      player_desertable = player.diff(current_works.map((function(w) {
-                                        return w.item;
-                                      })));
-                                      a = player_desertable.minBy((function(item) {
-                                        return this.caught(item, i);
-                                      }).bind(this));
-                                      work = schedule.find((function(w) {
-                                        return w.head == i;
-                                      }));
-                                      if (work) {
-                                        player = $__spread(player.diff([a]), [work.item]);
-                                      } else {
-                                        try {
-                                          throw undefined;
-                                        } catch (b) {
-                                          b = sh.maxBy((function(item) {
-                                            return this.caught(item, i);
-                                          }).bind(this));
-                                          if (this.caught(a, i) < this.caught(b, i)) {
-                                            player = $__spread(player.diff([a]), [b]);
-                                          }
-                                        }
-                                      }
-                                    }
-                                  }
-                                }
-                              }
-                            }
-                            if (!(player.cap(traceur.runtime.elementGet(this.shop, i)).isEmpty)) {
-                              return false;
-                            }
+                          if (i == 2) {
+                            player = this.greedy_select_starters(schedule, i);
+                          } else {
+                            player = this.greedy_exchange(schedule, i, player);
+                          }
+                          if (!(player.cap(traceur.runtime.elementGet(this.shop, i)).isEmpty())) {
+                            return false;
                           }
                         }
                       }
@@ -907,6 +975,76 @@ var $__judge_js = (function() {
                   }
                 }
                 return true;
+              }
+            },
+            greedy_select_starters: function(schedule, i) {
+              try {
+                throw undefined;
+              } catch (items) {
+                try {
+                  throw undefined;
+                } catch (sh) {
+                  sh = traceur.runtime.elementGet(this.shop, i - 2);
+                  items = schedule.filter((function(w) {
+                    return w.head == i;
+                  })).map((function(w) {
+                    return w.item;
+                  }));
+                  return $__spread(items, (sh.diff(items).sortBy((function(item) {
+                    return - this.caught(item, i);
+                  }).bind(this)))).slice(0, this.env.nParty);
+                }
+              }
+            },
+            greedy_exchange: function(schedule, i, player) {
+              try {
+                throw undefined;
+              } catch (work) {
+                try {
+                  throw undefined;
+                } catch (a) {
+                  try {
+                    throw undefined;
+                  } catch (player_desertable) {
+                    try {
+                      throw undefined;
+                    } catch (current_works) {
+                      try {
+                        throw undefined;
+                      } catch (sh) {
+                        sh = traceur.runtime.elementGet(this.shop, i - 2);
+                        current_works = schedule.filter((function(w) {
+                          return w.range.include(i) && w.head != i;
+                        }));
+                        player_desertable = player.diff(current_works.map((function(w) {
+                          return w.item;
+                        })));
+                        a = player_desertable.minBy((function(item) {
+                          return this.caught(item, i);
+                        }).bind(this));
+                        work = schedule.find((function(w) {
+                          return w.head == i;
+                        }));
+                        if (work) {
+                          return $__spread(player.diff([a]), [work.item]);
+                        } else {
+                          try {
+                            throw undefined;
+                          } catch (b) {
+                            b = sh.maxBy((function(item) {
+                              return this.caught(item, i);
+                            }).bind(this));
+                            if (this.caught(a, i) < this.caught(b, i)) {
+                              return $__spread(player.diff([a]), [b]);
+                            } else {
+                              return player;
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
               }
             },
             caught: function(item, pos) {
@@ -1031,7 +1169,7 @@ var $__predictor_js = (function() {
   } catch (Predictor) {
     "use strict";
     var Util = $__util_js.Util;
-    var $__8 = $__rough_js, RoughPredictor = $__8.RoughPredictor, RoughPredictorResult = $__8.RoughPredictorResult, OneEnemyPredictor = $__8.OneEnemyPredictor, OneEnemyPredictorResult = $__8.OneEnemyPredictorResult;
+    var $__9 = $__rough_js, RoughPredictor = $__9.RoughPredictor, RoughPredictorResult = $__9.RoughPredictorResult, OneEnemyPredictor = $__9.OneEnemyPredictor, OneEnemyPredictorResult = $__9.OneEnemyPredictorResult;
     var Judge = $__judge_js.Judge;
     Predictor = function() {
       'use strict';
@@ -1076,7 +1214,7 @@ var $__predictor_js = (function() {
     }));
   }
 }).call(this);
-var $__8 = $__predictor_js, Entry = $__8.Entry, Env = $__8.Env, PRNG = $__8.PRNG, FactoryHelper = $__8.FactoryHelper, Predictor = $__8.Predictor;
+var $__9 = $__predictor_js, Entry = $__9.Entry, Env = $__9.Env, PRNG = $__9.PRNG, FactoryHelper = $__9.FactoryHelper, Predictor = $__9.Predictor;
 var Util = $__util_js.Util;
 if (!(traceur.runtime.elementHas(window, 'console'))) window.console = {log: (function(x) {
     return x;
