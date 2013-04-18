@@ -614,18 +614,18 @@ var $__factory_helper_js = (function() {
             return starters;
           }
         },
-        after_consumption: function(env, prng, entries) {
+        after_consumption: function(env, prng, entries, i) {
           try {
             throw undefined;
           } catch (prngp) {
             prngp = prng.dup();
-            this.after_consumptionQ(env, prngp, entries);
+            this.after_consumptionQ(env, prngp, entries, i);
             return prngp;
           }
         },
-        after_consumptionQ: function(env, prng, entries) {
+        after_consumptionQ: function(env, prng, entries, i) {
           this._pid_loopQ(env, prng, entries);
-          prng.stepQ(24);
+          prng.stepQ(i == 0 ? 24: 6);
         },
         _pid_loopQ: function(env, prng, entries) {
           {
@@ -734,20 +734,25 @@ var $__rough_js = (function() {
                     try {
                       throw undefined;
                     } catch (unchoosable) {
-                      if (enemies.length == this.env.nBattles) {
-                        return [new RoughPredictorResult(prng, enemies, skipped, starters)];
-                      }
-                      unchoosable = enemies.last || starters;
-                      maybe_players = $__spread(starters, enemies.slice(0, - 1).flatten());
-                      results = OneEnemyPredictor.predict(this.env, prng, unchoosable, maybe_players);
-                      return results.map((function(result) {
-                        try {
-                          throw undefined;
-                        } catch (prngp) {
-                          prngp = FactoryHelper.after_consumption(env, result.prng, result.chosen);
-                          return this.predict0(prngp, $__spread(enemies, [result.chosen]), $__spread(skipped, [result.skipped]), starters);
+                      try {
+                        throw undefined;
+                      } catch (i) {
+                        if (enemies.length == this.env.nBattles) {
+                          return [new RoughPredictorResult(prng, enemies, skipped, starters)];
                         }
-                      }).bind(this)).flatten();
+                        i = enemies.length;
+                        unchoosable = enemies.last || starters;
+                        maybe_players = $__spread(starters, enemies.slice(0, i - 1).flatten());
+                        results = OneEnemyPredictor.predict(this.env, prng, unchoosable, maybe_players);
+                        return results.map((function(result) {
+                          try {
+                            throw undefined;
+                          } catch (prngp) {
+                            prngp = FactoryHelper.after_consumption(env, result.prng, result.chosen, i);
+                            return this.predict0(prngp, $__spread(enemies, [result.chosen]), $__spread(skipped, [result.skipped]), starters);
+                          }
+                        }).bind(this)).flatten();
+                      }
                     }
                   }
                 }
