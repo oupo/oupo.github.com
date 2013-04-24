@@ -24,7 +24,7 @@ var $__getDescriptors = function(object) {
   }
   return rv;
 };
-var $__10;
+var $__14;
 var $__env_js = (function() {
   try {
     throw undefined;
@@ -134,11 +134,11 @@ var $__prng_js = (function() {
                       } catch (a) {
                         try {
                           throw undefined;
-                        } catch ($__9) {
+                        } catch ($__11) {
                           {
-                            $__9 = make_const(n);
-                            a = traceur.runtime.elementGet($__9, 0);
-                            b = traceur.runtime.elementGet($__9, 1);
+                            $__11 = make_const(n);
+                            a = traceur.runtime.elementGet($__11, 0);
+                            b = traceur.runtime.elementGet($__11, 1);
                           }
                           this.seed = u32(mul(this.seed, a) + b);
                         }
@@ -198,7 +198,7 @@ var $__util_js = (function() {
         value: function() {
           var ret = [];
           for (var i = 0; i < this.length; i++) {
-            ($__10 = ret).push.apply($__10, $__toObject(traceur.runtime.elementGet(this, i)));
+            ($__14 = ret).push.apply($__14, $__toObject(traceur.runtime.elementGet(this, i)));
           }
           return ret;
         },
@@ -394,7 +394,7 @@ var $__factory_helper_js = (function() {
   } catch (FactoryHelper) {
     "use strict";
     var Util = $__util_js.Util;
-    var $__9 = $__env_js, Entry = $__9.Entry, Env = $__9.Env;
+    var $__11 = $__env_js, Entry = $__11.Entry, Env = $__11.Env;
     FactoryHelper = function() {
       'use strict';
       var $FactoryHelper = ($__createClassNoExtends)({constructor: function() {}}, {
@@ -418,12 +418,12 @@ var $__factory_helper_js = (function() {
                     } catch (pokemon) {
                       try {
                         throw undefined;
-                      } catch ($__9) {
+                      } catch ($__11) {
                         {
-                          $__9 = line.split(",");
-                          pokemon = traceur.runtime.elementGet($__9, 0);
-                          item = traceur.runtime.elementGet($__9, 1);
-                          natureName = traceur.runtime.elementGet($__9, 2);
+                          $__11 = line.split(",");
+                          pokemon = traceur.runtime.elementGet($__11, 0);
+                          item = traceur.runtime.elementGet($__11, 1);
+                          natureName = traceur.runtime.elementGet($__11, 2);
                         }
                         nature = NATURE_NAMES.indexOf(natureName);
                         return new Entry(i + 1, item, pokemon, nature);
@@ -561,11 +561,11 @@ var $__factory_helper_js = (function() {
               } catch (start) {
                 try {
                   throw undefined;
-                } catch ($__9) {
+                } catch ($__11) {
                   {
-                    $__9 = this._choice_range(env, battle_index);
-                    start = traceur.runtime.elementGet($__9, 0);
-                    end = traceur.runtime.elementGet($__9, 1);
+                    $__11 = this._choice_range(env, battle_index);
+                    start = traceur.runtime.elementGet($__11, 0);
+                    end = traceur.runtime.elementGet($__11, 1);
                   }
                   i = end - 1 - prng.randQ(end - start);
                   return traceur.runtime.elementGet(env.allEntries, i);
@@ -736,11 +736,11 @@ var $__rough_js = (function() {
                   } catch (prngp) {
                     try {
                       throw undefined;
-                    } catch ($__9) {
+                    } catch ($__11) {
                       {
-                        $__9 = FactoryHelper.choose_starters(this.env, prng);
-                        prngp = traceur.runtime.elementGet($__9, 0);
-                        starters = traceur.runtime.elementGet($__9, 1);
+                        $__11 = FactoryHelper.choose_starters(this.env, prng);
+                        prngp = traceur.runtime.elementGet($__11, 0);
+                        starters = traceur.runtime.elementGet($__11, 1);
                       }
                       return this.predict0(prngp, [], [], starters);
                     }
@@ -816,14 +816,14 @@ var $__rough_js = (function() {
                   } catch (prngp) {
                     try {
                       throw undefined;
-                    } catch ($__9) {
+                    } catch ($__11) {
                       if (chosen.length == this.env.nParty) {
                         return [new OneEnemyPredictorResult(prng, chosen, skipped)];
                       }
                       {
-                        $__9 = FactoryHelper.choose_entry(this.env, prng, this.battle_index);
-                        prngp = traceur.runtime.elementGet($__9, 0);
-                        x = traceur.runtime.elementGet($__9, 1);
+                        $__11 = FactoryHelper.choose_entry(this.env, prng, this.battle_index);
+                        prngp = traceur.runtime.elementGet($__11, 0);
+                        x = traceur.runtime.elementGet($__11, 1);
                       }
                       if (x.collides_within($__spread(this.unchoosable, chosen, skipped))) {
                         return this.predict0(prngp, skipped, chosen);
@@ -1215,7 +1215,7 @@ var $__predictor_js = (function() {
   } catch (Predictor) {
     "use strict";
     var Util = $__util_js.Util;
-    var $__9 = $__rough_js, RoughPredictor = $__9.RoughPredictor, RoughPredictorResult = $__9.RoughPredictorResult, OneEnemyPredictor = $__9.OneEnemyPredictor, OneEnemyPredictorResult = $__9.OneEnemyPredictorResult;
+    var $__11 = $__rough_js, RoughPredictor = $__11.RoughPredictor, RoughPredictorResult = $__11.RoughPredictorResult, OneEnemyPredictor = $__11.OneEnemyPredictor, OneEnemyPredictorResult = $__11.OneEnemyPredictorResult;
     var Judge = $__judge_js.Judge;
     Predictor = function() {
       'use strict';
@@ -1260,16 +1260,15 @@ var $__predictor_js = (function() {
     }));
   }
 }).call(this);
-var $__9 = $__predictor_js, Entry = $__9.Entry, Env = $__9.Env, PRNG = $__9.PRNG, FactoryHelper = $__9.FactoryHelper, Predictor = $__9.Predictor;
+var $__11 = $__predictor_js, Entry = $__11.Entry, Env = $__11.Env, PRNG = $__11.PRNG, FactoryHelper = $__11.FactoryHelper, Predictor = $__11.Predictor;
 var Util = $__util_js.Util;
 if (!(traceur.runtime.elementHas(window, 'console'))) window.console = {log: (function(x) {
     return x;
   })};
-function icon_url(id) {
-  return ("http://veekun.com/dex/media/pokemon/icons/" + id + ".png");
-}
-var env;
+var gEnv;
 var POKEMON_NAME_TO_ID;
+var gPokemonImage;
+var ICON_SIZE = 32;
 function main() {
   var $that = this;
   var $state = 0;
@@ -1297,7 +1296,7 @@ function main() {
           $state = 1;
           break;
         case 1:
-          env = $value;
+          gEnv = $value;
           $state = 3;
           break;
         case 2:
@@ -1319,16 +1318,30 @@ function main() {
           $state = 7;
           break;
         case 7:
-          document.body.innerHTML = "\n\t\t<h1>factory-predictor Demo</h1>\n\t\t<form action=\"\" onsubmit=\"return false\">\n\t\tseed: <input type=\"text\" id=\"seed\" value=\"0\">\n\t\t<input type=\"submit\" value=\"実行\">\n\t\t</form>\n\t\t<div id=\"result\"></div>\n\t";
+          $waitTask = loadImage("icons.png");
+          $waitTask.then($createCallback(9), $createErrback(10));
+          return;
           $state = 9;
           break;
         case 9:
-          document.querySelector("form").addEventListener("submit", (function() {
-            exec(Number(document.querySelector("#seed").value));
-          }), false);
+          gPokemonImage = $value;
+          $state = 11;
+          break;
+        case 10:
+          throw $err;
           $state = 11;
           break;
         case 11:
+          document.body.innerHTML = "\n\t\t<h1>factory-predictor Demo</h1>\n\t\t<form action=\"\" onsubmit=\"return false\">\n\t\tseed: <input type=\"text\" id=\"seed\" value=\"0\">\n\t\t<input type=\"submit\" value=\"実行\">\n\t\t</form>\n\t\t<div id=\"result\"></div>\n\t";
+          $state = 13;
+          break;
+        case 13:
+          document.querySelector("form").addEventListener("submit", (function() {
+            exec(Number(document.querySelector("#seed").value));
+          }), false);
+          $state = 15;
+          break;
+        case 15:
           $result.callback(undefined);
           $state = -2;
           break;
@@ -1475,19 +1488,158 @@ function load_pokemon_name_to_id() {
   $continuation();
   return $result.createPromise();
 }
+function toPokemonId(entry) {
+  return traceur.runtime.elementGet(POKEMON_NAME_TO_ID, entry.pokemon);
+}
+function loadImage(url) {
+  var deferred = new Deferred;
+  var image = new Image;
+  image.src = url;
+  image.onload = function() {
+    deferred.callback(image);
+  };
+  image.onerror = function() {
+    deferred.errback();
+  };
+  return deferred.createPromise();
+}
 function exec(seed) {
-  var result = Predictor.predict(env, new PRNG(seed));
-  console.log(result);
-  document.querySelector("#result").innerHTML = ("\n\t\t結果: " + result.length + " 件\n\t\t<table>\n\t\t<tr><td></td>" + Util.iota(env.nBattles).map((function(i) {
-    return ("<td>" + (i + 1) + "戦目</td>");
-  })).join("") + "</tr>\n\t\t" + result.map((function(r, i) {
-    return ("<tr>\n\t\t\t\t<td>" + i + "件目</td>\n\t\t\t\t" + r.enemies.map(td).join("") + "\n\t\t\t\t</tr>");
-  })).join("") + "</table>\n\t");
-  function td(enemy) {
-    return ("<td>" + enemy.map((function(x) {
-      var id = traceur.runtime.elementGet(POKEMON_NAME_TO_ID, x.pokemon);
-      return ("<img src=\"" + icon_url(id) + "\" alt=\"" + x.pokemon + "\">");
-    })).join("") + "</td>");
+  var result = Predictor.predict(gEnv, new PRNG(seed));
+  var tree = toTree(gEnv, result);
+  var canvas = drawTree(tree, 0);
+  document.querySelector("#result").innerHTML = "";
+  document.querySelector("#result").appendChild(canvas);
+}
+function drawTree(node, nest) {
+  var PAD_X = 10, PAD_Y = 50;
+  var $__11 = node, x = traceur.runtime.elementGet($__11, 0), children = traceur.runtime.elementGet($__11, 1);
+  var canvases = children.map((function(child) {
+    return scaleCanvas(drawTree(child, nest + 1), 0.6);
+  }));
+  var vertex = drawVertex(x);
+  var height = vertex.height + PAD_Y + canvases.map((function(c) {
+    return c.height;
+  })).max();
+  var width = canvases.reduce((function(r, c) {
+    return r + c.width;
+  }), 0) + (canvases.length - 1) * PAD_X;
+  width = Math.max(width, vertex.width);
+  var ctx = newCanvas(width, height);
+  ctx.drawImage(vertex, (width - vertex.width) / 2, 0);
+  var x = 0;
+  canvases.forEach((function(child, i) {
+    ctx.beginPath();
+    ctx.moveTo(width / 2, vertex.height);
+    ctx.lineTo(x + child.width / 2, vertex.height + PAD_Y);
+    ctx.stroke();
+    ctx.drawImage(child, x, vertex.height + PAD_Y);
+    x += child.width + PAD_X;
+  }));
+  return ctx.canvas;
+}
+function scaleCanvas(canvas, scale) {
+  var w = canvas.width * scale, h = canvas.height * scale;
+  var ctx = newCanvas(w, h);
+  ctx.drawImage(canvas, 0, 0, canvas.width, canvas.height, 0, 0, w, h);
+  return ctx.canvas;
+}
+function drawVertex(entries) {
+  var s = 32;
+  var $__11 = [100, 32], w = traceur.runtime.elementGet($__11, 0), h = traceur.runtime.elementGet($__11, 1);
+  var ctx = newCanvas(w, h);
+  ctx.fillStyle = "#F7E6A3";
+  ctx.fillRect(0, 0, w, h);
+  var startX = (w - s * entries.length) / 2;
+  var y = (h - s) / 2;
+  entries.forEach((function(entry, i) {
+    var id = toPokemonId(entry);
+    var x = startX + s * i;
+    ctx.drawImage(gPokemonImage, s * (id - 1), 0, s, s, x, y, s, s);
+  }));
+  return ctx.canvas;
+}
+function newCanvas(w, h) {
+  var canvas = document.createElement("canvas");
+  canvas.width = w, canvas.height = h;
+  return canvas.getContext("2d");
+}
+function displayTree(env, node, nest) {
+  var indent = Util.str_repeat("--", nest);
+  var prefix = (indent + " " + (nest + 1) + ". ");
+  var out = "";
+  var $__11 = node, x = traceur.runtime.elementGet($__11, 0), children = traceur.runtime.elementGet($__11, 1);
+  out += ("" + prefix + x.map((function(e) {
+    return e.pokemon;
+  })).join(" ") + "\n");
+  {
+    var $__9 = traceur.runtime.getIterator(children);
+    try {
+      while (true) {
+        var child = $__9.next();
+        {
+          out += displayTree(env, child, nest + 1);
+        }
+      }
+    } catch (e) {
+      if (!traceur.runtime.isStopIteration(e)) throw e;
+    }
+  }
+  return out;
+}
+function toTree(env, results) {
+  var nodes = toTree0(env, results, 0);
+  if (nodes.length != 1) throw "nodes.length must == 1";
+  return traceur.runtime.elementGet(nodes, 0);
+}
+function toTree0(env, results, i) {
+  function toKey(r) {
+    return traceur.runtime.elementGet(r.enemies, i);
+  }
+  if (i == env.nBattles - 1) {
+    return results.map((function(x) {
+      return [toKey(x), []];
+    }));
+  } else {
+    return groupBy(results, toKey).map((function($__11) {
+      var key = traceur.runtime.elementGet($__11, 0), elems = traceur.runtime.elementGet($__11, 1);
+      return [key, toTree0(env, elems, i + 1)];
+    }));
+  }
+}
+function groupBy(array, toKey) {
+  var result = [];
+  {
+    var $__10 = traceur.runtime.getIterator(array);
+    try {
+      while (true) {
+        var x = $__10.next();
+        {
+          var key = toKey(x);
+          var found = result.find((function($__12) {
+            var k = traceur.runtime.elementGet($__12, 0), elems = traceur.runtime.elementGet($__12, 1);
+            return equals(k, key);
+          }));
+          if (!found) {
+            result.push([key, [x]]);
+          } else {
+            var $__13 = found, k = traceur.runtime.elementGet($__13, 0), elems = traceur.runtime.elementGet($__13, 1);
+            elems.push(x);
+          }
+        }
+      }
+    } catch (e) {
+      if (!traceur.runtime.isStopIteration(e)) throw e;
+    }
+  }
+  return result;
+}
+function equals(a, b) {
+  if (Array.isArray(a) && Array.isArray(b)) {
+    return a.length === b.length && a.every((function(x, i) {
+      return equals(traceur.runtime.elementGet(a, i), traceur.runtime.elementGet(b, i));
+    }));
+  } else {
+    return a === b;
   }
 }
 window.addEventListener("load", (function() {
