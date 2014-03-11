@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<title>mt-benchmark (no use asm)</title>
+<h1>mt-benchmark (no use asm)</h1>
+<script>
+function MtModule(stdlib) {
+	//"use asm";
+
+	var imul = stdlib.Math.imul;
+    
+	function next_mt_elem(a, i) {
+		a = a|0;
+		i = i|0;
+		return (imul(1812433253|0, a ^ (a >>> 30))|0) + i |0;
+	}
+
+	function genrand(mt0, mt1, mt397) {
+		mt0 = mt0|0;
+		mt1 = mt1|0;
+		mt397 = mt397|0;
+		var v = 0;
+		v = (mt0 & 0x80000000) | (mt1 & 0x7fffffff);
+		v = mt397 ^ (v >>> 1) ^ ((v & 1) ? 0x9908b0df : 0);
+		v = v ^ (v >>> 11);
+		v = v ^ ((v << 7) & 0x9d2c5680);
+		v = v ^ ((v << 15) & 0xefc60000);
+		v = v ^ (v >>> 18);
+		return v|0;
+	}
+	
+
+	function get_first_mt_result(seed) {
+		seed = seed|0;
+		var mt1 = 0, mt = 0, i = 2;
+		mt1 = next_mt_elem(seed|0, 1)|0;
+		mt = mt1;
+		while ((i|0) <= (397|0)) {
+			mt = next_mt_elem(mt|0, i|0)|0;
+			i = i+1 |0;
+		}
+		return genrand(seed|0, mt1|0, mt|0)|0;
+	}
+
+	function mt_sum(N) {
+		N = N|0;
+		var result = 0, i = 0;
+		while ((i|0) < (N|0)) {
+			result = result + (get_first_mt_result(i|0)|0) |0;
+			i = i+1 | 0;
+		}
+		return result|0;
+	}
+
+	return {mt_sum: mt_sum};
+}
+
+var mt_sum = MtModule(window).mt_sum;
+var start = Date.now();
+var ret = mt_sum(1000000);
+var end = Date.now();
+alert(ret+"\n"+(end-start)+" msec");
+</script>
