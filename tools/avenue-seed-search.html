@@ -1,0 +1,81 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>avenue-seed-search</title>
+<script src="avenue-seed-search.js"></script>
+<script>
+var NAMES = ["ハジメ", "ツギコ", "イチミ", "ミライ", "チユ", "パソキチ", "アートス", "アリョーナ", "アッツォ", "アントニナ", "アルヒッパ", "アリビーナ", "アントン", "アスタ", "アンセルミ", "アンネリ", "アルピ", "アネルマ", "アッラン", "アイニッキ", "アーポ", "アーム", "アクセル", "アッスンタ", "アッサール", "アラベッラ", "アティリオ", "アンネッタ", "アマンド", "アガタ", "ジャコブ", "ジャサント", "ジェローム", "ジョゼ", "ジュスタン", "ジャンヌ", "ジュール", "ジュリー", "ジャスパー", "ジェーン", "ジェヒュー", "ジャニス", "ジョナス", "ジェナ", "ジャレッド", "ジョアン", "ジャン", "ジョイス", "ジョエル", "ジョスリン", "ジョシュア", "ジェシー", "ジェリー", "ジュディス", "チェレン", "ホミカ", "アーティ", "カミツレ", "ヤーコン", "フウロ", "シャガ", "シズイ"];
+
+function read_fan_names(str) {
+	return cutLastEmpty(str.split(" ")).map(function (x) {
+		var i = NAMES.indexOf(x)
+		if (i < 0) {
+			throw x+"という名前はありません";
+		}
+		return i;
+	});
+}
+
+function cutLastEmpty(x) {
+	if (x[x.length - 1] == "") {
+		return x.slice(0, -1);
+	} else {
+		return x;
+	}
+}
+
+function onSubmit() {
+	try {
+		onSubmit0();
+	} catch(e) {
+		alert(e);
+	}
+}
+
+function onSubmit0() {
+	var form = document.forms.f;
+	var openedShops = read_fan_names(form.elements.openedShops.value);
+	if (openedShops.length > 8) {
+		throw "お店を開いているファンの名前が多すぎます";
+	}
+	while (openedShops.length < 8) openedShops.push(0);
+	var emerged = [];
+	console.log(form.elements.emerged.value);
+	form.elements.emerged.value.split("\n").forEach(function(line) {
+		var fans = read_fan_names(line);
+		if (fans.length == 0) return;
+		if (fans.length != 4) {
+			throw "ファンの数が4人になっていません";
+		}
+		emerged.push(fans);
+	});
+	console.log(openedShops);
+	console.log(emerged);
+	var setOpenedShops = Module.cwrap("setOpenedShops", null, ["number", "number", "number", "number", "number", "number", "number", "number"]);
+	var setEmerged = Module.cwrap("setEmerged", null, ["number", "number", "number", "number", "number"]);
+	var setNumDays = Module.cwrap("setNumDays", null, ["number"]);
+	var solve = Module.cwrap("solve", null, []);
+
+	setOpenedShops.apply(null, openedShops);
+	setNumDays(emerged.length);
+	emerged.forEach(function(x,i) {
+		setEmerged(i, x[0], x[1], x[2], x[3]);
+	});
+	solve();
+	return;
+}
+</script>
+<h1>avenue-seed-search</h1>
+<p>使い方:
+<p>
+アベニューの客を0人にする。そして次の日に来たファン4人の名前を入力する。これを2回繰り返す。
+<form action="" name="f" onsubmit="onSubmit();return false;">
+<dl>
+<dt>お店を開いているファンの名前 (スペース区切り)
+<dd><input type="text" size="50" name="openedShops" value="">
+<dt>出現したファンの名前(1行に1日分):
+<dd><textarea rows="3" cols="40" name="emerged"></textarea>
+<dd><input type="submit" value="検索">
+</dl>
+</form>
+<div id="out">
+</div>
