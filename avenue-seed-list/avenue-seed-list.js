@@ -38,6 +38,7 @@ function onSubmit() {
     var visitorsNum = Number(form.elements["visitorsNum"].value);
     var outNum = Number(form.elements["outNum"].value);
     var coloredNames = form.elements["coloredNames"].value.split(" ");
+    var raffleCheck = form.elements["raffleCheck"].checked;
     var results = listVisitors(seed, visitorsNum, outNum);
     var idToTds = {};
     var trs = results.map(function (r, i) {
@@ -48,7 +49,7 @@ function onSubmit() {
         $tr.append($("<td>").text(NAMES[r.gymleader]));
         r.visitors.forEach(function (visitor, idx) {
             var $td = $("<td>").text(NAMES[visitor]);
-            if (RAFFLE_FUN_NAMES.indexOf(NAMES[visitor]) >= 0) {
+            if (raffleCheck && RAFFLE_FUN_NAMES.indexOf(NAMES[visitor]) >= 0) {
                 $td.addClass("raffle");
             }
             if (coloredNames.indexOf(NAMES[visitor]) >= 0) {
