@@ -7,6 +7,18 @@
 <script src="seed.js"></script>
 <script src="avenue-seed-list.js"></script>
 <style>
+    td.raffle {
+        background: #4fe96a;
+    }
+    td.skipped {
+        color: #cccccc;
+    }
+    td.colored {
+        background: #ffb3b8;
+    }
+    td.hover {
+        background: #91daea;
+    }
 /* https://gist.github.com/andyferra/2554919 */
 table {
   padding: 0; }
@@ -42,6 +54,8 @@ table {
 <dd><input type="text" size="10" name="visitorsNum" value="10">
 <dt>出力件数
 <dd><input type="text" size="10" name="outNum" value="100">
+<dt>以下で指定するファンには赤い背景をつける
+<dd><input type="text" size="30" name="coloredNames" value="">
 <dd><input type="submit" value="検索">
 </dl>
 </form>
