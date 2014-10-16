@@ -1,0 +1,113 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>lcg-distribution-3d.html</title>
+<script type="text/javascript" src="d3m.js"></script>
+<script type="text/javascript" src="lcg-distribution-3d.js"></script>
+<script>
+D3M.prototype.d3pset = function (x, y, z) {
+    this.d3vpos(x, y, z);
+    if (this.df) this.context.fillRect(this.dx, this.dy, 1, 1);
+}
+function Drawer(max) {
+	this.max = max;
+	this.canvas = document.getElementById("canvas");
+	this.ctx = this.canvas.getContext("2d");
+	this.d3m = new D3M(this.ctx, this.canvas.width, this.canvas.height);
+	this.camera_phi = Math.PI / 4;
+	this.camera_theta = Math.PI / 3;
+	this.isMouseDown = false;
+	this.oldMouseX = this.oldMouseY = null;
+	this.points = [];
+	document.addEventListener("mousedown", this.onmousedown.bind(this));
+	document.addEventListener("mousemove", this.onmousemove.bind(this));
+	document.addEventListener("mouseup", this.onmouseup.bind(this));
+}
+
+Drawer.prototype.draw = function() {
+	var R = 2;
+	var d3m = this.d3m;
+	d3m.d3setcam(0.5 + R * Math.cos(this.camera_phi) * Math.sin(this.camera_theta),
+		     0.5 + R * Math.sin(this.camera_phi) * Math.sin(this.camera_theta),
+		     0.5 + R * Math.cos(this.camera_theta),
+		     0.5, 0.5, 0.5);
+	this.ctx.fillStyle = "white";
+	this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+	this.ctx.strokeStyle = "black";
+	this.ctx.beginPath();
+	d3m.d3line(0, 0, 0, 1, 0, 0);
+	d3m.d3line(0, 0, 0, 0, 1, 0);
+	d3m.d3line(0, 0, 0, 0, 0, 1);
+	this.ctx.stroke();
+	this.ctx.fillStyle = "black";
+	this.points.forEach(function (point) {
+		d3m.d3pset(point[0], point[1], point[2]);
+	});
+};
+
+Drawer.prototype.addPoint = function(x,y,z) {
+	this.points.push([x / this.max, y / this.max, z / this.max]);
+}
+
+Drawer.prototype.onmousedown = function (e) {
+	this.isMouseDown = true;
+	this.oldMouseX = e.clientX;
+	this.oldMouseY = e.clientY;
+};
+Drawer.prototype.onmousemove = function (e) {
+	if (this.isMouseDown) {
+		this.camera_phi += 0.01 * (this.oldMouseX - e.clientX);
+		this.camera_theta += 0.01 * (this.oldMouseY - e.clientY);
+		this.camera_theta = Math.max(Math.min(this.camera_theta, Math.PI - 0.01), 0.01);
+		this.draw();
+		this.oldMouseX = e.clientX;
+		this.oldMouseY = e.clientY;
+	}
+};
+Drawer.prototype.onmouseup = function () {
+	this.isMouseDown = false;
+};
+
+function on_submit() {
+	var form = document.forms["f"];
+	var A = parseInt(form.elements["A"].value);
+	var B = parseInt(form.elements["B"].value);
+	var nBits = parseInt(form.elements["nBits"].value);
+	var max = parseInt(form.elements["max"].value);
+	var button = form.querySelector("input[type=submit]");
+	button.setAttribute("disabled", "disabled");
+
+	var drawer = new Drawer(max);
+
+	var put = Runtime.addFunction(drawer.addPoint.bind(drawer));
+	var notify = Runtime.addFunction(function (text) {
+		document.title = Module.Pointer_stringify(text);
+		drawer.draw();
+	});
+	drawer.draw();
+	Module.ccall("set_params", null, ["number", "number", "number", "number"],
+	             [A, B, nBits, max]);
+	Module.ccall("count", null, ["number", "number"], [put, notify]);
+};
+
+window.onload = function () {
+	var form = document.forms["f"];
+	form.addEventListener("submit", on_submit);
+	form.querySelector("input[type=submit]").removeAttribute("disabled");
+};
+</script>
+<h1>lcg-distributon-3d</h1>
+<p>3d version / <a href="lcg-distribution.html">2d version</a>
+<form action="" name="f" onsubmit="return false;">
+<dl>
+<dt>A (乗数)
+<dd><input type="text" size="20" name="A" value="0x6c078965">
+<dt>B (加える数)
+<dd><input type="text" size="20" name="B" value="1">
+<dt>ビット数 (&lt;= 32)
+<dd><input type="text" size="20" name="nBits" value="32">
+<dt>出力範囲
+<dd><input type="text" size="20" name="max" value="0x04000000">
+<dd><input type="submit" value="実行">
+</dl>
+</form>
+<canvas id="canvas" width="500" height="500"></canvas>
