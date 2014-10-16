@@ -1,0 +1,48 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>lcg-distribution.html</title>
+<script type="text/javascript" src="lcg-distribution.js"></script>
+<script>
+function on_submit() {
+	var form = document.forms["f"];
+	var A = parseInt(form.elements["A"].value);
+	var B = parseInt(form.elements["B"].value);
+	var nBits = parseInt(form.elements["nBits"].value);
+	var max = parseInt(form.elements["max"].value);
+	var button = form.querySelector("input[type=submit]");
+	button.setAttribute("disabled", "disabled");
+	var canvas = document.getElementById("canvas");
+	var ctx = canvas.getContext("2d");
+	var scale = canvas.width / max;
+	var put = Runtime.addFunction(function (x,y) {
+		ctx.fillRect(x * scale, y * scale, 1, 1);
+	});
+	var notify = Runtime.addFunction(function (text) {
+		document.title = Module.Pointer_stringify(text);
+	});
+	Module.ccall("set_params", null, ["number", "number", "number", "number"],
+	             [A, B, nBits, max]);
+	Module.ccall("count", null, ["number", "number"], [put, notify]);
+};
+
+window.onload = function () {
+	var form = document.forms["f"];
+	form.addEventListener("submit", on_submit);
+	form.querySelector("input[type=submit]").removeAttribute("disabled");
+};
+</script>
+<h1>lcg-distributon</h1>
+<form action="" name="f" onsubmit="return false;">
+<dl>
+<dt>A (乗数)
+<dd><input type="text" size="20" name="A" value="0x6c078965">
+<dt>B (加える数)
+<dd><input type="text" size="20" name="B" value="1">
+<dt>ビット数 (&lt;= 32)
+<dd><input type="text" size="20" name="nBits" value="32">
+<dt>出力範囲
+<dd><input type="text" size="20" name="max" value="0x00800000">
+<dd><input type="submit" value="実行">
+</dl>
+</form>
+<canvas id="canvas" width="500" height="500"></canvas>
